@@ -1,0 +1,5 @@
+#!/usr/bin/env sh
+set -eu
+
+echo "Running pre-merge checks: lint + typecheck + test + build"
+corepack pnpm verify:merge
