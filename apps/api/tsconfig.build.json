@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "paths": {
+      "@flowmind/shared": ["../../packages/shared/dist/index.d.ts"]
+    }
+  },
+  "exclude": ["src/**/*.spec.ts"]
+}

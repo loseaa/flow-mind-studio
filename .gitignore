@@ -1,0 +1,13 @@
+node_modules
+.corepack
+.pnpm-store
+dist
+build
+.turbo
+.env
+.env.local
+coverage
+*.log
+.DS_Store
+uploads
+tmp

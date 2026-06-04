@@ -1,0 +1,24 @@
+{
+  "name": "flow-mind-studio",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@9.15.4",
+  "scripts": {
+    "prepare": "node scripts/setup-git-hooks.mjs",
+    "dev": "node scripts/dev.mjs",
+    "dev:stop": "node scripts/stop-dev.mjs",
+    "build": "corepack pnpm -r build",
+    "test": "corepack pnpm -r test",
+    "lint": "corepack pnpm -r lint",
+    "typecheck": "corepack pnpm -r typecheck",
+    "verify:commit": "corepack pnpm lint && corepack pnpm typecheck",
+    "verify:push": "corepack pnpm test",
+    "verify:merge": "corepack pnpm lint && corepack pnpm typecheck && corepack pnpm test && corepack pnpm build",
+    "format": "prettier --write ."
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.7",
+    "prettier": "^3.4.2",
+    "typescript": "^5.7.3"
+  }
+}
