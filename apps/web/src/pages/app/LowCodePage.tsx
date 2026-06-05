@@ -16,6 +16,7 @@ export function LowCodePage() {
   const [saveState, setSaveState] = useState<"draft" | "saved" | "published">("draft");
   const elements = useMemo(() => elementMap(document), [document]);
   const selectedElement = elements.get(selectedId) ?? elements.get(document.tree.id) ?? document.elements[0];
+  const parentElement = elements.get(findParentId(document.tree, selectedElement.id) ?? "");
 
   useEffect(() => {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -78,6 +79,7 @@ export function LowCodePage() {
           onSelect={setSelectedId}
         />
         <PropertyInspector
+          parentElement={parentElement}
           selectedElement={selectedElement}
           onUpdate={(patch: Partial<DesignElement>) => commit((current) => updateElement(current, selectedElement.id, patch))}
           onUpdateAppearance={(patch: Partial<DesignAppearance>) => commit((current) => updateElementAppearance(current, selectedElement.id, patch))}
@@ -87,4 +89,13 @@ export function LowCodePage() {
       </div>
     </div>
   );
+}
+
+function findParentId(node: DesignDocument["tree"], id: string, parentId?: string): string | undefined {
+  if (node.id === id) return parentId;
+  for (const child of node.children ?? []) {
+    const found = findParentId(child, id, node.id);
+    if (found) return found;
+  }
+  return undefined;
 }

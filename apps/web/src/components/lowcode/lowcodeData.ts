@@ -1,11 +1,9 @@
 import {
   BadgeCheck,
   BarChart3,
-  BetweenHorizontalEnd,
   FileText,
   Filter,
   Image,
-  Layers3,
   PanelRight,
   RectangleHorizontal,
   Save,
@@ -26,9 +24,7 @@ export const materialCategories: Array<{ title: string; items: MaterialDefinitio
   {
     title: "布局",
     items: [
-      { type: "section", label: "分区", desc: "带内边距的内容区域", icon: Layers3 },
-      { type: "stack", label: "Flex 容器", desc: "横向或纵向排列子元素", icon: FileText },
-      { type: "divider", label: "分割线", desc: "分隔内容层级", icon: BetweenHorizontalEnd }
+      { type: "stack", label: "Flex 容器", desc: "横向或纵向排列子元素", icon: FileText }
     ]
   },
   {

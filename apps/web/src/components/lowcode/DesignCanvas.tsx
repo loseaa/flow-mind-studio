@@ -2,7 +2,8 @@ import { ArrowDown, ArrowUp, GripVertical, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { MouseEvent as ReactMouseEvent, ReactNode, WheelEvent as ReactWheelEvent } from "react";
 import interact from "interactjs";
-import type { DesignDocument, DesignElement, DesignTreeNode } from "@flowmind/shared";
+import type { CSSProperties } from "react";
+import type { DesignDocument, DesignElement, DesignLayout, DesignTreeNode } from "@flowmind/shared";
 import { Button, Input } from "@flowmind/ui";
 import { customerRows, fieldLabels, isContainerElement } from "./lowcodeData";
 import { elementMap } from "./designDocumentOps";
@@ -305,6 +306,7 @@ function CanvasNodeFrame({
       data-drop-parent-id={container ? element.id : undefined}
       data-node-id={element.id}
       data-parent-id={parentId}
+      style={element.type === "page" ? undefined : flexItemStyle(element.layout)}
       onClick={(event) => {
         event.stopPropagation();
         onSelect(element.id);
@@ -501,15 +503,60 @@ function layoutClass(element: DesignElement, base: string) {
   const layout = element.layout;
   const direction = layout?.direction === "horizontal" ? "flex-row" : "flex-col";
   const align = layout?.align === "center" ? "items-center" : layout?.align === "end" ? "items-end" : layout?.align === "stretch" ? "items-stretch" : "items-start";
-  return [base, "flex", direction, align, layout?.direction === "horizontal" ? "flex-wrap" : "", gapClass(layout?.gap)].filter(Boolean).join(" ");
+  const justify = layout?.justify === "center" ? "justify-center" : layout?.justify === "end" ? "justify-end" : layout?.justify === "between" ? "justify-between" : "justify-start";
+  const wrap = layout?.wrap ? "flex-wrap" : "flex-nowrap";
+  return [
+    base,
+    "flex",
+    direction,
+    align,
+    justify,
+    wrap,
+    gapClass(layout?.gap),
+    paddingClass(layout?.padding),
+    sizeClass("w", layout?.width),
+    sizeClass("h", layout?.height)
+  ].filter(Boolean).join(" ");
 }
 
 function gapClass(value: string | undefined) {
+  if (value === "none") return "gap-0";
   if (value === "xs") return "gap-1";
   if (value === "sm") return "gap-2";
   if (value === "lg") return "gap-6";
   if (value === "xl") return "gap-8";
   return "gap-4";
+}
+
+function paddingClass(value: string | undefined) {
+  if (!value || value === "none") return "";
+  if (value === "xs") return "p-1";
+  if (value === "sm") return "p-2";
+  if (value === "lg") return "p-6";
+  if (value === "xl") return "p-8";
+  return "p-4";
+}
+
+function sizeClass(axis: "w" | "h", value: DesignLayout["width"] | DesignLayout["height"]) {
+  if (value === "fill") return axis === "w" ? "w-full" : "h-full";
+  if (value === "hug") return axis === "w" ? "w-fit" : "h-fit";
+  return "";
+}
+
+function flexItemStyle(layout: DesignLayout | undefined): CSSProperties | undefined {
+  if (!layout) return undefined;
+  const style: CSSProperties = {};
+  if (layout.grow === "fill") {
+    style.flexGrow = 1;
+    style.flexShrink = 1;
+    style.flexBasis = 0;
+  } else if (layout.grow === "none") {
+    style.flexGrow = 0;
+    style.flexShrink = 0;
+  }
+  if (layout.width === "fixed" && layout.fixedWidth) style.width = layout.fixedWidth;
+  if (layout.height === "fixed" && layout.fixedHeight) style.height = layout.fixedHeight;
+  return Object.keys(style).length > 0 ? style : undefined;
 }
 
 function arrayProp(value: unknown, fallback: string[]) {
