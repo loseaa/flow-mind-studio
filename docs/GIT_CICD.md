@@ -67,6 +67,59 @@ git merge master --ff-only
 git push
 ```
 
+## GitHub CLI
+
+本项目可以使用 GitHub CLI 查看 PR、Actions 状态和远端仓库信息。
+
+Windows 安装命令：
+
+```powershell
+winget install --id GitHub.cli -e --source winget --accept-package-agreements --accept-source-agreements
+```
+
+安装后可验证：
+
+```powershell
+gh --version
+```
+
+如果刚安装完当前终端仍提示找不到 `gh`，通常是 PATH 还没有刷新。新开一个终端即可；或者在当前 PowerShell 临时刷新 PATH：
+
+```powershell
+$env:Path = [Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [Environment]::GetEnvironmentVariable("Path", "User")
+gh --version
+```
+
+当前环境中 GitHub CLI 安装位置通常是：
+
+```text
+C:\Program Files\GitHub CLI\gh.exe
+```
+
+首次使用前需要登录：
+
+```powershell
+gh auth login
+```
+
+推荐选择：
+
+- GitHub.com
+- HTTPS 或 SSH 均可；本项目 Git remote 当前使用 SSH
+- Browser 登录方式
+
+检查登录状态：
+
+```powershell
+gh auth status
+```
+
+注意：CLI 安装成功不代表已登录。未登录时会看到：
+
+```text
+You are not logged into any GitHub hosts. To log in, run: gh auth login
+```
+
 ## 本地校验脚本
 
 根目录 `package.json` 定义了统一校验入口：
