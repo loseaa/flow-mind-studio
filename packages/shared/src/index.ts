@@ -429,7 +429,13 @@ export const designLayoutSchema = z.object({
   gap: z.enum(designSpacingValues).optional(),
   padding: z.enum(designSpacingValues).optional(),
   width: z.enum(["fill", "hug", "fixed"]).optional(),
-  align: z.enum(["start", "center", "end", "stretch"]).optional()
+  height: z.enum(["fill", "hug", "fixed"]).optional(),
+  fixedWidth: z.number().int().positive().optional(),
+  fixedHeight: z.number().int().positive().optional(),
+  align: z.enum(["start", "center", "end", "stretch"]).optional(),
+  justify: z.enum(["start", "center", "end", "between"]).optional(),
+  wrap: z.boolean().optional(),
+  grow: z.enum(["none", "fill"]).optional()
 }).strict();
 export type DesignLayout = z.infer<typeof designLayoutSchema>;
 

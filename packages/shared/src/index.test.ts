@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { chatPartSchema, designDocumentSchema, hasPermission, lowCodePageSchema } from "./index.ts";
+import type { DesignDocument } from "./index.ts";
 
 describe("shared contracts", () => {
   it("keeps member permissions scoped", () => {
@@ -55,9 +56,36 @@ describe("shared contracts", () => {
     expect(() => designDocumentSchema.parse(validDesignDocument())).not.toThrow();
   });
 
+  it("validates enhanced flex layout settings without breaking old documents", () => {
+    const document = validDesignDocument();
+    document.elements[1].layout = {
+      display: "flex",
+      direction: "horizontal",
+      gap: "md",
+      padding: "lg",
+      align: "stretch",
+      justify: "between",
+      wrap: true,
+      width: "fixed",
+      height: "fill",
+      fixedWidth: 360,
+      grow: "fill"
+    };
+
+    const parsed = designDocumentSchema.parse(document);
+
+    expect(parsed.elements[1].layout).toMatchObject({
+      justify: "between",
+      wrap: true,
+      fixedWidth: 360,
+      grow: "fill"
+    });
+    expect(() => designDocumentSchema.parse(validDesignDocument())).not.toThrow();
+  });
+
   it("rejects design documents when tree references missing elements", () => {
     const document = validDesignDocument();
-    document.tree.children.push({ id: "missing_node", children: [] });
+    document.tree.children!.push({ id: "missing_node", children: [] });
 
     expect(() => designDocumentSchema.parse(document)).toThrow(/不存在的元素 id/);
   });
@@ -71,13 +99,13 @@ describe("shared contracts", () => {
 
   it("rejects design documents when a node appears twice in tree", () => {
     const document = validDesignDocument();
-    document.tree.children.push({ id: "title_text", children: [] });
+    document.tree.children!.push({ id: "title_text", children: [] });
 
     expect(() => designDocumentSchema.parse(document)).toThrow(/重复出现元素 id/);
   });
 });
 
-function validDesignDocument() {
+function validDesignDocument(): DesignDocument {
   return {
     schemaVersion: "fm-design/v1",
     id: "doc_customer_admin",

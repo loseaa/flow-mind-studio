@@ -35,6 +35,51 @@ describe("LowCodePage design builder", () => {
     expect(screen.getByText("当前选中：文本")).toBeInTheDocument();
   });
 
+  it("only exposes the Flex container in layout materials", () => {
+    render(<LowCodePage />);
+
+    expect(screen.getByRole("button", { name: /Flex 容器/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /分区/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /分割线/ })).not.toBeInTheDocument();
+  });
+
+  it("updates enhanced Flex layout controls and restores them after saving", () => {
+    render(<LowCodePage />);
+
+    fireEvent.click(screen.getByRole("button", { name: /Flex 容器/ }));
+    fireEvent.click(screen.getByRole("button", { name: "横向排列" }));
+    fireEvent.click(screen.getByRole("button", { name: "两端分布" }));
+    fireEvent.click(screen.getByLabelText("允许换行"));
+    fireEvent.click(screen.getByRole("button", { name: "固定宽度" }));
+    fireEvent.change(screen.getByLabelText("固定宽度数值"), { target: { value: "360" } });
+    fireEvent.click(screen.getByRole("button", { name: /保存草稿/ }));
+
+    expect(screen.getByRole("button", { name: "横向排列" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "两端分布" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByLabelText("允许换行")).toBeChecked();
+    expect(screen.getByLabelText("固定宽度数值")).toHaveValue(360);
+
+    render(<LowCodePage />);
+
+    expect(screen.getAllByRole("button", { name: "横向排列" })[0]).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getAllByRole("button", { name: "两端分布" })[0]).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getAllByLabelText("允许换行")[0]).toBeChecked();
+    expect(screen.getAllByLabelText("固定宽度数值")[0]).toHaveValue(360);
+  });
+
+  it("applies fixed Flex sizing to the canvas node", () => {
+    const { container } = render(<LowCodePage />);
+
+    fireEvent.click(screen.getByRole("button", { name: /Flex 容器/ }));
+    fireEvent.click(screen.getByRole("button", { name: "固定宽度" }));
+    fireEvent.change(screen.getByLabelText("固定宽度数值"), { target: { value: "360" } });
+
+    const flexNode = container.querySelector('[data-node-id^="node_stack_"]') as HTMLElement | null;
+
+    expect(flexNode).not.toBeNull();
+    expect(flexNode?.style.width).toBe("360px");
+  });
+
   it("updates text props from the inspector and mirrors the canvas", () => {
     render(<LowCodePage />);
 

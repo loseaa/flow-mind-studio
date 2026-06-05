@@ -2,15 +2,31 @@ import type { ReactNode } from "react";
 import type { DesignAppearance, DesignElement, DesignLayout } from "@flowmind/shared";
 import { Input } from "@flowmind/ui";
 import { CustomScrollbar } from "../CustomScrollbar";
-import { availableFields, fieldLabels } from "./lowcodeData";
+import { availableFields, fieldLabels, isContainerElement } from "./lowcodeData";
+
+type LayoutOption<T extends string> = {
+  value: T;
+  label: string;
+};
+
+const spacingOptions: LayoutOption<NonNullable<DesignLayout["gap"]>>[] = [
+  { value: "none", label: "无" },
+  { value: "xs", label: "很小" },
+  { value: "sm", label: "小" },
+  { value: "md", label: "中" },
+  { value: "lg", label: "大" },
+  { value: "xl", label: "很大" }
+];
 
 export function PropertyInspector({
+  parentElement,
   selectedElement,
   onUpdate,
   onUpdateAppearance,
   onUpdateLayout,
   onUpdateProps
 }: {
+  parentElement?: DesignElement;
   selectedElement: DesignElement;
   onUpdate: (patch: Partial<DesignElement>) => void;
   onUpdateAppearance: (patch: Partial<DesignAppearance>) => void;
@@ -31,12 +47,7 @@ export function PropertyInspector({
             <Input value={selectedElement.type} readOnly className="mt-1 h-9 font-mono" />
           </PropertyGroup>
 
-          <PropertyGroup title="布局">
-            <SelectControl label="方向" value={selectedElement.layout?.direction ?? "vertical"} options={["vertical", "horizontal"]} onChange={(value) => onUpdateLayout({ direction: value as DesignLayout["direction"] })} />
-            <SelectControl label="间距" value={selectedElement.layout?.gap ?? "md"} options={["none", "xs", "sm", "md", "lg", "xl"]} onChange={(value) => onUpdateLayout({ gap: value as DesignLayout["gap"] })} />
-            <SelectControl label="内边距" value={selectedElement.layout?.padding ?? "none"} options={["none", "xs", "sm", "md", "lg", "xl"]} onChange={(value) => onUpdateLayout({ padding: value as DesignLayout["padding"] })} />
-            <div className="rounded-md bg-[#f8fafb] p-2 text-xs leading-5 text-[#5b6472]">当前设计稿只支持 Flex 布局。</div>
-          </PropertyGroup>
+          <FlexLayoutFields selectedElement={selectedElement} parentElement={parentElement} onUpdateLayout={onUpdateLayout} />
 
           <PropertyGroup title="外观">
             <SelectControl label="语义色" value={selectedElement.appearance?.tone ?? "default"} options={["default", "muted", "brand", "success", "warning", "danger"]} onChange={(value) => onUpdateAppearance({ tone: value as DesignAppearance["tone"] })} />
@@ -48,6 +59,112 @@ export function PropertyInspector({
         </div>
       </div>
     </CustomScrollbar>
+  );
+}
+
+function FlexLayoutFields({
+  onUpdateLayout,
+  parentElement,
+  selectedElement
+}: {
+  onUpdateLayout: (patch: Partial<DesignLayout>) => void;
+  parentElement?: DesignElement;
+  selectedElement: DesignElement;
+}) {
+  const isContainer = isContainerElement(selectedElement.type);
+  const parentIsContainer = parentElement ? isContainerElement(parentElement.type) : false;
+  const layout = selectedElement.layout ?? {};
+
+  return (
+    <PropertyGroup title={isContainer ? "Flex 容器" : "在父容器中的占位"}>
+      {isContainer ? (
+        <>
+          <SegmentedControl
+            label="排列方向"
+            value={layout.direction ?? "vertical"}
+            options={[
+              { value: "vertical", label: "纵向排列" },
+              { value: "horizontal", label: "横向排列" }
+            ]}
+            onChange={(direction) => onUpdateLayout({ display: "flex", direction })}
+          />
+          <SegmentedControl
+            label="主轴对齐"
+            value={layout.justify ?? "start"}
+            options={[
+              { value: "start", label: "靠前排列" },
+              { value: "center", label: "居中排列" },
+              { value: "end", label: "靠后排列" },
+              { value: "between", label: "两端分布" }
+            ]}
+            onChange={(justify) => onUpdateLayout({ justify })}
+          />
+          <SegmentedControl
+            label="交叉轴对齐"
+            value={layout.align ?? "start"}
+            options={[
+              { value: "start", label: "起点对齐" },
+              { value: "center", label: "居中对齐" },
+              { value: "end", label: "终点对齐" },
+              { value: "stretch", label: "拉伸填满" }
+            ]}
+            onChange={(align) => onUpdateLayout({ align })}
+          />
+          <ToggleControl label="允许换行" checked={Boolean(layout.wrap)} onChange={(wrap) => onUpdateLayout({ wrap })} />
+          <SegmentedControl label="间距" value={layout.gap ?? "md"} options={spacingOptions} onChange={(gap) => onUpdateLayout({ gap })} />
+          <SegmentedControl label="内边距" value={layout.padding ?? "none"} options={spacingOptions} onChange={(padding) => onUpdateLayout({ padding })} />
+          <SizeControls layout={layout} onUpdateLayout={onUpdateLayout} />
+        </>
+      ) : parentIsContainer ? (
+        <>
+          <SegmentedControl
+            label="占位方式"
+            value={layout.grow ?? "none"}
+            options={[
+              { value: "none", label: "自适应内容" },
+              { value: "fill", label: "填满剩余" }
+            ]}
+            onChange={(grow) => onUpdateLayout({ grow })}
+          />
+          <SizeControls layout={layout} onUpdateLayout={onUpdateLayout} />
+        </>
+      ) : (
+        <div className="rounded-md bg-[#f8fafb] p-3 text-xs leading-5 text-[#5b6472]">该组件不在 Flex 容器内，暂无子项占位设置。</div>
+      )}
+    </PropertyGroup>
+  );
+}
+
+function SizeControls({ layout, onUpdateLayout }: { layout: DesignLayout; onUpdateLayout: (patch: Partial<DesignLayout>) => void }) {
+  return (
+    <>
+      <SegmentedControl
+        label="宽度"
+        value={layout.width ?? "hug"}
+        options={[
+          { value: "hug", label: "自适应宽度" },
+          { value: "fill", label: "填满宽度" },
+          { value: "fixed", label: "固定宽度" }
+        ]}
+        onChange={(width) => onUpdateLayout({ width, fixedWidth: width === "fixed" ? layout.fixedWidth ?? 320 : layout.fixedWidth })}
+      />
+      {layout.width === "fixed" ? (
+        <NumberControl label="固定宽度数值" value={layout.fixedWidth ?? 320} onChange={(fixedWidth) => onUpdateLayout({ fixedWidth })} />
+      ) : null}
+      <SegmentedControl
+        label="高度"
+        value={layout.height ?? "hug"}
+        options={[
+          { value: "hug", label: "自适应高度" },
+          { value: "fill", label: "填满高度" },
+          { value: "fixed", label: "固定高度" }
+        ]}
+        onChange={(height) => onUpdateLayout({ height, fixedHeight: height === "fixed" ? layout.fixedHeight ?? 160 : layout.fixedHeight })}
+      />
+      {layout.height === "fixed" ? (
+        <NumberControl label="固定高度数值" value={layout.fixedHeight ?? 160} onChange={(fixedHeight) => onUpdateLayout({ fixedHeight })} />
+      ) : null}
+    </>
   );
 }
 
@@ -163,6 +280,58 @@ function FieldMultiSelect({ onChange, title, value }: { onChange: (fields: strin
         ))}
       </div>
     </PropertyGroup>
+  );
+}
+
+function SegmentedControl<T extends string>({ label, onChange, options, value }: { label: string; onChange: (value: T) => void; options: LayoutOption<T>[]; value: T }) {
+  return (
+    <div>
+      <FieldLabel>{label}</FieldLabel>
+      <div className="mt-1 grid grid-cols-2 gap-1 rounded-md bg-[#eef2f5] p-1">
+        {options.map((option) => {
+          const active = option.value === value;
+          return (
+            <button
+              key={option.value}
+              aria-pressed={active}
+              className={`min-h-8 rounded px-2 text-xs font-semibold transition ${active ? "bg-white text-[#111827] shadow-sm" : "text-[#5b6472] hover:bg-white/70"}`}
+              type="button"
+              onClick={() => onChange(option.value)}
+            >
+              {option.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function ToggleControl({ checked, label, onChange }: { checked: boolean; label: string; onChange: (checked: boolean) => void }) {
+  return (
+    <label className="flex items-center justify-between rounded-md border border-[#d9e1e8] px-3 py-2 text-sm">
+      <span className="font-semibold text-[#5b6472]">{label}</span>
+      <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} />
+    </label>
+  );
+}
+
+function NumberControl({ label, onChange, value }: { label: string; onChange: (value: number) => void; value: number }) {
+  return (
+    <label className="block">
+      <FieldLabel>{label}</FieldLabel>
+      <input
+        aria-label={label}
+        className="mt-1 h-9 w-full rounded-md border border-[#d9e1e8] bg-white px-3 text-sm"
+        min={1}
+        type="number"
+        value={value}
+        onChange={(event) => {
+          const next = Number(event.target.value);
+          if (Number.isFinite(next) && next > 0) onChange(Math.round(next));
+        }}
+      />
+    </label>
   );
 }
 
