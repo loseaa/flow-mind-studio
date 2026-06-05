@@ -22,6 +22,10 @@ pnpm dev
 
 The frontend runs on `http://localhost:5173` and the API runs on `http://localhost:4000`.
 
+## Git and CI/CD
+
+See `docs/GIT_CICD.md` for the current branch workflow, local Git hooks, merge checks, and GitHub Actions troubleshooting.
+
 ## MVP Coverage
 
 - Organization multi-tenancy and `Owner/Admin/Member` roles.
