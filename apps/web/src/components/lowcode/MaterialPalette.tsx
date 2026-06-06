@@ -1,14 +1,17 @@
 import { useEffect, useRef } from "react";
-import type { ReactNode } from "react";
+import type { DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent, ReactNode } from "react";
 import interact from "interactjs";
 import { Input } from "@flowmind/ui";
 import { aiActions, materialCategories, type MaterialDefinition } from "./lowcodeData";
 import { CustomScrollbar } from "../CustomScrollbar";
+import { resolveMaterialDropTarget, type MaterialDropTarget } from "./materialDropResolver";
+import { setDropPlacementIndicator } from "./dropPlacementIndicator";
 
 const dragPreviews = new WeakMap<HTMLElement, HTMLElement>();
-let activeDropzone: HTMLElement | null = null;
+let activeDropTarget: MaterialDropTarget | null = null;
+let previousBodyUserSelect: string | null = null;
 
-export function MaterialPalette({ onAdd }: { onAdd: (type: MaterialDefinition["type"], parentId?: string) => void }) {
+export function MaterialPalette({ onAdd }: { onAdd: (type: MaterialDefinition["type"], parentId?: string, index?: number) => void }) {
   const onAddRef = useRef(onAdd);
   onAddRef.current = onAdd;
 
@@ -24,15 +27,21 @@ export function MaterialPalette({ onAdd }: { onAdd: (type: MaterialDefinition["t
           const clientY = "clientY" in event ? Number(event.clientY) : rect.top;
           preview.setAttribute("data-pointer-offset-x", String(clientX - rect.left));
           preview.setAttribute("data-pointer-offset-y", String(clientY - rect.top));
+          preview.setAttribute("data-origin-left", String(rect.left));
+          preview.setAttribute("data-origin-top", String(rect.top));
           preview.style.position = "fixed";
           preview.style.left = `${rect.left}px`;
           preview.style.top = `${rect.top}px`;
           preview.style.width = `${rect.width}px`;
           preview.style.pointerEvents = "none";
-          preview.style.zIndex = "2147483647";
-          preview.style.transform = "translate(0, 0)";
+          preview.style.zIndex = "2147483646";
+          preview.style.transform = "translate3d(0, 0, 0) scale(1.02)";
+          preview.style.transition = "none";
+          preview.style.willChange = "transform";
           preview.style.boxShadow = "0 24px 45px -20px rgba(15, 23, 42, 0.55)";
-          preview.classList.add("opacity-95", "scale-[1.02]");
+          preview.style.userSelect = "none";
+          preview.classList.add("material-drag-preview", "opacity-95");
+          lockNativeTextSelection();
           document.body.appendChild(preview);
           dragPreviews.set(target, preview);
           target.classList.add("opacity-45");
@@ -45,28 +54,32 @@ export function MaterialPalette({ onAdd }: { onAdd: (type: MaterialDefinition["t
           target.setAttribute("data-was-dragged", "true");
           const offsetX = Number(preview.getAttribute("data-pointer-offset-x")) || 0;
           const offsetY = Number(preview.getAttribute("data-pointer-offset-y")) || 0;
-          preview.style.left = `${Number(event.clientX) - offsetX}px`;
-          preview.style.top = `${Number(event.clientY) - offsetY}px`;
-          setActiveDropzone(resolveDropzone(preview, Number(event.clientX), Number(event.clientY)));
+          const originLeft = Number(preview.getAttribute("data-origin-left")) || 0;
+          const originTop = Number(preview.getAttribute("data-origin-top")) || 0;
+          const x = Number(event.clientX) - offsetX - originLeft;
+          const y = Number(event.clientY) - offsetY - originTop;
+          preview.style.transform = `translate3d(${x}px, ${y}px, 0) scale(1.02)`;
+          setActiveDropTarget(resolveMaterialDropTarget({ preview, clientX: Number(event.clientX), clientY: Number(event.clientY) }));
         },
         end: (event) => {
           const target = event.target as HTMLElement;
           const type = target.getAttribute("data-material-type") as MaterialDefinition["type"] | null;
           const preview = dragPreviews.get(target);
           const point = preview ? resolveEventPoint(event, preview) : { x: Number(event.clientX), y: Number(event.clientY) };
-          const dropzone = preview ? resolveDropzone(preview, point.x, point.y) : null;
-          const parentId = dropzone?.getAttribute("data-drop-parent-id") ?? undefined;
-          if (type && parentId) onAddRef.current(type, parentId);
+          const dropTarget = resolveMaterialDropTarget({ preview, clientX: point.x, clientY: point.y });
+          if (type && dropTarget) onAddRef.current(type, dropTarget.placement.parentId, dropTarget.placement.index);
           preview?.remove();
           dragPreviews.delete(target);
           target.classList.remove("opacity-45");
-          setActiveDropzone(null);
+          setActiveDropTarget(null);
+          unlockNativeTextSelection();
         }
       }
     });
 
     return () => {
-      setActiveDropzone(null);
+      setActiveDropTarget(null);
+      unlockNativeTextSelection();
       draggable.unset();
     };
   }, []);
@@ -90,7 +103,10 @@ export function MaterialPalette({ onAdd }: { onAdd: (type: MaterialDefinition["t
                     key={item.type}
                     data-material-type={item.type}
                     type="button"
-                    className="flex w-full cursor-grab touch-none items-start gap-3 rounded-lg border border-[#d9e1e8] bg-white p-3 text-left transition hover:border-[#b9c4cf] hover:bg-[#f8fafb]"
+                    className="flex w-full cursor-grab touch-none select-none items-start gap-3 rounded-lg border border-[#d9e1e8] bg-white p-3 text-left transition hover:border-[#b9c4cf] hover:bg-[#f8fafb]"
+                    onDragStart={preventNativeMaterialSelection}
+                    onMouseDown={preventNativeMaterialSelection}
+                    onPointerDown={preventNativeMaterialSelection}
                     onClick={(event) => {
                       const target = event.currentTarget;
                       if (target.getAttribute("data-was-dragged") === "true") {
@@ -140,47 +156,39 @@ function SectionTitle({ children }: { children: ReactNode }) {
   return <div className="text-xs font-bold uppercase tracking-normal text-[#8a94a3]">{children}</div>;
 }
 
-function setActiveDropzone(next: HTMLElement | null) {
-  if (activeDropzone === next) return;
-  activeDropzone?.classList.remove("drop-target-active");
-  next?.classList.add("drop-target-active");
-  activeDropzone = next;
-}
-
-function resolveDropzone(preview: HTMLElement, clientX: number, clientY: number) {
-  const previewRect = preview.getBoundingClientRect();
-  const previewArea = Math.max(1, previewRect.width * previewRect.height);
-  const candidates = Array.from(document.querySelectorAll<HTMLElement>(".design-node-dropzone"))
-    .map((element) => {
-      const rect = element.getBoundingClientRect();
-      const area = rect.width * rect.height;
-      if (area <= 0) return null;
-      const pointerInside = clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom;
-      const intersection = intersectionArea(previewRect, rect);
-      if (!pointerInside && intersection <= 0) return null;
-      const depth = dropzoneDepth(element);
-      const pointerScore = pointerInside ? 100000 + depth * 1000 + 10000 / Math.max(area, 1) : 0;
-      const overlapScore = (intersection / Math.min(previewArea, area)) * 100 + depth;
-      return { element, score: pointerScore + overlapScore };
-    })
-    .filter((item): item is { element: HTMLElement; score: number } => item !== null)
-    .sort((left, right) => right.score - left.score);
-
-  return candidates[0]?.element ?? null;
-}
-
-function intersectionArea(left: DOMRect, right: DOMRect) {
-  const width = Math.max(0, Math.min(left.right, right.right) - Math.max(left.left, right.left));
-  const height = Math.max(0, Math.min(left.bottom, right.bottom) - Math.max(left.top, right.top));
-  return width * height;
-}
-
-function dropzoneDepth(element: HTMLElement) {
-  let depth = 0;
-  let current = element.parentElement?.closest(".design-node-dropzone") as HTMLElement | null;
-  while (current) {
-    depth += 1;
-    current = current.parentElement?.closest(".design-node-dropzone") as HTMLElement | null;
+function setActiveDropTarget(next: MaterialDropTarget | null) {
+  if (activeDropTarget?.element === next?.element && activeDropTarget?.placement.position === next?.placement.position && activeDropTarget?.placement.axis === next?.placement.axis) {
+    setDropPlacementIndicator(next);
+    return;
   }
-  return depth;
+  activeDropTarget = next;
+  setDropPlacementIndicator(next);
+}
+
+function lockNativeTextSelection() {
+  if (previousBodyUserSelect !== null) return;
+  previousBodyUserSelect = document.body.style.userSelect;
+  document.body.style.userSelect = "none";
+  document.body.classList.add("material-dragging");
+  document.addEventListener("selectstart", preventDocumentSelection, true);
+  document.addEventListener("dragstart", preventDocumentSelection, true);
+  window.getSelection()?.removeAllRanges();
+}
+
+function unlockNativeTextSelection() {
+  if (previousBodyUserSelect === null) return;
+  document.body.style.userSelect = previousBodyUserSelect;
+  document.body.classList.remove("material-dragging");
+  document.removeEventListener("selectstart", preventDocumentSelection, true);
+  document.removeEventListener("dragstart", preventDocumentSelection, true);
+  window.getSelection()?.removeAllRanges();
+  previousBodyUserSelect = null;
+}
+
+function preventDocumentSelection(event: Event) {
+  event.preventDefault();
+}
+
+function preventNativeMaterialSelection(event: ReactDragEvent<HTMLButtonElement> | ReactMouseEvent<HTMLButtonElement> | ReactPointerEvent<HTMLButtonElement>) {
+  event.preventDefault();
 }

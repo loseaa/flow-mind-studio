@@ -34,13 +34,13 @@ export function LowCodePage() {
     setSaveState("draft");
   }
 
-  function addElement(type: MaterialDefinition["type"], parentId = selectedElement?.id ?? document.tree.id) {
+  function addElement(type: MaterialDefinition["type"], parentId = selectedElement?.id ?? document.tree.id, index?: number) {
     const element = createElementFromMaterial(type);
     commit((current) => {
       const currentElements = elementMap(current);
       const parent = currentElements.get(parentId);
       const normalizedParentId = parent && isContainerElement(parent.type) ? parentId : current.tree.id;
-      return insertElement(current, normalizedParentId, element);
+      return insertElement(current, normalizedParentId, element, index);
     });
     setSelectedId(element.id);
   }
@@ -66,16 +66,17 @@ export function LowCodePage() {
   }
 
   return (
-    <div className="h-[calc(100vh-72px)] min-h-0 bg-[#f6f8fa]">
+    <div className="lowcode-page flex h-[calc(100vh-72px)] min-h-0 flex-col bg-[#f6f8fa]">
       <LowCodeToolbar document={document} saveState={saveState} onPublish={publishPreview} onSave={saveDraft} />
-      <div className="grid h-[calc(100vh-128px)] min-h-0 grid-cols-[286px_1fr_330px] overflow-hidden max-xl:grid-cols-[260px_1fr] max-lg:grid-cols-1">
-        <MaterialPalette onAdd={(type, parentId) => addElement(type, parentId)} />
+      <div className="grid min-h-0 flex-1 grid-cols-[286px_1fr_330px] overflow-hidden max-xl:grid-cols-[260px_1fr] max-lg:grid-cols-1">
+        <MaterialPalette onAdd={(type, parentId, index) => addElement(type, parentId, index)} />
         <DesignCanvas
           document={document}
           selectedId={selectedElement.id}
           onDelete={deleteElement}
           onMove={(id, direction) => commit((current) => moveNode(current, id, direction))}
           onReparent={(id, parentId, index) => commit((current) => reparentNode(current, id, parentId, index))}
+          onUpdateProps={(id, patch) => commit((current) => updateElementProps(current, id, patch))}
           onSelect={setSelectedId}
         />
         <PropertyInspector

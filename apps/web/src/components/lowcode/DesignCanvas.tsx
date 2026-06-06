@@ -1,5 +1,5 @@
 import { ArrowDown, ArrowUp, GripVertical, Trash2 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { MouseEvent as ReactMouseEvent, ReactNode, WheelEvent as ReactWheelEvent } from "react";
 import interact from "interactjs";
 import type { CSSProperties } from "react";
@@ -7,6 +7,8 @@ import type { DesignDocument, DesignElement, DesignLayout, DesignTreeNode } from
 import { Button, Input } from "@flowmind/ui";
 import { customerRows, fieldLabels, isContainerElement } from "./lowcodeData";
 import { elementMap } from "./designDocumentOps";
+import { clearDropPlacementIndicator, setDropPlacementIndicator } from "./dropPlacementIndicator";
+import { resolveMaterialDropTarget } from "./materialDropResolver";
 
 export function DesignCanvas({
   document,
@@ -14,6 +16,7 @@ export function DesignCanvas({
   onDelete,
   onMove,
   onReparent,
+  onUpdateProps,
   onSelect
 }: {
   document: DesignDocument;
@@ -21,6 +24,7 @@ export function DesignCanvas({
   onDelete: (id: string) => void;
   onMove: (id: string, direction: "up" | "down") => void;
   onReparent: (id: string, parentId: string, index?: number) => void;
+  onUpdateProps: (id: string, patch: Record<string, unknown>) => void;
   onSelect: (id: string) => void;
 }) {
   const elements = useMemo(() => elementMap(document), [document]);
@@ -34,52 +38,77 @@ export function DesignCanvas({
   });
 
   useEffect(() => {
-    const materialDropzones = interact(".design-node-dropzone").dropzone({
-      accept: "[data-material-type]",
-      overlap: 0.18,
-      ondragenter: (event) => {
-        event.target.classList.add("drop-target-active");
-      },
-      ondragleave: (event) => {
-        event.target.classList.remove("drop-target-active");
-      }
-    });
+    let pendingDropFrame: number | null = null;
+    let latestDropPoint: { clientX: number; clientY: number; draggedId?: string } | null = null;
+
+    function scheduleDropIndicator(clientX: number, clientY: number, draggedId?: string) {
+      latestDropPoint = { clientX, clientY, draggedId };
+      if (pendingDropFrame !== null) return;
+      pendingDropFrame = window.requestAnimationFrame(() => {
+        pendingDropFrame = null;
+        if (!latestDropPoint) return;
+        const dropTarget = resolveMaterialDropTarget({
+          clientX: latestDropPoint.clientX,
+          clientY: latestDropPoint.clientY,
+          ignoredNodeIds: latestDropPoint.draggedId ? [latestDropPoint.draggedId] : []
+        });
+        setDropPlacementIndicator(dropTarget);
+      });
+    }
 
     const sortableNodes = interact(".design-sortable-node").draggable({
       inertia: false,
+      ignoreFrom: "[data-canvas-text-editor], [data-canvas-text-trigger], input, textarea, button, select",
       listeners: {
         start: (event) => {
-          event.target.classList.add("dragging-node");
+          const target = event.target as HTMLElement;
+          target.style.transition = "none";
+          target.style.willChange = "transform";
+          target.style.zIndex = "40";
+          target.classList.add("dragging-node");
         },
         move: (event) => {
           const target = event.target as HTMLElement;
           const x = (Number(target.getAttribute("data-drag-x")) || 0) + event.dx;
           const y = (Number(target.getAttribute("data-drag-y")) || 0) + event.dy;
-          target.style.transform = `translate(${x}px, ${y}px)`;
+          target.style.transform = `translate3d(${x}px, ${y}px, 0)`;
           target.setAttribute("data-drag-x", String(x));
           target.setAttribute("data-drag-y", String(y));
+          const draggedId = target.getAttribute("data-node-id");
+          scheduleDropIndicator(Number(event.clientX), Number(event.clientY), draggedId ?? undefined);
         },
         end: (event) => {
           const target = event.target as HTMLElement;
           target.classList.remove("dragging-node");
           target.style.transform = "";
+          target.style.transition = "";
+          target.style.willChange = "";
+          target.style.zIndex = "";
           target.removeAttribute("data-drag-x");
           target.removeAttribute("data-drag-y");
+          latestDropPoint = null;
+          if (pendingDropFrame !== null) {
+            window.cancelAnimationFrame(pendingDropFrame);
+            pendingDropFrame = null;
+          }
           const draggedId = target.getAttribute("data-node-id");
           const clientX = "clientX" in event ? Number(event.clientX) : 0;
           const clientY = "clientY" in event ? Number(event.clientY) : 0;
-          const dropTarget = globalThis.document.elementFromPoint(clientX, clientY)?.closest(".design-sortable-node") as HTMLElement | null;
-          if (!draggedId || !dropTarget || dropTarget === target) return;
-          const parentId = dropTarget.getAttribute("data-parent-id");
-          const siblings = Array.from(dropTarget.parentElement?.querySelectorAll(":scope > .design-sortable-node") ?? []);
-          const index = siblings.indexOf(dropTarget);
-          if (parentId && index >= 0) onReparent(draggedId, parentId, index);
+          const dropTarget = resolveMaterialDropTarget({
+            clientX,
+            clientY,
+            ignoredNodeIds: draggedId ? [draggedId] : []
+          });
+          clearDropPlacementIndicator();
+          if (!draggedId || !dropTarget) return;
+          onReparent(draggedId, dropTarget.placement.parentId, dropTarget.placement.index);
         }
       }
     });
 
     return () => {
-      materialDropzones.unset();
+      if (pendingDropFrame !== null) window.cancelAnimationFrame(pendingDropFrame);
+      clearDropPlacementIndicator();
       sortableNodes.unset();
     };
   }, [document.tree.id, onReparent]);
@@ -112,7 +141,11 @@ export function DesignCanvas({
   }, []);
 
   function startPan(event: ReactMouseEvent) {
-    if (event.button !== 2) return;
+    const target = event.target as HTMLElement;
+    const interactiveTarget = target.closest("[data-node-id], button, input, textarea, select, [contenteditable='true']");
+    const panSurface = target.closest("[data-canvas-pan-surface]");
+    const shouldPan = event.button === 1 || event.button === 2 || (event.button === 0 && panSurface && !interactiveTarget);
+    if (!shouldPan) return;
     event.preventDefault();
     panRef.current = {
       active: true,
@@ -144,8 +177,8 @@ export function DesignCanvas({
   }
 
   return (
-    <div className="h-full min-h-0 overflow-hidden bg-[#e8edf2]">
-      <div className="h-full min-h-0 min-w-[760px] p-[18px_22px]">
+    <div className="h-full min-h-0 overflow-hidden bg-[#dde5ed]">
+      <div className="flex h-full min-h-0 min-w-[760px] flex-col p-0">
         <DesignCanvasShell
           document={document}
           viewport={viewport}
@@ -161,6 +194,7 @@ export function DesignCanvas({
             selectedId={selectedId}
             onDelete={onDelete}
             onMove={onMove}
+            onUpdateProps={onUpdateProps}
             onSelect={onSelect}
           />
         </DesignCanvasShell>
@@ -187,40 +221,40 @@ function DesignCanvasShell({
   viewport: { x: number; y: number; zoom: number };
 }) {
   return (
-    <>
-      <div className="mb-3 flex items-center justify-between">
-        <div>
-          <div className="text-sm font-bold">设计稿画布</div>
-          <div className="mt-1 text-xs text-[#5b6472]">由 JSON schema 渲染，拖拽只更新结构数据。</div>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-2 rounded-md bg-white px-3 py-2 text-xs text-[#5b6472]">
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="absolute right-4 top-3 z-30 flex h-8 shrink-0 items-center justify-end gap-2">
+          <div className="flex h-8 items-center gap-2 rounded-md bg-white/95 px-2.5 text-xs text-[#5b6472] shadow-sm ring-1 ring-[#d9e1e8]">
             <GripVertical size={14} />
             {Math.round(viewport.zoom * 100)}% · {document.canvas.width} / Desktop
           </div>
-          <button className="rounded-md border border-[#cbd5df] bg-white px-3 py-2 text-xs font-semibold text-[#5b6472] hover:bg-[#f8fafb]" type="button" onClick={onResetViewport}>
+          <button className="h-8 rounded-md border border-[#cbd5df] bg-white/95 px-3 text-xs font-semibold text-[#5b6472] shadow-sm hover:bg-white" type="button" onClick={onResetViewport}>
             重置视图
           </button>
-        </div>
       </div>
       <div
-        className="mx-auto h-[calc(100%-52px)] min-h-[420px] overflow-hidden rounded-[18px] border border-[#b9c4cf] bg-[#dce4ec] p-5 shadow-[0_24px_60px_-35px_rgba(30,41,59,0.65)]"
+        data-canvas-pan-surface
+        className="relative min-h-0 flex-1 cursor-grab overflow-hidden bg-[#dce4ec] active:cursor-grabbing"
         onContextMenu={onContextMenu}
         onMouseDown={onMouseDown}
         onWheel={onWheel}
+        style={{
+          backgroundImage: "radial-gradient(circle at 1px 1px, rgba(91, 100, 114, 0.28) 1px, transparent 0)",
+          backgroundSize: "28px 28px"
+        }}
       >
         <div
-          className="mx-auto overflow-hidden rounded-xl border border-[#aebac7] bg-white shadow-[0_18px_34px_-24px_rgba(30,41,59,0.7)] transition-shadow"
+          data-canvas-pan-surface
+          className="absolute left-1/2 top-14 overflow-hidden rounded-xl border border-[#aebac7] bg-white shadow-[0_18px_34px_-24px_rgba(30,41,59,0.7)] transition-shadow"
           style={{
-            maxWidth: Math.min(document.canvas.width, 1100),
-            transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.zoom})`,
-            transformOrigin: "top center"
+            transform: `translate(calc(-50% + ${viewport.x}px), ${viewport.y}px) scale(${viewport.zoom})`,
+            transformOrigin: "top center",
+            width: document.canvas.width
           }}
         >
           {children}
         </div>
       </div>
-    </>
+    </div>
   );
 }
 
@@ -233,6 +267,7 @@ function DesignRenderer({
   node,
   onDelete,
   onMove,
+  onUpdateProps,
   onSelect,
   parentId,
   selectedId
@@ -241,13 +276,15 @@ function DesignRenderer({
   node: DesignTreeNode;
   onDelete: (id: string) => void;
   onMove: (id: string, direction: "up" | "down") => void;
+  onUpdateProps: (id: string, patch: Record<string, unknown>) => void;
   onSelect: (id: string) => void;
   parentId: string;
   selectedId: string;
 }) {
   const element = elements.get(node.id);
   if (!element) return null;
-  const children = (node.children ?? []).map((child) => (
+  const childNodes = node.children ?? [];
+  const children = childNodes.map((child) => (
     <DesignRenderer
       key={child.id}
       elements={elements}
@@ -256,20 +293,23 @@ function DesignRenderer({
       selectedId={selectedId}
       onDelete={onDelete}
       onMove={onMove}
+      onUpdateProps={onUpdateProps}
       onSelect={onSelect}
     />
   ));
+  const selected = selectedId === element.id;
+  const emptyContainer = isContainerElement(element.type) && element.type !== "page" && childNodes.length === 0;
 
   return (
     <CanvasNodeFrame
       element={element}
       parentId={parentId}
-      selected={selectedId === element.id}
+      selected={selected}
       onDelete={onDelete}
       onMove={onMove}
       onSelect={onSelect}
     >
-      {renderElementContent(element, children)}
+      {renderElementContent(element, children, selected, onSelect, onUpdateProps, emptyContainer)}
     </CanvasNodeFrame>
   );
 }
@@ -304,6 +344,7 @@ function CanvasNodeFrame({
     <div
       className={className}
       data-drop-parent-id={container ? element.id : undefined}
+      data-layout-direction={container ? element.layout?.direction ?? "vertical" : undefined}
       data-node-id={element.id}
       data-parent-id={parentId}
       style={element.type === "page" ? undefined : flexItemStyle(element.layout)}
@@ -319,8 +360,22 @@ function CanvasNodeFrame({
           <IconAction label="删除" onClick={() => onDelete(element.id)}><Trash2 size={13} /></IconAction>
         </div>
       ) : null}
-      <div className={container ? "min-h-8" : ""}>{children}</div>
-      {container ? <DropIndicator label={`拖入 ${element.name}`} /> : null}
+      <div className={container ? "min-h-8" : ""}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function EmptyContainerHint() {
+  return (
+    <div className="pointer-events-none flex min-h-[92px] items-center justify-center rounded-lg border border-dashed border-[#8fb9b2] bg-[repeating-linear-gradient(135deg,rgba(232,244,242,0.78)_0,rgba(232,244,242,0.78)_8px,rgba(248,250,251,0.94)_8px,rgba(248,250,251,0.94)_16px)] p-3">
+      <div className="flex flex-col items-center gap-1.5 text-center">
+        <div className="grid h-10 w-16 place-items-center rounded-md border border-[#b7d5d0] bg-white/85 shadow-inner">
+          <span className="text-lg font-semibold leading-none text-[#0f766e]/70">+</span>
+        </div>
+        <span className="text-xs font-medium text-[#5b6472]">拖入内容</span>
+      </div>
     </div>
   );
 }
@@ -342,25 +397,24 @@ function IconAction({ children, label, onClick }: { children: ReactNode; label: 
   );
 }
 
-function DropIndicator({ label }: { label: string }) {
-  return (
-    <div className="pointer-events-none mt-3 hidden rounded-md border border-dashed border-[#0f766e] bg-[#e8f4f2] px-3 py-2 text-center text-xs font-semibold text-[#0f766e] group-[.drop-target-active]/design:block">
-      {label}
-    </div>
-  );
-}
-
-function renderElementContent(element: DesignElement, children: ReactNode) {
+function renderElementContent(
+  element: DesignElement,
+  children: ReactNode,
+  selected: boolean,
+  onSelect: (id: string) => void,
+  onUpdateProps: (id: string, patch: Record<string, unknown>) => void,
+  emptyContainer: boolean
+) {
   if (element.type === "page") {
     return <div className={layoutClass(element, "min-h-[760px] bg-white p-8")}>{children}</div>;
   }
   if (element.type === "section") {
-    return <section className={layoutClass(element, "rounded-lg border border-[#d9e1e8] bg-white p-5")}>{children}</section>;
+    return <section className={layoutClass(element, "rounded-lg border border-[#d9e1e8] bg-white p-5")}>{emptyContainer ? <EmptyContainerHint /> : children}</section>;
   }
   if (element.type === "stack") {
-    return <div className={layoutClass(element, "rounded-lg border border-dashed border-[#cbd5df] bg-[#f8fafb] p-4")}>{children}</div>;
+    return <div className={layoutClass(element, "rounded-lg border border-dashed border-[#cbd5df] bg-[#f8fafb] p-4")}>{emptyContainer ? <EmptyContainerHint /> : children}</div>;
   }
-  if (element.type === "text") return <TextPreview element={element} />;
+  if (element.type === "text") return <TextPreview element={element} selected={selected} onSelect={onSelect} onUpdateProps={onUpdateProps} />;
   if (element.type === "image") return <ImagePreview element={element} />;
   if (element.type === "input") return <InputPreview element={element} />;
   if (element.type === "badge") return <BadgePreview element={element} />;
@@ -373,24 +427,119 @@ function renderElementContent(element: DesignElement, children: ReactNode) {
   return <div>{element.name}</div>;
 }
 
-function TextPreview({ element }: { element: DesignElement }) {
+function TextPreview({
+  element,
+  onSelect,
+  onUpdateProps,
+  selected
+}: {
+  element: DesignElement;
+  selected: boolean;
+  onSelect: (id: string) => void;
+  onUpdateProps: (id: string, patch: Record<string, unknown>) => void;
+}) {
   const level = String(element.props?.level ?? "body");
   const text = String(element.props?.text ?? element.name);
   const description = String(element.props?.description ?? "");
   if (level === "h1") {
     return (
       <div className="min-w-0 flex-1">
-        <h2 className="text-[28px] font-bold leading-tight text-[#101828]">{text}</h2>
+        <EditableCanvasText
+          as="h2"
+          className="min-h-[34px] cursor-text rounded px-1 text-[28px] font-bold leading-tight text-[#101828] outline-none focus:bg-[#e8f4f2] focus:ring-2 focus:ring-[#0f766e]/30"
+          element={element}
+          selected={selected}
+          text={text}
+          onSelect={onSelect}
+          onUpdateProps={onUpdateProps}
+        />
         {description ? <p className="mt-2 text-sm leading-6 text-[#5b6472]">{description}</p> : null}
       </div>
     );
   }
   return (
     <div>
-      <p className="text-sm leading-6 text-[#101828]">{text}</p>
+      <EditableCanvasText
+        as="p"
+        className="min-h-6 cursor-text rounded px-1 text-sm leading-6 text-[#101828] outline-none focus:bg-[#e8f4f2] focus:ring-2 focus:ring-[#0f766e]/30"
+        element={element}
+        selected={selected}
+        text={text}
+        onSelect={onSelect}
+        onUpdateProps={onUpdateProps}
+      />
       {description ? <p className="mt-1 text-xs leading-5 text-[#5b6472]">{description}</p> : null}
     </div>
   );
+}
+
+function EditableCanvasText({
+  as,
+  className,
+  element,
+  onSelect,
+  onUpdateProps,
+  selected,
+  text
+}: {
+  as: "h2" | "p";
+  className: string;
+  element: DesignElement;
+  selected: boolean;
+  text: string;
+  onSelect: (id: string) => void;
+  onUpdateProps: (id: string, patch: Record<string, unknown>) => void;
+}) {
+  const ref = useRef<HTMLHeadingElement & HTMLParagraphElement>(null);
+  const Tag = as;
+
+  useLayoutEffect(() => {
+    const node = ref.current;
+    if (node && node.textContent !== text) node.textContent = text;
+  }, [element.id, text]);
+
+  useLayoutEffect(() => {
+    const node = ref.current;
+    if (!selected || !node || document.activeElement === node) return;
+    node.focus();
+    selectTextNodeContents(node);
+  }, [element.id, selected]);
+
+  return (
+    <Tag
+      ref={ref}
+      contentEditable={selected}
+      data-canvas-text-editor={selected ? "true" : undefined}
+      data-canvas-text-trigger={selected ? undefined : "true"}
+      suppressContentEditableWarning
+      tabIndex={0}
+      className={className}
+      onClick={(event) => {
+        event.stopPropagation();
+        onSelect(element.id);
+      }}
+      onInput={(event) => onUpdateProps(element.id, { text: event.currentTarget.textContent ?? "" })}
+      onKeyDown={(event) => {
+        if (event.key === "Escape") event.currentTarget.blur();
+      }}
+      onPointerDown={(event) => {
+        event.stopPropagation();
+        if (!selected) {
+          event.preventDefault();
+          onSelect(element.id);
+        }
+      }}
+    />
+  );
+}
+
+function selectTextNodeContents(node: HTMLElement) {
+  const selection = window.getSelection();
+  if (!selection) return;
+  const range = document.createRange();
+  range.selectNodeContents(node);
+  selection.removeAllRanges();
+  selection.addRange(range);
 }
 
 function StatPreview({ element }: { element: DesignElement }) {
@@ -504,7 +653,8 @@ function layoutClass(element: DesignElement, base: string) {
   const direction = layout?.direction === "horizontal" ? "flex-row" : "flex-col";
   const align = layout?.align === "center" ? "items-center" : layout?.align === "end" ? "items-end" : layout?.align === "stretch" ? "items-stretch" : "items-start";
   const justify = layout?.justify === "center" ? "justify-center" : layout?.justify === "end" ? "justify-end" : layout?.justify === "between" ? "justify-between" : "justify-start";
-  const wrap = layout?.wrap ? "flex-wrap" : "flex-nowrap";
+  const allowWrap = layout?.wrap ?? layout?.direction === "horizontal";
+  const wrap = allowWrap ? "flex-wrap" : "flex-nowrap";
   return [
     base,
     "flex",

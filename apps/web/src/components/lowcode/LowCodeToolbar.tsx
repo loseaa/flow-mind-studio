@@ -15,11 +15,11 @@ export function LowCodeToolbar({
   onSave: () => void;
 }) {
   return (
-    <div className="flex h-14 items-center justify-between border-b border-[#d9e1e8] bg-white px-6">
-      <div className="flex items-center gap-3">
-        <h1 className="text-sm font-bold">{document.name} 搭建器</h1>
-        <span className="rounded-md bg-[#eef2f5] px-2 py-1 font-mono text-xs text-[#5b6472]">{document.schemaVersion}</span>
-        <span className="rounded-md bg-[#e8f4f2] px-2 py-1 text-xs font-bold text-[#0f766e]">
+    <div className="flex h-10 items-center justify-between border-b border-[#d9e1e8] bg-white px-4">
+      <div className="flex min-w-0 items-center gap-2">
+        <h1 className="truncate text-xs font-bold">{document.name} 搭建器</h1>
+        <span className="rounded bg-[#eef2f5] px-1.5 py-0.5 font-mono text-[10px] text-[#5b6472]">{document.schemaVersion}</span>
+        <span className="rounded bg-[#e8f4f2] px-1.5 py-0.5 text-[10px] font-bold text-[#0f766e]">
           {saveState === "published" ? "已发布" : saveState === "saved" ? "已保存" : "草稿"}
         </span>
       </div>
@@ -30,9 +30,9 @@ export function LowCodeToolbar({
         <ToolbarIconButton label="桌面预览"><Monitor size={16} /></ToolbarIconButton>
         <ToolbarIconButton label="预览"><Eye size={16} /></ToolbarIconButton>
       </div>
-      <div className="flex items-center gap-2">
-        <Button variant="secondary" className="h-9" onClick={onSave}>保存草稿</Button>
-        <Button onClick={onPublish} className="h-9 bg-[#1e293b]">发布预览</Button>
+      <div className="flex items-center gap-1.5">
+        <Button variant="secondary" className="h-7 px-2 text-xs" onClick={onSave}>保存草稿</Button>
+        <Button onClick={onPublish} className="h-7 bg-[#1e293b] px-2 text-xs">发布预览</Button>
       </div>
     </div>
   );

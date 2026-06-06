@@ -67,6 +67,7 @@ export function reparentNode(document: DesignDocument, id: string, parentId: str
   if (!subtree || getTreeIds(subtree).includes(parentId)) return document;
   const parent = document.elements.find((element) => element.id === parentId);
   const normalizedParentId = parent && isContainerElement(parent.type) ? parentId : document.tree.id;
+  if (index == null && findParentId(document.tree, id) === normalizedParentId) return document;
   const removedIds = new Set<string>();
   const withoutNode = removeFromTree(document.tree, id, removedIds);
   return {
@@ -124,4 +125,13 @@ function findTreeNode(node: DesignTreeNode, id: string): DesignTreeNode | null {
     if (found) return found;
   }
   return null;
+}
+
+function findParentId(node: DesignTreeNode, id: string, parentId?: string): string | undefined {
+  if (node.id === id) return parentId;
+  for (const child of node.children ?? []) {
+    const found = findParentId(child, id, node.id);
+    if (found) return found;
+  }
+  return undefined;
 }

@@ -125,10 +125,10 @@ export const fallbackDesignDocument: DesignDocument = {
     },
     {
       id: "header_section",
-      type: "section",
+      type: "stack",
       name: "标题区",
-      layout: { display: "flex", direction: "horizontal", gap: "md", align: "center" },
-      appearance: { variant: "plain" },
+      layout: { display: "flex", direction: "horizontal", gap: "md", align: "center", padding: "md" },
+      appearance: { variant: "outlined" },
       props: {}
     },
     {

@@ -29,8 +29,30 @@ html::-webkit-scrollbar {
 
 body {
   margin: 0;
+  font-size: 17px;
   scrollbar-width: none;
   -ms-overflow-style: none;
+}
+
+body.material-dragging,
+body.material-dragging * {
+  cursor: grabbing !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+}
+
+[data-material-type],
+[data-material-type] * {
+  user-select: none;
+  -webkit-user-drag: none;
+  -webkit-user-select: none;
+}
+
+.material-drag-preview,
+.material-drag-preview * {
+  user-select: none !important;
+  -webkit-user-drag: none !important;
+  -webkit-user-select: none !important;
 }
 
 body::-webkit-scrollbar {
@@ -42,6 +64,37 @@ body::-webkit-scrollbar {
 button,
 input {
   font: inherit;
+}
+
+.text-\[10px\] {
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.text-\[11px\],
+.text-xs {
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.text-sm {
+  font-size: 16px;
+  line-height: 24px;
+}
+
+.text-base {
+  font-size: 17px;
+  line-height: 26px;
+}
+
+.text-lg {
+  font-size: 20px;
+  line-height: 30px;
+}
+
+.text-xl {
+  font-size: 24px;
+  line-height: 32px;
 }
 
 @layer utilities {
@@ -137,6 +190,117 @@ select::-webkit-scrollbar {
 
 .custom-scrollbar-thumb:active {
   filter: brightness(1.15);
+}
+
+.dragging-node {
+  cursor: grabbing !important;
+  transition: none !important;
+  will-change: transform;
+}
+
+.material-drop-placement-indicator {
+  position: fixed;
+  z-index: 2147483647;
+  pointer-events: none;
+  color: #0f766e;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  text-align: center;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.material-drop-placement-indicator::before {
+  content: "";
+  position: absolute;
+  border-radius: 999px;
+  background: #0f766e;
+  box-shadow:
+    0 0 0 3px rgba(15, 118, 110, 0.14),
+    0 8px 18px rgba(15, 118, 110, 0.2);
+}
+
+.material-drop-placement-indicator::after {
+  content: attr(data-label);
+}
+
+.material-drop-placement-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.material-drop-placement-inside {
+  border: 2px dashed #0f766e;
+  border-radius: 10px;
+  background: rgba(232, 244, 242, 0.32);
+}
+
+.material-drop-placement-inside::before {
+  display: none;
+}
+
+.material-drop-placement-inside {
+  text-shadow: 0 1px 0 #ffffff;
+}
+
+.material-drop-placement-inside::after {
+  border: 1px solid rgba(15, 118, 110, 0.22);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.12);
+  padding: 6px 8px;
+}
+
+.material-drop-placement-vertical.material-drop-placement-before::before,
+.material-drop-placement-vertical.material-drop-placement-after::before {
+  left: 0;
+  right: 0;
+  height: 4px;
+}
+
+.material-drop-placement-vertical.material-drop-placement-before::before {
+  top: -6px;
+}
+
+.material-drop-placement-vertical.material-drop-placement-after::before {
+  bottom: -6px;
+}
+
+.material-drop-placement-horizontal.material-drop-placement-before::before,
+.material-drop-placement-horizontal.material-drop-placement-after::before {
+  bottom: 0;
+  top: 0;
+  width: 4px;
+}
+
+.material-drop-placement-horizontal.material-drop-placement-before::before {
+  left: -6px;
+}
+
+.material-drop-placement-horizontal.material-drop-placement-after::before {
+  right: -6px;
+}
+
+.material-drop-placement-before,
+.material-drop-placement-after {
+  align-items: flex-start;
+  justify-content: flex-start;
+}
+
+.material-drop-placement-before,
+.material-drop-placement-after {
+  padding: 6px 8px;
+}
+
+.material-drop-placement-before::after,
+.material-drop-placement-after::after {
+  border: 1px solid rgba(15, 118, 110, 0.22);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.12);
+  padding: 5px 7px;
 }
 
 @keyframes shimmer {

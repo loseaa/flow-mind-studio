@@ -9,6 +9,8 @@ type LayoutOption<T extends string> = {
   label: string;
 };
 
+type AlignmentValue = "start" | "center" | "end";
+
 const spacingOptions: LayoutOption<NonNullable<DesignLayout["gap"]>>[] = [
   { value: "none", label: "无" },
   { value: "xs", label: "很小" },
@@ -74,6 +76,7 @@ function FlexLayoutFields({
   const isContainer = isContainerElement(selectedElement.type);
   const parentIsContainer = parentElement ? isContainerElement(parentElement.type) : false;
   const layout = selectedElement.layout ?? {};
+  const direction = layout.direction ?? "vertical";
 
   return (
     <PropertyGroup title={isContainer ? "Flex 容器" : "在父容器中的占位"}>
@@ -81,36 +84,20 @@ function FlexLayoutFields({
         <>
           <SegmentedControl
             label="排列方向"
-            value={layout.direction ?? "vertical"}
+            value={direction}
             options={[
               { value: "vertical", label: "纵向排列" },
               { value: "horizontal", label: "横向排列" }
             ]}
             onChange={(direction) => onUpdateLayout({ display: "flex", direction })}
           />
-          <SegmentedControl
-            label="主轴对齐"
-            value={layout.justify ?? "start"}
-            options={[
-              { value: "start", label: "靠前排列" },
-              { value: "center", label: "居中排列" },
-              { value: "end", label: "靠后排列" },
-              { value: "between", label: "两端分布" }
-            ]}
-            onChange={(justify) => onUpdateLayout({ justify })}
+          <AlignmentGridControl
+            direction={direction}
+            align={normalizeAlignment(layout.align)}
+            justify={normalizeAlignment(layout.justify)}
+            onChange={onUpdateLayout}
           />
-          <SegmentedControl
-            label="交叉轴对齐"
-            value={layout.align ?? "start"}
-            options={[
-              { value: "start", label: "起点对齐" },
-              { value: "center", label: "居中对齐" },
-              { value: "end", label: "终点对齐" },
-              { value: "stretch", label: "拉伸填满" }
-            ]}
-            onChange={(align) => onUpdateLayout({ align })}
-          />
-          <ToggleControl label="允许换行" checked={Boolean(layout.wrap)} onChange={(wrap) => onUpdateLayout({ wrap })} />
+          <ToggleControl label="允许换行" checked={layout.wrap ?? direction === "horizontal"} onChange={(wrap) => onUpdateLayout({ wrap })} />
           <SegmentedControl label="间距" value={layout.gap ?? "md"} options={spacingOptions} onChange={(gap) => onUpdateLayout({ gap })} />
           <SegmentedControl label="内边距" value={layout.padding ?? "none"} options={spacingOptions} onChange={(padding) => onUpdateLayout({ padding })} />
           <SizeControls layout={layout} onUpdateLayout={onUpdateLayout} />
@@ -281,6 +268,80 @@ function FieldMultiSelect({ onChange, title, value }: { onChange: (fields: strin
       </div>
     </PropertyGroup>
   );
+}
+
+function AlignmentGridControl({
+  align,
+  direction,
+  justify,
+  onChange
+}: {
+  align: AlignmentValue;
+  direction: NonNullable<DesignLayout["direction"]>;
+  justify: AlignmentValue;
+  onChange: (patch: Partial<DesignLayout>) => void;
+}) {
+  const selected = alignmentToGridPosition(direction, justify, align);
+  const xOptions: AlignmentValue[] = ["start", "center", "end"];
+  const yOptions: AlignmentValue[] = ["start", "center", "end"];
+
+  return (
+    <div>
+      <FieldLabel>内容位置</FieldLabel>
+      <div className="mt-1 grid grid-cols-3 gap-1 rounded-md bg-[#eef2f5] p-1" role="group" aria-label="内容位置">
+        {yOptions.flatMap((y) =>
+          xOptions.map((x) => {
+            const active = selected.x === x && selected.y === y;
+            const label = alignmentGridLabel(x, y);
+            return (
+              <button
+                key={`${x}-${y}`}
+                type="button"
+                aria-label={`布局位置：${label}`}
+                aria-pressed={active}
+                className={`grid h-12 place-items-center rounded-md border transition ${active ? "border-[#0f766e]/35 bg-white shadow-sm ring-1 ring-[#0f766e]/20" : "border-transparent bg-[#f8fafb] hover:border-[#b9c4cf] hover:bg-white"}`}
+                onClick={() => onChange(gridPositionToLayout(direction, x, y))}
+              >
+                <span className={`flex h-8 w-11 rounded border p-1 ${active ? "border-[#9cc8c2] bg-[#e8f4f2]" : "border-[#d9e1e8] bg-[#eef2f5]"} ${previewJustifyClass(x)} ${previewAlignClass(y)}`}>
+                  <span className={`h-2 w-2.5 rounded-sm ${active ? "bg-[#0f766e]" : "bg-[#344054]"}`} />
+                </span>
+              </button>
+            );
+          })
+        )}
+      </div>
+    </div>
+  );
+}
+
+function alignmentToGridPosition(direction: NonNullable<DesignLayout["direction"]>, justify: AlignmentValue, align: AlignmentValue) {
+  return direction === "horizontal" ? { x: justify, y: align } : { x: align, y: justify };
+}
+
+function gridPositionToLayout(direction: NonNullable<DesignLayout["direction"]>, x: AlignmentValue, y: AlignmentValue): Partial<DesignLayout> {
+  return direction === "horizontal" ? { justify: x, align: y } : { align: x, justify: y };
+}
+
+function normalizeAlignment(value: DesignLayout["align"] | DesignLayout["justify"]): AlignmentValue {
+  return value === "center" || value === "end" ? value : "start";
+}
+
+function alignmentGridLabel(x: AlignmentValue, y: AlignmentValue) {
+  const horizontal = x === "start" ? "左" : x === "center" ? "中" : "右";
+  const vertical = y === "start" ? "上" : y === "center" ? "中" : "下";
+  return x === "center" && y === "center" ? "居中" : `${horizontal}${vertical}`;
+}
+
+function previewJustifyClass(value: AlignmentValue) {
+  if (value === "center") return "justify-center";
+  if (value === "end") return "justify-end";
+  return "justify-start";
+}
+
+function previewAlignClass(value: AlignmentValue) {
+  if (value === "center") return "items-center";
+  if (value === "end") return "items-end";
+  return "items-start";
 }
 
 function SegmentedControl<T extends string>({ label, onChange, options, value }: { label: string; onChange: (value: T) => void; options: LayoutOption<T>[]; value: T }) {
