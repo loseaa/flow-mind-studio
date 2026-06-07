@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { LowCodePage } from "../../pages/app/LowCodePage";
-import { createElementFromMaterial, fallbackDesignDocument, materials } from "./lowcodeData";
+import { createElementFromMaterial, defaultBackgroundImageUrl, fallbackDesignDocument, materials } from "./lowcodeData";
 
 vi.mock("interactjs", () => ({
   default: () => ({
@@ -21,9 +21,13 @@ describe("LowCodePage design builder", () => {
 
   it("renders the default design document", () => {
     const { container } = render(<LowCodePage />);
+    const header = container.querySelector('[data-node-id="header_section"] .flex-row') as HTMLElement | null;
+    const headerElement = fallbackDesignDocument.elements.find((element) => element.id === "header_section");
 
     expect(container.querySelector('[data-node-id="title_text"] h2')?.textContent).toBeTruthy();
     expect(container.querySelector('[data-node-id="customer_table"]')).not.toBeNull();
+    expect(headerElement?.style?.base.backgroundImage).toBe(defaultBackgroundImageUrl);
+    expect(header?.style.backgroundImage).toContain(defaultBackgroundImageUrl);
   });
 
   it("adds a material from the palette and selects it", () => {

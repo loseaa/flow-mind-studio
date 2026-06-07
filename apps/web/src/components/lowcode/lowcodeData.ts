@@ -57,6 +57,7 @@ export const materials = materialCategories.flatMap((category) => category.items
 export const aiActions = ["AI 总结字段", "调用 CRM 查询", "生成审批流"];
 
 export const availableFields = ["name", "stage", "owner", "health", "lastContact", "amount"];
+export const defaultBackgroundImageUrl = "https://flowmindstudio.oss-cn-beijing.aliyuncs.com/low-code/backgrounds/1780839643603-bf299984-flowmind-lowcode-background-test.png";
 
 export const fieldLabels: Record<string, string> = {
   name: "客户名称",
@@ -200,6 +201,10 @@ export const fallbackDesignDocument: DesignDocument = {
       type: "stack",
       name: "标题区",
       layout: { display: "flex", direction: "horizontal", gap: "md", align: "center", padding: "md" },
+      style: {
+        base: baseStyle({ backgroundColor: "muted", radius: "lg", border: { width: "sm" }, backgroundImage: defaultBackgroundImageUrl }),
+        container: { shadow: "sm", overflow: "hidden", surface: "card" }
+      },
       props: {}
     },
     {
