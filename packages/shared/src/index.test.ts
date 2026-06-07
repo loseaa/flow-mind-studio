@@ -58,33 +58,16 @@ describe("shared contracts", () => {
 
   it("validates typed design element style by material type", () => {
     const document = validDesignDocument();
-    document.elements[2] = {
-      ...document.elements[2],
-      style: {
-        base: {
-          backgroundColor: "transparent",
-          radius: "none",
-          border: { width: "none", style: "solid", color: "border" },
-          text: {
-            color: "textPrimary",
-            fontFamily: "sans",
-            fontSize: "xl",
-            fontWeight: "bold",
-            lineHeight: "tight",
-            align: "left"
-          }
-        },
-        text: { role: "heading", decoration: "none", transform: "none" }
-      }
-    };
 
     const parsed = designDocumentSchema.parse(document);
+    const title = parsed.elements.find((element) => element.id === "title_text");
 
-    expect(parsed.elements[2].style?.text?.role).toBe("heading");
+    expect(title?.type).toBe("text");
+    if (title?.type === "text") expect(title.style.text.role).toBe("heading");
   });
 
   it("rejects style extensions that do not belong to the element type", () => {
-    const document = validDesignDocument();
+    const document = structuredClone(validDesignDocument()) as unknown as { elements: Array<{ id: string; style: Record<string, unknown> }> };
     document.elements[2] = {
       ...document.elements[2],
       style: {
