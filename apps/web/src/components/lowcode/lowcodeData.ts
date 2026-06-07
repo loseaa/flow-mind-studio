@@ -11,7 +11,7 @@ import {
   Type,
   type LucideIcon
 } from "lucide-react";
-import type { DesignDocument, DesignElement, DesignElementType, DesignTreeNode } from "@flowmind/shared";
+import type { DesignBaseStyle, DesignDocument, DesignElement, DesignElementStyle, DesignElementType, DesignTreeNode } from "@flowmind/shared";
 
 export type MaterialDefinition = {
   type: Exclude<DesignElementType, "page">;
@@ -73,6 +73,79 @@ export const customerRows = [
   { name: "北辰零售", stage: "成交", owner: "Chen", health: "健康", lastContact: "3 天前", amount: "¥241,000" }
 ];
 
+type DesignElementSeed = Omit<DesignElement, "style"> & {
+  style?: DesignElementStyle;
+};
+
+function baseStyle(overrides: Partial<Omit<DesignBaseStyle, "border" | "text">> & { border?: Partial<DesignBaseStyle["border"]>; text?: Partial<DesignBaseStyle["text"]> } = {}): DesignBaseStyle {
+  const base: DesignBaseStyle = {
+    backgroundColor: "transparent",
+    radius: "md",
+    border: { width: "none", style: "solid", color: "border" },
+    text: { color: "textPrimary", fontFamily: "sans", fontSize: "md", fontWeight: "regular", lineHeight: "normal", align: "left" }
+  };
+  return {
+    ...base,
+    ...overrides,
+    border: { ...base.border, ...overrides.border },
+    text: { ...base.text, ...overrides.text }
+  };
+}
+
+function defaultStyleForElement(element: Pick<DesignElementSeed, "type">): DesignElementStyle {
+  if (element.type === "page" || element.type === "section" || element.type === "stack") {
+    return {
+      base: baseStyle({
+        backgroundColor: element.type === "page" ? "white" : element.type === "stack" ? "muted" : "surface",
+        radius: element.type === "page" ? "none" : "md",
+        border: { width: element.type === "page" ? "none" : "sm", style: element.type === "stack" ? "dashed" : "solid" }
+      }),
+      container: { shadow: "none", overflow: "visible", surface: element.type === "page" ? "flat" : "card" }
+    };
+  }
+  if (element.type === "text") {
+    const role = "body";
+    return {
+      base: baseStyle({
+        radius: "none",
+        text: { fontSize: "md", fontWeight: "regular", lineHeight: "normal" }
+      }),
+      text: { role, decoration: "none", transform: "none" }
+    };
+  }
+  if (element.type === "image") {
+    return { base: baseStyle({ backgroundColor: "muted", radius: "lg", border: { width: "sm" } }), image: { aspectRatio: "wide", objectFit: "cover" } };
+  }
+  if (element.type === "button") {
+    return {
+      base: baseStyle({ backgroundColor: "brand", radius: "md", border: { width: "none" }, text: { color: "white", fontWeight: "semibold" } }),
+      button: { size: "md", emphasis: "primary" }
+    };
+  }
+  if (element.type === "input" || element.type === "filter" || element.type === "form") {
+    return { base: baseStyle({ backgroundColor: "white", radius: "md", border: { width: "sm" } }), control: { size: "md", labelPosition: "top", fieldGap: "sm" } };
+  }
+  if (element.type === "badge") {
+    return { base: baseStyle({ backgroundColor: "success", radius: "md", border: { width: "sm" }, text: { color: "white", fontSize: "xs", fontWeight: "bold" } }), badge: { size: "md", shape: "square", emphasis: "soft" } };
+  }
+  if (element.type === "divider") {
+    return { base: baseStyle({ backgroundColor: "transparent", radius: "none", border: { width: "sm" }, text: { color: "textSecondary", fontSize: "xs", fontWeight: "semibold" } }), divider: { direction: "horizontal", thickness: "sm", labelPosition: "center" } };
+  }
+  if (element.type === "stat") {
+    return { base: baseStyle({ backgroundColor: "muted", radius: "lg", border: { width: "sm" } }), stat: { valueSize: "xl", trendPosition: "below" } };
+  }
+  return { base: baseStyle({ backgroundColor: "white", radius: "lg", border: { width: "sm" } }), table: { density: "default", zebra: false, headerBackground: "muted", borderMode: "rows" } };
+}
+
+function styleProps(element: DesignElementSeed): Record<string, unknown> {
+  return { ...element.props };
+}
+
+function withDefaultStyle(element: DesignElementSeed): DesignElement {
+  const { style, ...rest } = element;
+  return { ...rest, props: styleProps(element), style: style ?? defaultStyleForElement(element) } as DesignElement;
+}
+
 export const fallbackDesignDocument: DesignDocument = {
   schemaVersion: "fm-design/v1",
   id: "doc_customer_admin",
@@ -120,7 +193,6 @@ export const fallbackDesignDocument: DesignDocument = {
       type: "page",
       name: "客户管理页",
       layout: { display: "flex", direction: "vertical", gap: "lg", padding: "lg", width: "fill" },
-      appearance: { tone: "default", density: "default" },
       props: {}
     },
     {
@@ -128,28 +200,29 @@ export const fallbackDesignDocument: DesignDocument = {
       type: "stack",
       name: "标题区",
       layout: { display: "flex", direction: "horizontal", gap: "md", align: "center", padding: "md" },
-      appearance: { variant: "outlined" },
       props: {}
     },
     {
       id: "title_text",
       type: "text",
       name: "页面标题",
-      props: { text: "客户管理", level: "h1", description: "查看客户阶段、负责人和健康度，快速生成后续跟进动作。" }
+      style: {
+        base: baseStyle({ radius: "none", text: { fontSize: "2xl", fontWeight: "bold", lineHeight: "tight" } }),
+        text: { role: "heading", decoration: "none", transform: "none" }
+      },
+      props: { text: "客户管理", description: "查看客户阶段、负责人和健康度，快速生成后续跟进动作。" }
     },
     {
       id: "create_button",
       type: "button",
       name: "新建客户按钮",
-      appearance: { tone: "brand", variant: "filled" },
       props: { label: "新建客户", action: "openForm" }
     },
     {
       id: "hero_image",
       type: "image",
       name: "客户画像封面",
-      appearance: { variant: "soft", radius: "lg" },
-      props: { alt: "客户运营概览图", aspectRatio: "wide" }
+      props: { alt: "客户运营概览图" }
     },
     {
       id: "metrics_row",
@@ -162,21 +235,18 @@ export const fallbackDesignDocument: DesignDocument = {
       id: "stat_leads",
       type: "stat",
       name: "新增线索",
-      appearance: { tone: "brand", variant: "soft" },
       props: { label: "新增线索", value: "128", delta: "+18%" }
     },
     {
       id: "stat_health",
       type: "stat",
       name: "健康客户",
-      appearance: { tone: "success", variant: "soft" },
       props: { label: "健康客户", value: "86%", delta: "+4.2%" }
     },
     {
       id: "stat_value",
       type: "stat",
       name: "预计合同额",
-      appearance: { tone: "warning", variant: "soft" },
       props: { label: "预计合同额", value: "¥455K", delta: "本月" }
     },
     {
@@ -205,14 +275,19 @@ export const fallbackDesignDocument: DesignDocument = {
       name: "客户表单",
       props: { fields: ["name", "stage", "owner", "amount"], mode: "drawer" }
     }
-  ]
+  ].map((element) => withDefaultStyle(element as DesignElementSeed))
 };
 
 export function createElementFromMaterial(type: MaterialDefinition["type"]): DesignElement {
+  const legacy = createElementFromMaterialLegacy(type);
+  return withDefaultStyle(legacy);
+}
+
+function createElementFromMaterialLegacy(type: MaterialDefinition["type"]): DesignElementSeed {
   const id = `node_${type}_${Math.random().toString(36).slice(2, 8)}`;
   const base = materials.find((item) => item.type === type);
   const name = base?.label ?? type;
-  const element: DesignElement = {
+  const element: DesignElementSeed = {
     id,
     type,
     name,
@@ -220,31 +295,31 @@ export function createElementFromMaterial(type: MaterialDefinition["type"]): Des
   };
 
   if (type === "section") {
-    return { ...element, layout: { display: "flex", direction: "vertical", gap: "md", padding: "md" }, appearance: { variant: "outlined" } };
+    return { ...element, layout: { display: "flex", direction: "vertical", gap: "md", padding: "md" } };
   }
   if (type === "stack") {
     return { ...element, layout: { display: "flex", direction: "vertical", gap: "md" } };
   }
   if (type === "text") {
-    return { ...element, props: { text: "新的文本内容", level: "body", description: "" } };
+    return { ...element, props: { text: "新的文本内容", description: "" } };
   }
   if (type === "image") {
-    return { ...element, appearance: { variant: "soft", radius: "lg" }, props: { alt: "图片占位", aspectRatio: "wide" } };
+    return { ...element, props: { alt: "图片占位" } };
   }
   if (type === "button") {
-    return { ...element, appearance: { tone: "brand", variant: "filled" }, props: { label: "动作按钮", action: "platformApi" } };
+    return { ...element, props: { label: "动作按钮", action: "platformApi" } };
   }
   if (type === "input") {
     return { ...element, props: { label: "输入项", placeholder: "请输入内容" } };
   }
   if (type === "badge") {
-    return { ...element, appearance: { tone: "success", variant: "soft" }, props: { label: "状态标签" } };
+    return { ...element, props: { label: "状态标签" } };
   }
   if (type === "divider") {
     return { ...element, props: { label: "" } };
   }
   if (type === "stat") {
-    return { ...element, appearance: { tone: "muted", variant: "soft" }, props: { label: "指标名称", value: "24", delta: "+6%" } };
+    return { ...element, props: { label: "指标名称", value: "24", delta: "+6%" } };
   }
   if (type === "filter") {
     return { ...element, layout: { display: "flex", direction: "horizontal", gap: "sm" }, props: { fields: ["stage", "owner"] } };

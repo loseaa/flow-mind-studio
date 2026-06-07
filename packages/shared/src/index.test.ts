@@ -13,7 +13,7 @@ describe("shared contracts", () => {
       lowCodePageSchema.parse({
         id: "page_1",
         organizationId: "org_1",
-        name: "客户管理",
+        name: "Customers",
         slug: "customers",
         dataModelId: "model_customer",
         version: 1,
@@ -22,7 +22,7 @@ describe("shared contracts", () => {
           {
             id: "cmp_1",
             type: "table",
-            label: "客户列表",
+            label: "Customer table",
             props: {},
             children: []
           }
@@ -36,14 +36,14 @@ describe("shared contracts", () => {
       id: "part_rag_1",
       type: "rag_answer",
       props: {
-        answer: "FlowMind Enterprise Copilot 支持按知识库回答。",
+        answer: "FlowMind can answer with cited knowledge sources.",
         sources: [
           {
             documentId: "doc_1",
-            documentName: "产品说明.md",
+            documentName: "product.md",
             chunkId: "chunk_1",
             score: 0.87,
-            quote: "企业版支持知识库约束回答，并在回答中展示来源引用。"
+            quote: "Enterprise answers include source citations."
           }
         ]
       }
@@ -56,7 +56,30 @@ describe("shared contracts", () => {
     expect(() => designDocumentSchema.parse(validDesignDocument())).not.toThrow();
   });
 
-  it("validates enhanced flex layout settings without breaking old documents", () => {
+  it("validates typed design element style by material type", () => {
+    const document = validDesignDocument();
+
+    const parsed = designDocumentSchema.parse(document);
+    const title = parsed.elements.find((element) => element.id === "title_text");
+
+    expect(title?.type).toBe("text");
+    if (title?.type === "text") expect(title.style.text.role).toBe("heading");
+  });
+
+  it("rejects style extensions that do not belong to the element type", () => {
+    const document = structuredClone(validDesignDocument()) as unknown as { elements: Array<{ id: string; style: Record<string, unknown> }> };
+    document.elements[2] = {
+      ...document.elements[2],
+      style: {
+        ...document.elements[2].style,
+        button: { size: "md", emphasis: "primary" }
+      }
+    };
+
+    expect(() => designDocumentSchema.parse(document)).toThrow();
+  });
+
+  it("validates enhanced flex layout settings", () => {
     const document = validDesignDocument();
     document.elements[1].layout = {
       display: "flex",
@@ -80,28 +103,27 @@ describe("shared contracts", () => {
       fixedWidth: 360,
       grow: "fill"
     });
-    expect(() => designDocumentSchema.parse(validDesignDocument())).not.toThrow();
   });
 
   it("rejects design documents when tree references missing elements", () => {
     const document = validDesignDocument();
     document.tree.children!.push({ id: "missing_node", children: [] });
 
-    expect(() => designDocumentSchema.parse(document)).toThrow(/不存在的元素 id/);
+    expect(() => designDocumentSchema.parse(document)).toThrow(/missing_node/);
   });
 
   it("rejects design documents with duplicated element ids", () => {
     const document = validDesignDocument();
     document.elements.push({ ...document.elements[1] });
 
-    expect(() => designDocumentSchema.parse(document)).toThrow(/重复的元素 id/);
+    expect(() => designDocumentSchema.parse(document)).toThrow(/header_section/);
   });
 
   it("rejects design documents when a node appears twice in tree", () => {
     const document = validDesignDocument();
     document.tree.children!.push({ id: "title_text", children: [] });
 
-    expect(() => designDocumentSchema.parse(document)).toThrow(/重复出现元素 id/);
+    expect(() => designDocumentSchema.parse(document)).toThrow(/title_text/);
   });
 });
 
@@ -109,7 +131,7 @@ function validDesignDocument(): DesignDocument {
   return {
     schemaVersion: "fm-design/v1",
     id: "doc_customer_admin",
-    name: "客户管理设计稿",
+    name: "Customer admin design",
     canvas: {
       viewport: "desktop",
       width: 1440,
@@ -128,22 +150,49 @@ function validDesignDocument(): DesignDocument {
       {
         id: "page_root",
         type: "page",
-        name: "页面",
+        name: "Page",
         layout: { display: "flex", direction: "vertical", gap: "lg", padding: "lg" },
+        style: {
+          base: {
+            backgroundColor: "white",
+            radius: "none",
+            border: { width: "none", style: "solid", color: "border" },
+            text: { color: "textPrimary", fontFamily: "sans", fontSize: "md", fontWeight: "regular", lineHeight: "normal", align: "left" }
+          },
+          container: { surface: "flat", shadow: "none", overflow: "visible" }
+        },
         props: {}
       },
       {
         id: "header_section",
         type: "section",
-        name: "标题区",
+        name: "Header section",
         layout: { display: "flex", direction: "vertical", gap: "sm" },
+        style: {
+          base: {
+            backgroundColor: "surface",
+            radius: "lg",
+            border: { width: "sm", style: "solid", color: "border" },
+            text: { color: "textPrimary", fontFamily: "sans", fontSize: "md", fontWeight: "regular", lineHeight: "normal", align: "left" }
+          },
+          container: { surface: "card", shadow: "none", overflow: "visible" }
+        },
         props: {}
       },
       {
         id: "title_text",
         type: "text",
-        name: "页面标题",
-        props: { text: "客户管理", level: "h1" }
+        name: "Page title",
+        style: {
+          base: {
+            backgroundColor: "transparent",
+            radius: "none",
+            border: { width: "none", style: "solid", color: "border" },
+            text: { color: "textPrimary", fontFamily: "sans", fontSize: "xl", fontWeight: "bold", lineHeight: "tight", align: "left" }
+          },
+          text: { role: "heading", decoration: "none", transform: "none" }
+        },
+        props: { text: "Customers" }
       }
     ]
   };
