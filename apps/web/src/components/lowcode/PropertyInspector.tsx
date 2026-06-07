@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { AlignCenter, AlignLeft, AlignRight } from "lucide-react";
 import type { DesignElement, DesignElementStyle, DesignLayout } from "@flowmind/shared";
 import { Input } from "@flowmind/ui";
@@ -654,6 +654,7 @@ function ColorSwatchControl({ label, onChange, value }: { label: string; onChang
 function BackgroundImageControl({ onChange, onUpload, value }: { onChange: (value: string) => void; onUpload: (file: File) => Promise<void>; value: string }) {
   const [uploadState, setUploadState] = useState<"idle" | "uploading" | "error">("idle");
   const [uploadError, setUploadError] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const trimmedValue = value.trim();
   return (
     <div>
@@ -666,33 +667,39 @@ function BackgroundImageControl({ onChange, onUpload, value }: { onChange: (valu
         onChange={(event) => onChange(event.target.value.trim())}
       />
       <div className="mt-2 flex items-center gap-2">
-        <label
+        <button
+          type="button"
           className={`inline-flex h-8 cursor-pointer items-center rounded-md border px-3 text-xs font-semibold transition ${uploadState === "uploading" ? "border-[#d9e1e8] bg-[#f8fafb] text-[#8a94a3]" : "border-[#cbd5df] bg-white text-[#5b6472] hover:bg-[#f8fafb]"}`}
-          onClick={clearDropPlacementIndicator}
+          disabled={uploadState === "uploading"}
+          onClick={() => {
+            clearDropPlacementIndicator();
+            fileInputRef.current?.click();
+          }}
           onPointerDown={clearDropPlacementIndicator}
         >
           {uploadState === "uploading" ? "Uploading..." : "Upload file"}
-          <input
-            aria-label="Upload background image"
-            className="sr-only"
-            type="file"
-            accept="image/*"
-            disabled={uploadState === "uploading"}
-            onChange={(event) => {
-              const file = event.target.files?.[0];
-              event.currentTarget.value = "";
-              if (!file) return;
-              setUploadError("");
-              setUploadState("uploading");
-              void onUpload(file)
-                .then(() => setUploadState("idle"))
-                .catch((error: unknown) => {
-                  setUploadError(error instanceof Error ? error.message : "Unknown upload error");
-                  setUploadState("error");
-                });
-            }}
-          />
-        </label>
+        </button>
+        <input
+          ref={fileInputRef}
+          aria-label="Upload background image"
+          className="hidden"
+          type="file"
+          accept="image/*"
+          disabled={uploadState === "uploading"}
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            event.currentTarget.value = "";
+            if (!file) return;
+            setUploadError("");
+            setUploadState("uploading");
+            void onUpload(file)
+              .then(() => setUploadState("idle"))
+              .catch((error: unknown) => {
+                setUploadError(error instanceof Error ? error.message : "Unknown upload error");
+                setUploadState("error");
+              });
+          }}
+        />
         {trimmedValue ? (
           <button className="h-8 rounded-md px-2 text-xs font-semibold text-[#8a94a3] hover:bg-[#eef2f5]" type="button" onClick={() => onChange("")}>
             Clear
