@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { LowCodePage } from "../../pages/app/LowCodePage";
+import { clearDropPlacementIndicator, setDropPlacementIndicator } from "./dropPlacementIndicator";
 import { createElementFromMaterial, defaultBackgroundImageUrl, fallbackDesignDocument, materials } from "./lowcodeData";
 
 vi.mock("interactjs", () => ({
@@ -17,6 +18,7 @@ vi.mock("interactjs", () => ({
 describe("LowCodePage design builder", () => {
   beforeEach(() => {
     localStorage.clear();
+    clearDropPlacementIndicator();
   });
 
   it("renders the default design document", () => {
@@ -121,6 +123,38 @@ describe("LowCodePage design builder", () => {
       expect(globalThis.fetch).toHaveBeenCalledWith("http://localhost:4000/api/low-code/assets/background-image", expect.objectContaining({ method: "POST" }));
       expect(savedTitle?.style?.base.backgroundImage).toBe(uploadedUrl);
       expect(JSON.stringify(savedTitle)).not.toContain("data:image");
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("clears stale material drop indicators before opening the background image file picker", () => {
+    const target = document.createElement("div");
+    target.getBoundingClientRect = () => ({ bottom: 100, height: 80, left: 10, right: 110, top: 20, width: 100, x: 10, y: 20, toJSON: () => ({}) });
+    document.body.appendChild(target);
+    setDropPlacementIndicator({ element: target, placement: { axis: "vertical", parentId: "page_root", position: "inside" } });
+
+    render(<LowCodePage />);
+    fireEvent.click(screen.getByText("Upload file"));
+
+    expect(document.querySelector(".material-drop-placement-indicator")).toBeNull();
+    target.remove();
+  });
+
+  it("shows the backend upload error instead of a generic OSS failure message", async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn(async () => ({
+      ok: false,
+      status: 404,
+      json: async () => ({ message: "Cannot POST /api/low-code/assets/background-image" })
+    })) as unknown as typeof fetch;
+    try {
+      render(<LowCodePage />);
+      const file = new File([new Uint8Array([1, 2, 3])], "header.png", { type: "image/png" });
+
+      fireEvent.change(screen.getByLabelText("Upload background image"), { target: { files: [file] } });
+
+      await waitFor(() => expect(screen.getByText(/Cannot POST/)).toBeInTheDocument());
     } finally {
       globalThis.fetch = originalFetch;
     }

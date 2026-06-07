@@ -4,6 +4,7 @@ import type { DesignElement, DesignElementStyle, DesignLayout } from "@flowmind/
 import { Input } from "@flowmind/ui";
 import { CustomScrollbar } from "../CustomScrollbar";
 import { availableFields, fieldLabels, isContainerElement } from "./lowcodeData";
+import { clearDropPlacementIndicator } from "./dropPlacementIndicator";
 
 type LayoutOption<T extends string> = {
   value: T;
@@ -652,6 +653,7 @@ function ColorSwatchControl({ label, onChange, value }: { label: string; onChang
 
 function BackgroundImageControl({ onChange, onUpload, value }: { onChange: (value: string) => void; onUpload: (file: File) => Promise<void>; value: string }) {
   const [uploadState, setUploadState] = useState<"idle" | "uploading" | "error">("idle");
+  const [uploadError, setUploadError] = useState("");
   const trimmedValue = value.trim();
   return (
     <div>
@@ -664,7 +666,10 @@ function BackgroundImageControl({ onChange, onUpload, value }: { onChange: (valu
         onChange={(event) => onChange(event.target.value.trim())}
       />
       <div className="mt-2 flex items-center gap-2">
-        <label className={`inline-flex h-8 cursor-pointer items-center rounded-md border px-3 text-xs font-semibold transition ${uploadState === "uploading" ? "border-[#d9e1e8] bg-[#f8fafb] text-[#8a94a3]" : "border-[#cbd5df] bg-white text-[#5b6472] hover:bg-[#f8fafb]"}`}>
+        <label
+          className={`inline-flex h-8 cursor-pointer items-center rounded-md border px-3 text-xs font-semibold transition ${uploadState === "uploading" ? "border-[#d9e1e8] bg-[#f8fafb] text-[#8a94a3]" : "border-[#cbd5df] bg-white text-[#5b6472] hover:bg-[#f8fafb]"}`}
+          onClick={clearDropPlacementIndicator}
+        >
           {uploadState === "uploading" ? "Uploading..." : "Upload file"}
           <input
             aria-label="Upload background image"
@@ -676,10 +681,14 @@ function BackgroundImageControl({ onChange, onUpload, value }: { onChange: (valu
               const file = event.target.files?.[0];
               event.currentTarget.value = "";
               if (!file) return;
+              setUploadError("");
               setUploadState("uploading");
               void onUpload(file)
                 .then(() => setUploadState("idle"))
-                .catch(() => setUploadState("error"));
+                .catch((error: unknown) => {
+                  setUploadError(error instanceof Error ? error.message : "Unknown upload error");
+                  setUploadState("error");
+                });
             }}
           />
         </label>
@@ -689,7 +698,7 @@ function BackgroundImageControl({ onChange, onUpload, value }: { onChange: (valu
           </button>
         ) : null}
       </div>
-      {uploadState === "error" ? <div className="mt-1 text-[11px] font-medium text-[#dc2626]">Upload failed. Check OSS config and try again.</div> : null}
+      {uploadState === "error" ? <div className="mt-1 text-[11px] font-medium text-[#dc2626]">Upload failed: {uploadError || "check OSS config and try again."}</div> : null}
       <div className="mt-2 overflow-hidden rounded-md border border-[#d9e1e8] bg-[#f8fafb]">
         {trimmedValue ? (
           <div className="h-16 bg-cover bg-center" style={{ backgroundImage: cssUrl(trimmedValue) }} />
