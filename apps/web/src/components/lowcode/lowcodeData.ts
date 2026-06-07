@@ -57,6 +57,7 @@ export const materials = materialCategories.flatMap((category) => category.items
 export const aiActions = ["AI 总结字段", "调用 CRM 查询", "生成审批流"];
 
 export const availableFields = ["name", "stage", "owner", "health", "lastContact", "amount"];
+export const defaultBackgroundImageUrl = "https://flowmindstudio.oss-cn-beijing.aliyuncs.com/low-code/backgrounds/1780839643603-bf299984-flowmind-lowcode-background-test.png";
 
 export const fieldLabels: Record<string, string> = {
   name: "客户名称",
@@ -200,6 +201,10 @@ export const fallbackDesignDocument: DesignDocument = {
       type: "stack",
       name: "标题区",
       layout: { display: "flex", direction: "horizontal", gap: "md", align: "center", padding: "md" },
+      style: {
+        base: baseStyle({ backgroundColor: "muted", radius: "lg", border: { width: "sm" }, backgroundImage: defaultBackgroundImageUrl }),
+        container: { shadow: "sm", overflow: "hidden", surface: "card" }
+      },
       props: {}
     },
     {
@@ -210,7 +215,7 @@ export const fallbackDesignDocument: DesignDocument = {
         base: baseStyle({ radius: "none", text: { fontSize: "2xl", fontWeight: "bold", lineHeight: "tight" } }),
         text: { role: "heading", decoration: "none", transform: "none" }
       },
-      props: { text: "客户管理", description: "查看客户阶段、负责人和健康度，快速生成后续跟进动作。" }
+      props: { text: "客户管理" }
     },
     {
       id: "create_button",
@@ -301,7 +306,7 @@ function createElementFromMaterialLegacy(type: MaterialDefinition["type"]): Desi
     return { ...element, layout: { display: "flex", direction: "vertical", gap: "md" } };
   }
   if (type === "text") {
-    return { ...element, props: { text: "新的文本内容", description: "" } };
+    return { ...element, props: { text: "新的文本内容" } };
   }
   if (type === "image") {
     return { ...element, props: { alt: "图片占位" } };

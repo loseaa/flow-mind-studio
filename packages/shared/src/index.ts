@@ -466,6 +466,7 @@ export type DesignTextStyle = z.infer<typeof designTextStyleSchema>;
 
 export const designBaseStyleSchema = z.object({
   backgroundColor: z.enum(designColorTokenValues),
+  backgroundImage: z.string().url().optional(),
   radius: z.enum(designRadiusValues),
   border: designBorderStyleSchema,
   text: designTextStyleSchema
