@@ -41,6 +41,24 @@ export function DesignCanvas({
     let pendingDropFrame: number | null = null;
     let latestDropPoint: { clientX: number; clientY: number; draggedId?: string } | null = null;
 
+    function cancelCanvasDragArtifacts() {
+      latestDropPoint = null;
+      if (pendingDropFrame !== null) {
+        window.cancelAnimationFrame(pendingDropFrame);
+        pendingDropFrame = null;
+      }
+      globalThis.document.querySelectorAll<HTMLElement>(".dragging-node").forEach((target) => {
+        target.classList.remove("dragging-node");
+        target.style.transform = "";
+        target.style.transition = "";
+        target.style.willChange = "";
+        target.style.zIndex = "";
+        target.removeAttribute("data-drag-x");
+        target.removeAttribute("data-drag-y");
+      });
+      clearDropPlacementIndicator();
+    }
+
     function scheduleDropIndicator(clientX: number, clientY: number, draggedId?: string) {
       latestDropPoint = { clientX, clientY, draggedId };
       if (pendingDropFrame !== null) return;
@@ -106,9 +124,25 @@ export function DesignCanvas({
       }
     });
 
+    const clearDragArtifacts = () => {
+      cancelCanvasDragArtifacts();
+    };
+    const clearDragArtifactsOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") cancelCanvasDragArtifacts();
+    };
+    window.addEventListener("blur", clearDragArtifacts);
+    window.addEventListener("drop", clearDragArtifacts);
+    window.addEventListener("dragend", clearDragArtifacts);
+    window.addEventListener("pointerup", clearDragArtifacts);
+    window.addEventListener("keydown", clearDragArtifactsOnEscape);
+
     return () => {
-      if (pendingDropFrame !== null) window.cancelAnimationFrame(pendingDropFrame);
-      clearDropPlacementIndicator();
+      window.removeEventListener("blur", clearDragArtifacts);
+      window.removeEventListener("drop", clearDragArtifacts);
+      window.removeEventListener("dragend", clearDragArtifacts);
+      window.removeEventListener("pointerup", clearDragArtifacts);
+      window.removeEventListener("keydown", clearDragArtifactsOnEscape);
+      cancelCanvasDragArtifacts();
       sortableNodes.unset();
     };
   }, [document.tree.id, onReparent]);

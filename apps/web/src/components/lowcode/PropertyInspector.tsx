@@ -669,6 +669,7 @@ function BackgroundImageControl({ onChange, onUpload, value }: { onChange: (valu
         <label
           className={`inline-flex h-8 cursor-pointer items-center rounded-md border px-3 text-xs font-semibold transition ${uploadState === "uploading" ? "border-[#d9e1e8] bg-[#f8fafb] text-[#8a94a3]" : "border-[#cbd5df] bg-white text-[#5b6472] hover:bg-[#f8fafb]"}`}
           onClick={clearDropPlacementIndicator}
+          onPointerDown={clearDropPlacementIndicator}
         >
           {uploadState === "uploading" ? "Uploading..." : "Upload file"}
           <input

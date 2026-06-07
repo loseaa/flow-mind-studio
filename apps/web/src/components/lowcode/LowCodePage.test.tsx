@@ -141,6 +141,19 @@ describe("LowCodePage design builder", () => {
     target.remove();
   });
 
+  it("clears stale material drop indicators when the window loses focus", () => {
+    const target = document.createElement("div");
+    target.getBoundingClientRect = () => ({ bottom: 100, height: 80, left: 10, right: 110, top: 20, width: 100, x: 10, y: 20, toJSON: () => ({}) });
+    document.body.appendChild(target);
+    setDropPlacementIndicator({ element: target, placement: { axis: "vertical", parentId: "page_root", position: "inside" } });
+
+    render(<LowCodePage />);
+    window.dispatchEvent(new Event("blur"));
+
+    expect(document.querySelector(".material-drop-placement-indicator")).toBeNull();
+    target.remove();
+  });
+
   it("shows the backend upload error instead of a generic OSS failure message", async () => {
     const originalFetch = globalThis.fetch;
     globalThis.fetch = vi.fn(async () => ({
