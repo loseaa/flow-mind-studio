@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { LowCodePage } from "../../pages/app/LowCodePage";
 import { createElementFromMaterial, fallbackDesignDocument, materials } from "./lowcodeData";
@@ -66,7 +66,7 @@ describe("LowCodePage design builder", () => {
     const heading = container.querySelector('[data-node-id="title_text"] h2') as HTMLElement;
 
     fireEvent.click(heading);
-    fireEvent.change(screen.getByLabelText("Background color"), { target: { value: "muted" } });
+    fireEvent.click(screen.getByRole("button", { name: "Background color: Muted" }));
     clickSave(container);
 
     const savedDocument = JSON.parse(localStorage.getItem("flowmind.lowcode.designDocument") ?? "{}") as typeof fallbackDesignDocument;
@@ -74,6 +74,74 @@ describe("LowCodePage design builder", () => {
 
     expect(savedTitle?.style?.base.backgroundColor).toBe("muted");
     expect(heading.style.backgroundColor).toBe("rgb(248, 250, 251)");
+  });
+
+  it("stores a background image URL and renders it from the inspector", () => {
+    const { container } = render(<LowCodePage />);
+    const heading = container.querySelector('[data-node-id="title_text"] h2') as HTMLElement;
+    const imageUrl = "https://oss.example.com/flowmind/backgrounds/header.png";
+
+    fireEvent.click(heading);
+    fireEvent.change(screen.getByLabelText("Background image URL"), { target: { value: imageUrl } });
+    clickSave(container);
+
+    const savedDocument = JSON.parse(localStorage.getItem("flowmind.lowcode.designDocument") ?? "{}") as typeof fallbackDesignDocument;
+    const savedTitle = savedDocument.elements.find((element) => element.id === "title_text");
+
+    expect(savedTitle?.style?.base.backgroundImage).toBe(imageUrl);
+    expect(heading.style.backgroundImage).toContain(imageUrl);
+    expect(JSON.stringify(savedTitle)).not.toContain("data:image");
+  });
+
+  it("uploads a local background image file and stores the returned OSS URL", async () => {
+    const uploadedUrl = "https://cdn.example.com/assets/low-code/backgrounds/header.png";
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ url: uploadedUrl })
+    })) as unknown as typeof fetch;
+    try {
+      const { container } = render(<LowCodePage />);
+      const heading = container.querySelector('[data-node-id="title_text"] h2') as HTMLElement;
+      const file = new File([new Uint8Array([1, 2, 3])], "header.png", { type: "image/png" });
+
+      fireEvent.click(heading);
+      fireEvent.change(screen.getByLabelText("Upload background image"), { target: { files: [file] } });
+
+      await waitFor(() => expect(heading.style.backgroundImage).toContain(uploadedUrl));
+      clickSave(container);
+
+      const savedDocument = JSON.parse(localStorage.getItem("flowmind.lowcode.designDocument") ?? "{}") as typeof fallbackDesignDocument;
+      const savedTitle = savedDocument.elements.find((element) => element.id === "title_text");
+
+      expect(globalThis.fetch).toHaveBeenCalledWith("http://localhost:4000/api/low-code/assets/background-image", expect.objectContaining({ method: "POST" }));
+      expect(savedTitle?.style?.base.backgroundImage).toBe(uploadedUrl);
+      expect(JSON.stringify(savedTitle)).not.toContain("data:image");
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("only shows typography controls for text nodes", () => {
+    const { container } = render(<LowCodePage />);
+
+    expect(screen.queryByText("Font size")).not.toBeInTheDocument();
+    expect(screen.queryByText("Font weight")).not.toBeInTheDocument();
+    expect(screen.queryByText("Text align")).not.toBeInTheDocument();
+
+    const heading = container.querySelector('[data-node-id="title_text"] h2') as HTMLElement;
+    fireEvent.click(heading);
+
+    expect(screen.getByText("Font size")).toBeInTheDocument();
+    expect(screen.getByText("Font weight")).toBeInTheDocument();
+    expect(screen.getByText("Text align")).toBeInTheDocument();
+
+    const table = container.querySelector('[data-node-id="customer_table"]') as HTMLElement;
+    fireEvent.click(table);
+
+    expect(screen.queryByText("Font size")).not.toBeInTheDocument();
+    expect(screen.queryByText("Font weight")).not.toBeInTheDocument();
+    expect(screen.queryByText("Text align")).not.toBeInTheDocument();
   });
 
   it("updates enhanced Flex layout controls and restores them after saving", () => {
@@ -142,6 +210,18 @@ describe("LowCodePage design builder", () => {
     fireEvent.change(screen.getByDisplayValue(heading.textContent ?? ""), { target: { value: "Customer overview" } });
 
     expect(screen.getByRole("heading", { name: "Customer overview" })).toBeInTheDocument();
+  });
+
+  it("uses content as the only editable text-node body", () => {
+    const { container } = render(<LowCodePage />);
+    const heading = container.querySelector('[data-node-id="title_text"] h2') as HTMLElement;
+
+    expect(container.textContent).not.toContain("查看客户阶段");
+
+    fireEvent.click(heading);
+
+    expect(screen.getByText("Content")).toBeInTheDocument();
+    expect(screen.queryByText("Description")).not.toBeInTheDocument();
   });
 
   it("edits canvas text inline and mirrors the inspector", () => {

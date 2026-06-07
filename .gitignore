@@ -12,3 +12,4 @@ coverage
 .DS_Store
 uploads
 tmp
+.superpowers

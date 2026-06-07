@@ -441,7 +441,6 @@ function TextPreview({
   if (element.type !== "text") return null;
   const role = element.style.text.role;
   const text = String(element.props?.text ?? element.name);
-  const description = String(element.props?.description ?? "");
   const textStyle: CSSProperties = {
     ...baseVisualStyle(element.style.base),
     textDecoration: element.style.text.decoration === "lineThrough" ? "line-through" : element.style.text.decoration,
@@ -460,7 +459,6 @@ function TextPreview({
           onSelect={onSelect}
           onUpdateProps={onUpdateProps}
         />
-        {description ? <p className="mt-2 text-sm leading-6 text-[#5b6472]">{description}</p> : null}
       </div>
     );
   }
@@ -476,7 +474,6 @@ function TextPreview({
         onSelect={onSelect}
         onUpdateProps={onUpdateProps}
       />
-      {description ? <p className="mt-1 text-xs leading-5 text-[#5b6472]">{description}</p> : null}
     </div>
   );
 }
@@ -669,8 +666,13 @@ function DividerPreview({ element }: { element: DesignElement }) {
 
 function baseVisualStyle(style: DesignBaseStyle): CSSProperties {
   const borderWidth = borderWidthValue(style.border.width);
+  const backgroundImage = style.backgroundImage?.trim();
   return {
     backgroundColor: style.backgroundColor === "transparent" ? undefined : colorValue(style.backgroundColor),
+    backgroundImage: backgroundImage ? cssUrl(backgroundImage) : undefined,
+    backgroundPosition: backgroundImage ? "center" : undefined,
+    backgroundRepeat: backgroundImage ? "no-repeat" : undefined,
+    backgroundSize: backgroundImage ? "cover" : undefined,
     borderColor: colorValue(style.border.color),
     borderStyle: style.border.style,
     borderWidth,
@@ -682,6 +684,10 @@ function baseVisualStyle(style: DesignBaseStyle): CSSProperties {
     lineHeight: lineHeightValue(style.text.lineHeight),
     textAlign: style.text.align
   };
+}
+
+function cssUrl(value: string) {
+  return `url(${JSON.stringify(value)})`;
 }
 
 function colorValue(token: string) {
