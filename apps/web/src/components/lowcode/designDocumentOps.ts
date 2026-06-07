@@ -1,4 +1,4 @@
-import type { DesignAppearance, DesignDocument, DesignElement, DesignLayout, DesignTreeNode } from "@flowmind/shared";
+import type { DesignDocument, DesignElement, DesignElementStyle, DesignLayout, DesignTreeNode } from "@flowmind/shared";
 import { getTreeIds, isContainerElement } from "./lowcodeData";
 
 export function elementMap(document: DesignDocument) {
@@ -8,7 +8,7 @@ export function elementMap(document: DesignDocument) {
 export function updateElement(document: DesignDocument, id: string, patch: Partial<DesignElement>): DesignDocument {
   return {
     ...document,
-    elements: document.elements.map((element) => element.id === id ? { ...element, ...patch } : element)
+    elements: document.elements.map((element) => element.id === id ? { ...element, ...patch } as DesignElement : element)
   };
 }
 
@@ -26,11 +26,31 @@ export function updateElementLayout(document: DesignDocument, id: string, layout
   };
 }
 
-export function updateElementAppearance(document: DesignDocument, id: string, appearance: Partial<DesignAppearance>): DesignDocument {
+export function updateElementStyle(document: DesignDocument, id: string, style: Partial<DesignElementStyle>): DesignDocument {
   return {
     ...document,
-    elements: document.elements.map((element) => element.id === id ? { ...element, appearance: { ...element.appearance, ...appearance } } : element)
+    elements: document.elements.map((element) => element.id === id ? { ...element, style: mergeElementStyle(element.style, style) } as DesignElement : element)
   };
+}
+
+function mergeElementStyle(current: DesignElementStyle, patch: Partial<DesignElementStyle>): DesignElementStyle {
+  const next = { ...current, ...patch } as Record<string, unknown>;
+  if (patch.base) {
+    next.base = {
+      ...current.base,
+      ...patch.base,
+      border: { ...current.base.border, ...patch.base.border },
+      text: { ...current.base.text, ...patch.base.text }
+    };
+  }
+  for (const key of Object.keys(patch)) {
+    if (key !== "base") {
+      const currentValue = (current as unknown as Record<string, unknown>)[key];
+      const patchValue = (patch as Record<string, unknown>)[key];
+      next[key] = typeof currentValue === "object" && currentValue && typeof patchValue === "object" && patchValue ? { ...currentValue, ...patchValue } : patchValue;
+    }
+  }
+  return next as DesignElementStyle;
 }
 
 export function insertElement(document: DesignDocument, parentId: string, element: DesignElement, index?: number): DesignDocument {

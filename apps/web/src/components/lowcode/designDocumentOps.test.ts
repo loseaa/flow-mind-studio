@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { DesignDocument, DesignElement } from "@flowmind/shared";
+import type { DesignBaseStyle, DesignDocument, DesignElement } from "@flowmind/shared";
 import { insertElement, reparentNode } from "./designDocumentOps";
 
 describe("designDocumentOps", () => {
@@ -41,8 +41,8 @@ function baseDocument(): DesignDocument {
       ]
     },
     elements: [
-      { id: "page", type: "page", name: "Page", props: {} },
-      { id: "content_stack", type: "stack", name: "Stack", props: {} },
+      { id: "page", type: "page", name: "Page", props: {}, style: { base: baseStyle("white"), container: { shadow: "none", overflow: "visible", surface: "flat" } } },
+      { id: "content_stack", type: "stack", name: "Stack", props: {}, style: { base: baseStyle("muted"), container: { shadow: "none", overflow: "visible", surface: "card" } } },
       textElement("first"),
       textElement("second")
     ]
@@ -50,5 +50,14 @@ function baseDocument(): DesignDocument {
 }
 
 function textElement(id: string): DesignElement {
-  return { id, type: "text", name: id, props: { text: id } };
+  return { id, type: "text", name: id, props: { text: id }, style: { base: baseStyle("transparent"), text: { role: "body", decoration: "none", transform: "none" } } };
+}
+
+function baseStyle(backgroundColor: DesignBaseStyle["backgroundColor"]): DesignBaseStyle {
+  return {
+    backgroundColor,
+    radius: "md",
+    border: { width: "none", style: "solid", color: "border" },
+    text: { color: "textPrimary", fontFamily: "sans", fontSize: "md", fontWeight: "regular", lineHeight: "normal", align: "left" }
+  };
 }
