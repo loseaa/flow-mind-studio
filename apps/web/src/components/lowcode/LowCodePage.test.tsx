@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { LowCodePage } from "../../pages/app/LowCodePage";
 import { clearDropPlacementIndicator, setDropPlacementIndicator } from "./dropPlacementIndicator";
-import { createElementFromMaterial, defaultBackgroundImageUrl, fallbackDesignDocument, materials } from "./lowcodeData";
+import { createElementFromMaterial, DEFAULT_LOW_CODE_IMAGE_URL, defaultBackgroundImageUrl, fallbackDesignDocument, materials } from "./lowcodeData";
 
 vi.mock("interactjs", () => ({
   default: () => ({
@@ -18,6 +18,7 @@ vi.mock("interactjs", () => ({
 describe("LowCodePage design builder", () => {
   beforeEach(() => {
     localStorage.clear();
+    vi.restoreAllMocks();
     clearDropPlacementIndicator();
   });
 
@@ -65,6 +66,36 @@ describe("LowCodePage design builder", () => {
     expect(textElement.style.base.text.fontSize).toBe("md");
     if (textElement.type === "text") expect(textElement.style.text.role).toBe("body");
     expect("appearance" in textElement).toBe(false);
+  });
+
+  it("uses an OSS-hosted image for the default image material", () => {
+    const hero = fallbackDesignDocument.elements.find((element) => element.id === "hero_image");
+
+    expect(hero?.props?.src).toBe(DEFAULT_LOW_CODE_IMAGE_URL);
+  });
+
+  it("uploads an image material and inserts it into the canvas", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        url: "https://flowmindstudio.oss-cn-beijing.aliyuncs.com/low-code/backgrounds/assets/uploaded.png",
+        key: "low-code/backgrounds/assets/uploaded.png",
+        name: "uploaded.png",
+        mimeType: "image/png",
+        sizeBytes: 6
+      })
+    } as Response);
+    render(<LowCodePage />);
+
+    const file = new File(["image!"], "uploaded.png", { type: "image/png" });
+    fireEvent.change(screen.getByLabelText("上传图片物料"), { target: { files: [file] } });
+
+    const image = await screen.findByRole("img", { name: "uploaded.png" });
+    expect(image).toHaveAttribute("src", "https://flowmindstudio.oss-cn-beijing.aliyuncs.com/low-code/backgrounds/assets/uploaded.png");
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://localhost:4000/api/low-code/assets/images",
+      expect.objectContaining({ method: "POST", body: expect.any(FormData) })
+    );
   });
 
   it("updates base style from the inspector and persists it in the design document", () => {
@@ -243,6 +274,16 @@ describe("LowCodePage design builder", () => {
 
     expect(flexNode).not.toBeNull();
     expect(flexNode?.style.width).toBe("360px");
+  });
+
+  it("centers text inside metric cards when configured", () => {
+    const { container } = render(<LowCodePage />);
+
+    fireEvent.click(screen.getByText("新增线索"));
+    fireEvent.click(screen.getByRole("button", { name: "Text align: Center" }));
+
+    const stat = container.querySelector('[data-node-id="stat_leads"] [data-stat-card]') as HTMLElement | null;
+    expect(stat?.style.textAlign).toBe("center");
   });
 
   it("renders an empty Flex container as a visible drop area", () => {

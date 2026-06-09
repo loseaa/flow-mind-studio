@@ -588,7 +588,7 @@ function StatPreview({ element }: { element: DesignElement }) {
   if (element.type !== "stat") return null;
   const valueClass = element.style.stat.valueSize === "xl" ? "text-2xl" : element.style.stat.valueSize === "lg" ? "text-xl" : "text-lg";
   return (
-    <div className="rounded-lg border border-[#d9e1e8] p-4" style={baseVisualStyle(element.style.base)}>
+    <div data-stat-card className="rounded-lg border border-[#d9e1e8] p-4" style={baseVisualStyle(element.style.base)}>
       <div className="text-xs font-semibold opacity-80">{String(element.props?.label ?? element.name)}</div>
       <div className={`mt-2 font-bold text-[#101828] ${valueClass}`}>{String(element.props?.value ?? "0")}</div>
       <div className="mt-1 text-xs font-semibold">{String(element.props?.delta ?? "")}</div>
@@ -663,9 +663,11 @@ function ButtonPreview({ element }: { element: DesignElement }) {
 function ImagePreview({ element }: { element: DesignElement }) {
   if (element.type !== "image") return null;
   const aspectRatio = element.style.image.aspectRatio === "square" ? "aspect-square" : element.style.image.aspectRatio === "portrait" ? "aspect-[4/5]" : "aspect-[16/7]";
+  const src = typeof element.props?.src === "string" ? element.props.src : "";
+  const alt = String(element.props?.alt ?? element.name);
   return (
     <div className={`${aspectRatio} flex min-h-[120px] items-center justify-center overflow-hidden rounded-lg border border-[#d9e1e8] bg-[linear-gradient(135deg,#e8f4f2,#eef2f5_45%,#f8fafb)]`} style={baseVisualStyle(element.style.base)}>
-      <div className="rounded-md bg-white/80 px-3 py-2 text-xs font-semibold text-[#5b6472]">{String(element.props?.alt ?? element.name)}</div>
+      {src ? <img src={src} alt={alt} className="h-full w-full" style={{ objectFit: element.style.image.objectFit }} /> : <div className="rounded-md bg-white/80 px-3 py-2 text-xs font-semibold text-[#5b6472]">{alt}</div>}
     </div>
   );
 }

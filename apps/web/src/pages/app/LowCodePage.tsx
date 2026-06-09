@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import type { DesignDocument, DesignElement, DesignElementStyle, DesignLayout } from "@flowmind/shared";
+import type { DesignDocument, DesignElement, DesignElementStyle, DesignLayout, LowCodeImageAsset } from "@flowmind/shared";
 import { designDocumentSchema } from "@flowmind/shared";
 import { apiUpload } from "../../api";
 import { DesignCanvas } from "../../components/lowcode/DesignCanvas";
 import { LowCodeToolbar } from "../../components/lowcode/LowCodeToolbar";
 import { MaterialPalette } from "../../components/lowcode/MaterialPalette";
 import { PropertyInspector } from "../../components/lowcode/PropertyInspector";
-import { createElementFromMaterial, fallbackDesignDocument, isContainerElement, type MaterialDefinition } from "../../components/lowcode/lowcodeData";
+import { createElementFromMaterial, createImageElementFromAsset, fallbackDesignDocument, isContainerElement, type MaterialDefinition } from "../../components/lowcode/lowcodeData";
 import { elementMap, insertElement, moveNode, removeNode, reparentNode, updateElement, updateElementLayout, updateElementProps, updateElementStyle } from "../../components/lowcode/designDocumentOps";
 
 const STORAGE_KEY = "flowmind.lowcode.designDocument";
@@ -46,6 +46,14 @@ export function LowCodePage() {
     setSelectedId(element.id);
   }
 
+  async function uploadImageMaterial(file: File | undefined) {
+    if (!file) return;
+    const asset = await apiUpload<LowCodeImageAsset>("/low-code/assets/images", file);
+    const element = createImageElementFromAsset(asset);
+    commit((current) => insertElement(current, current.tree.id, element));
+    setSelectedId(element.id);
+  }
+
   function deleteElement(id: string) {
     commit((current) => removeNode(current, id));
     setSelectedId(document.tree.id);
@@ -75,7 +83,7 @@ export function LowCodePage() {
     <div className="lowcode-page flex h-[calc(100vh-72px)] min-h-0 flex-col bg-[#f6f8fa]">
       <LowCodeToolbar document={document} saveState={saveState} onPublish={publishPreview} onSave={saveDraft} />
       <div className="grid min-h-0 flex-1 grid-cols-[286px_1fr_330px] overflow-hidden max-xl:grid-cols-[260px_1fr] max-lg:grid-cols-1">
-        <MaterialPalette onAdd={(type, parentId, index) => addElement(type, parentId, index)} />
+        <MaterialPalette onAdd={(type, parentId, index) => addElement(type, parentId, index)} onUploadImage={uploadImageMaterial} />
         <DesignCanvas
           document={document}
           selectedId={selectedElement.id}

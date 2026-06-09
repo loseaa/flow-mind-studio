@@ -57,6 +57,40 @@ describe("OssAssetsService", () => {
     }
   });
 
+  it("uploads image material assets and returns the asset metadata", async () => {
+    const fetchMock = vi.fn(async () => ({ ok: true })) as unknown as typeof fetch;
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = fetchMock;
+    try {
+      const service = serviceWithConfig({
+        ALIYUN_OSS_ACCESS_KEY_ID: "ak",
+        ALIYUN_OSS_ACCESS_KEY_SECRET: "sk",
+        ALIYUN_OSS_BUCKET: "flowmindstudio",
+        ALIYUN_OSS_ENDPOINT: "oss-cn-beijing.aliyuncs.com",
+        ALIYUN_OSS_PUBLIC_BASE_URL: "https://flowmindstudio.oss-cn-beijing.aliyuncs.com",
+        ALIYUN_OSS_PREFIX: "low-code/backgrounds"
+      });
+
+      const result = await service.uploadImageAsset({
+        originalname: "customer overview.png",
+        mimetype: "image/png",
+        size: 6,
+        buffer: Buffer.from("image!")
+      });
+
+      expect(result.key).toMatch(/^low-code\/backgrounds\/assets\/\d+-[a-f0-9]+-customer-overview\.png$/);
+      expect(result.url).toMatch(
+        /^https:\/\/flowmindstudio\.oss-cn-beijing\.aliyuncs\.com\/low-code\/backgrounds\/assets\/\d+-[a-f0-9]+-customer-overview\.png$/
+      );
+      expect(result.name).toBe("customer overview.png");
+      expect(result.mimeType).toBe("image/png");
+      expect(result.sizeBytes).toBe(6);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   it("reports a clear error when OSS config is incomplete", async () => {
     const service = serviceWithConfig({ ALIYUN_OSS_BUCKET: "flowmind-assets" });
 

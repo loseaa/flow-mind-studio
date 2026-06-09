@@ -405,6 +405,15 @@ export const lowCodePageSchema = z.object({
 });
 export type LowCodePage = z.infer<typeof lowCodePageSchema>;
 
+export const lowCodeImageAssetSchema = z.object({
+  url: z.string().url(),
+  key: z.string().min(1),
+  name: z.string().min(1),
+  mimeType: z.string().min(1),
+  sizeBytes: z.number().int().nonnegative()
+});
+export type LowCodeImageAsset = z.infer<typeof lowCodeImageAssetSchema>;
+
 export const designElementTypes = ["page", "section", "stack", "text", "image", "button", "input", "badge", "divider", "stat", "filter", "table", "form"] as const;
 export type DesignElementType = (typeof designElementTypes)[number];
 

@@ -34,6 +34,12 @@ export class LowCodeController {
     return page;
   }
 
+  @Post("assets/images")
+  @UseInterceptors(FileInterceptor("file"))
+  uploadImage(@UploadedFile() file?: UploadedAsset) {
+    return this.ossAssetsService.uploadImageAsset(file);
+  }
+
   @Post("assets/background-image")
   @UseInterceptors(FileInterceptor("file"))
   uploadBackgroundImage(@UploadedFile() file?: UploadedAsset) {

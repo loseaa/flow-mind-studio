@@ -176,6 +176,7 @@ function StyleFields({
 }) {
   const base = selectedElement.style.base;
   const showTypographyControls = selectedElement.type === "text";
+  const showTextAlignControl = selectedElement.type === "text" || selectedElement.type === "stat";
   return (
     <PropertyGroup title="Base style">
       <ColorSwatchControl label="Background color" value={base.backgroundColor} onChange={(backgroundColor) => onUpdateStyle({ base: { backgroundColor } } as Partial<DesignElementStyle>)} />
@@ -196,9 +197,9 @@ function StyleFields({
           <ColorSwatchControl label="Text color" value={base.text.color} onChange={(color) => onUpdateStyle({ base: { text: { color } } } as Partial<DesignElementStyle>)} />
           <VisualTokenControl label="Font size" value={base.text.fontSize} options={fontSizeOptions} variant="textSize" onChange={(fontSize) => onUpdateStyle({ base: { text: { fontSize } } } as Partial<DesignElementStyle>)} />
           <VisualTokenControl label="Font weight" value={base.text.fontWeight} options={fontWeightOptions} variant="weight" onChange={(fontWeight) => onUpdateStyle({ base: { text: { fontWeight } } } as Partial<DesignElementStyle>)} />
-          <TextAlignControl value={base.text.align} onChange={(align) => onUpdateStyle({ base: { text: { align } } } as Partial<DesignElementStyle>)} />
         </>
       ) : null}
+      {showTextAlignControl ? <TextAlignControl value={base.text.align} onChange={(align) => onUpdateStyle({ base: { text: { align } } } as Partial<DesignElementStyle>)} /> : null}
     </PropertyGroup>
   );
 }

@@ -1,6 +1,7 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent, ReactNode } from "react";
 import interact from "interactjs";
+import { Upload } from "lucide-react";
 import { Input } from "@flowmind/ui";
 import { aiActions, materialCategories, type MaterialDefinition } from "./lowcodeData";
 import { CustomScrollbar } from "../CustomScrollbar";
@@ -11,8 +12,15 @@ const dragPreviews = new WeakMap<HTMLElement, HTMLElement>();
 let activeDropTarget: MaterialDropTarget | null = null;
 let previousBodyUserSelect: string | null = null;
 
-export function MaterialPalette({ onAdd }: { onAdd: (type: MaterialDefinition["type"], parentId?: string, index?: number) => void }) {
+export function MaterialPalette({
+  onAdd,
+  onUploadImage
+}: {
+  onAdd: (type: MaterialDefinition["type"], parentId?: string, index?: number) => void;
+  onUploadImage: (file: File | undefined) => Promise<void> | void;
+}) {
   const onAddRef = useRef(onAdd);
+  const [uploading, setUploading] = useState(false);
   onAddRef.current = onAdd;
 
   useEffect(() => {
@@ -108,6 +116,25 @@ export function MaterialPalette({ onAdd }: { onAdd: (type: MaterialDefinition["t
           <span className="text-xs text-[#8a94a3]">拖拽到画布</span>
         </div>
         <Input placeholder="搜索物料" className="mt-3 h-9" />
+        <label className="mt-3 flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-[#b9c4cf] bg-[#f8fafb] px-3 py-2 text-sm font-semibold text-[#344054] hover:border-[#8a94a3] hover:bg-white">
+          <Upload size={16} />
+          <span>{uploading ? "上传中..." : "上传图片物料"}</span>
+          <input
+            aria-label="上传图片物料"
+            className="sr-only"
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
+            disabled={uploading}
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              setUploading(true);
+              void Promise.resolve(onUploadImage(file)).finally(() => {
+                setUploading(false);
+                event.target.value = "";
+              });
+            }}
+          />
+        </label>
         <div className="mt-4 space-y-5">
           {materialCategories.map((category) => (
             <section key={category.title} className="space-y-3">

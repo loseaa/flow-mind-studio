@@ -11,7 +11,7 @@ import {
   Type,
   type LucideIcon
 } from "lucide-react";
-import type { DesignBaseStyle, DesignDocument, DesignElement, DesignElementStyle, DesignElementType, DesignTreeNode } from "@flowmind/shared";
+import type { DesignBaseStyle, DesignDocument, DesignElement, DesignElementStyle, DesignElementType, DesignTreeNode, LowCodeImageAsset } from "@flowmind/shared";
 
 export type MaterialDefinition = {
   type: Exclude<DesignElementType, "page">;
@@ -55,6 +55,7 @@ export const materialCategories: Array<{ title: string; items: MaterialDefinitio
 
 export const materials = materialCategories.flatMap((category) => category.items);
 export const aiActions = ["AI 总结字段", "调用 CRM 查询", "生成审批流"];
+export const DEFAULT_LOW_CODE_IMAGE_URL = "https://flowmindstudio.oss-cn-beijing.aliyuncs.com/low-code/backgrounds/default-customer-admin.png";
 
 export const availableFields = ["name", "stage", "owner", "health", "lastContact", "amount"];
 export const defaultBackgroundImageUrl = "https://flowmindstudio.oss-cn-beijing.aliyuncs.com/low-code/backgrounds/1780839643603-bf299984-flowmind-lowcode-background-test.png";
@@ -227,7 +228,7 @@ export const fallbackDesignDocument: DesignDocument = {
       id: "hero_image",
       type: "image",
       name: "客户画像封面",
-      props: { alt: "客户运营概览图" }
+      props: { alt: "客户运营概览图", src: DEFAULT_LOW_CODE_IMAGE_URL }
     },
     {
       id: "metrics_row",
@@ -309,7 +310,7 @@ function createElementFromMaterialLegacy(type: MaterialDefinition["type"]): Desi
     return { ...element, props: { text: "新的文本内容" } };
   }
   if (type === "image") {
-    return { ...element, props: { alt: "图片占位" } };
+    return { ...element, props: { alt: "图片占位", src: DEFAULT_LOW_CODE_IMAGE_URL } };
   }
   if (type === "button") {
     return { ...element, props: { label: "动作按钮", action: "platformApi" } };
@@ -336,6 +337,15 @@ function createElementFromMaterialLegacy(type: MaterialDefinition["type"]): Desi
     return { ...element, props: { fields: ["name", "stage", "owner"], mode: "drawer" } };
   }
   return element;
+}
+
+export function createImageElementFromAsset(asset: LowCodeImageAsset): DesignElement {
+  return withDefaultStyle({
+    id: `node_image_${Math.random().toString(36).slice(2, 8)}`,
+    type: "image",
+    name: asset.name,
+    props: { alt: asset.name, src: asset.url, assetKey: asset.key }
+  });
 }
 
 export function isContainerElement(type: DesignElementType) {
