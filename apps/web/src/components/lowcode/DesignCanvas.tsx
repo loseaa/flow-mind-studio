@@ -545,8 +545,9 @@ function selectTextNodeContents(node: HTMLElement) {
 function StatPreview({ element }: { element: DesignElement }) {
   const tone = element.appearance?.tone ?? "muted";
   const toneClass = tone === "brand" ? "bg-[#e8f1ff] text-[#175cd3]" : tone === "success" ? "bg-[#e8f4f2] text-[#0f766e]" : tone === "warning" ? "bg-[#fff4e5] text-[#b54708]" : "bg-[#f3f5f7] text-[#344054]";
+  const textAlign = element.props?.textAlign === "center" ? "text-center" : "text-left";
   return (
-    <div className={`rounded-lg border border-[#d9e1e8] p-4 ${toneClass}`}>
+    <div data-stat-card className={`rounded-lg border border-[#d9e1e8] p-4 ${textAlign} ${toneClass}`}>
       <div className="text-xs font-semibold opacity-80">{String(element.props?.label ?? element.name)}</div>
       <div className="mt-2 text-2xl font-bold text-[#101828]">{String(element.props?.value ?? "0")}</div>
       <div className="mt-1 text-xs font-semibold">{String(element.props?.delta ?? "")}</div>
@@ -615,9 +616,11 @@ function ButtonPreview({ element }: { element: DesignElement }) {
 
 function ImagePreview({ element }: { element: DesignElement }) {
   const aspectRatio = String(element.props?.aspectRatio ?? "wide") === "square" ? "aspect-square" : "aspect-[16/7]";
+  const src = typeof element.props?.src === "string" ? element.props.src : "";
+  const alt = String(element.props?.alt ?? element.name);
   return (
     <div className={`${aspectRatio} flex min-h-[120px] items-center justify-center overflow-hidden rounded-lg border border-[#d9e1e8] bg-[linear-gradient(135deg,#e8f4f2,#eef2f5_45%,#f8fafb)]`}>
-      <div className="rounded-md bg-white/80 px-3 py-2 text-xs font-semibold text-[#5b6472]">{String(element.props?.alt ?? element.name)}</div>
+      {src ? <img src={src} alt={alt} className="h-full w-full object-cover" /> : <div className="rounded-md bg-white/80 px-3 py-2 text-xs font-semibold text-[#5b6472]">{alt}</div>}
     </div>
   );
 }

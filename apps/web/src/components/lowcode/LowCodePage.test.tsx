@@ -17,6 +17,7 @@ vi.mock("interactjs", () => ({
 describe("LowCodePage design builder", () => {
   beforeEach(() => {
     localStorage.clear();
+    vi.restoreAllMocks();
   });
 
   it("renders the default customer management design document", () => {
@@ -48,6 +49,36 @@ describe("LowCodePage design builder", () => {
     const allowedTypes = new Set(["page", ...materials.map((item) => item.type)]);
 
     expect(fallbackDesignDocument.elements.map((element) => element.type).filter((type) => !allowedTypes.has(type))).toEqual([]);
+  });
+
+  it("uses an OSS-hosted image for the default image material", () => {
+    const hero = fallbackDesignDocument.elements.find((element) => element.id === "hero_image");
+
+    expect(hero?.props?.src).toBe("https://flowmindstudio.oss-cn-beijing.aliyuncs.com/low-code/backgrounds/default-customer-admin.png");
+  });
+
+  it("uploads an image material and inserts it into the canvas", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        url: "https://flowmindstudio.oss-cn-beijing.aliyuncs.com/low-code/backgrounds/assets/uploaded.png",
+        key: "low-code/backgrounds/assets/uploaded.png",
+        name: "uploaded.png",
+        mimeType: "image/png",
+        sizeBytes: 6
+      })
+    } as Response);
+    render(<LowCodePage />);
+
+    const file = new File(["image!"], "uploaded.png", { type: "image/png" });
+    fireEvent.change(screen.getByLabelText("上传图片物料"), { target: { files: [file] } });
+
+    const image = await screen.findByRole("img", { name: "uploaded.png" });
+    expect(image).toHaveAttribute("src", "https://flowmindstudio.oss-cn-beijing.aliyuncs.com/low-code/backgrounds/assets/uploaded.png");
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://localhost:4000/api/low-code/assets/images",
+      expect.objectContaining({ method: "POST", body: expect.any(FormData) })
+    );
   });
 
   it("updates enhanced Flex layout controls and restores them after saving", () => {
@@ -98,6 +129,16 @@ describe("LowCodePage design builder", () => {
 
     expect(flexNode).not.toBeNull();
     expect(flexNode?.style.width).toBe("360px");
+  });
+
+  it("centers text inside metric cards when configured", () => {
+    const { container } = render(<LowCodePage />);
+
+    fireEvent.click(screen.getByText("新增线索"));
+    fireEvent.change(screen.getByLabelText("指标文字对齐"), { target: { value: "center" } });
+
+    const stat = container.querySelector('[data-node-id="stat_leads"] [data-stat-card]') as HTMLElement | null;
+    expect(stat?.className).toContain("text-center");
   });
 
   it("renders an empty Flex container as a visible drop area", () => {

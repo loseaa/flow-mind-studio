@@ -1,9 +1,13 @@
-import { Body, Controller, Get, Param, Post } from "@nestjs/common";
+import { Body, Controller, Get, Param, Post, UploadedFile, UseInterceptors } from "@nestjs/common";
+import { FileInterceptor } from "@nestjs/platform-express";
 import { lowCodePageSchema } from "@flowmind/shared";
 import { mockStore } from "../../common/mock-store";
+import { LowCodeAssetsService, type UploadedImageAsset } from "./low-code-assets.service";
 
 @Controller("low-code")
 export class LowCodeController {
+  constructor(private readonly assetsService: LowCodeAssetsService) {}
+
   @Get("pages")
   pages() {
     return mockStore.lowCodePages;
@@ -28,5 +32,11 @@ export class LowCodeController {
     page.status = "published";
     page.version += 1;
     return page;
+  }
+
+  @Post("assets/images")
+  @UseInterceptors(FileInterceptor("file"))
+  uploadImage(@UploadedFile() file?: UploadedImageAsset) {
+    return this.assetsService.uploadImage(file);
   }
 }

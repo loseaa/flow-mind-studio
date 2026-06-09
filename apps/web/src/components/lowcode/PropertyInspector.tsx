@@ -236,6 +236,7 @@ function TypeSpecificFields({ selectedElement, onUpdateProps }: { selectedElemen
         <Input value={String(selectedElement.props?.value ?? "")} className="mt-1 h-9" onChange={(event) => onUpdateProps({ value: event.target.value })} />
         <FieldLabel>变化</FieldLabel>
         <Input value={String(selectedElement.props?.delta ?? "")} className="mt-1 h-9" onChange={(event) => onUpdateProps({ delta: event.target.value })} />
+        <SelectControl label="指标文字对齐" value={String(selectedElement.props?.textAlign ?? "left")} options={["left", "center"]} onChange={(value) => onUpdateProps({ textAlign: value })} />
       </PropertyGroup>
     );
   }

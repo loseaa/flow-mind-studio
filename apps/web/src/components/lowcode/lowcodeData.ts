@@ -11,7 +11,7 @@ import {
   Type,
   type LucideIcon
 } from "lucide-react";
-import type { DesignDocument, DesignElement, DesignElementType, DesignTreeNode } from "@flowmind/shared";
+import type { DesignDocument, DesignElement, DesignElementType, DesignTreeNode, LowCodeImageAsset } from "@flowmind/shared";
 
 export type MaterialDefinition = {
   type: Exclude<DesignElementType, "page">;
@@ -55,6 +55,7 @@ export const materialCategories: Array<{ title: string; items: MaterialDefinitio
 
 export const materials = materialCategories.flatMap((category) => category.items);
 export const aiActions = ["AI 总结字段", "调用 CRM 查询", "生成审批流"];
+export const DEFAULT_LOW_CODE_IMAGE_URL = "https://flowmindstudio.oss-cn-beijing.aliyuncs.com/low-code/backgrounds/default-customer-admin.png";
 
 export const availableFields = ["name", "stage", "owner", "health", "lastContact", "amount"];
 
@@ -149,7 +150,7 @@ export const fallbackDesignDocument: DesignDocument = {
       type: "image",
       name: "客户画像封面",
       appearance: { variant: "soft", radius: "lg" },
-      props: { alt: "客户运营概览图", aspectRatio: "wide" }
+      props: { alt: "客户运营概览图", aspectRatio: "wide", src: DEFAULT_LOW_CODE_IMAGE_URL }
     },
     {
       id: "metrics_row",
@@ -229,7 +230,7 @@ export function createElementFromMaterial(type: MaterialDefinition["type"]): Des
     return { ...element, props: { text: "新的文本内容", level: "body", description: "" } };
   }
   if (type === "image") {
-    return { ...element, appearance: { variant: "soft", radius: "lg" }, props: { alt: "图片占位", aspectRatio: "wide" } };
+    return { ...element, appearance: { variant: "soft", radius: "lg" }, props: { alt: "图片占位", aspectRatio: "wide", src: DEFAULT_LOW_CODE_IMAGE_URL } };
   }
   if (type === "button") {
     return { ...element, appearance: { tone: "brand", variant: "filled" }, props: { label: "动作按钮", action: "platformApi" } };
@@ -256,6 +257,16 @@ export function createElementFromMaterial(type: MaterialDefinition["type"]): Des
     return { ...element, props: { fields: ["name", "stage", "owner"], mode: "drawer" } };
   }
   return element;
+}
+
+export function createImageElementFromAsset(asset: LowCodeImageAsset): DesignElement {
+  return {
+    id: `node_image_${Math.random().toString(36).slice(2, 8)}`,
+    type: "image",
+    name: asset.name,
+    appearance: { variant: "soft", radius: "lg" },
+    props: { alt: asset.name, aspectRatio: "wide", src: asset.url, assetKey: asset.key }
+  };
 }
 
 export function isContainerElement(type: DesignElementType) {
