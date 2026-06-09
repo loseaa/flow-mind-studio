@@ -419,6 +419,14 @@ export type DesignElementType = (typeof designElementTypes)[number];
 
 export const designSpacingValues = ["none", "xs", "sm", "md", "lg", "xl"] as const;
 export const designToneValues = ["default", "muted", "brand", "success", "warning", "danger"] as const;
+export const designColorTokenValues = ["transparent", "surface", "muted", "white", "brand", "success", "warning", "danger", "textPrimary", "textSecondary", "border"] as const;
+export const designRadiusValues = ["none", "xs", "sm", "md", "lg", "xl", "full"] as const;
+export const designBorderWidthValues = ["none", "sm", "md", "lg"] as const;
+export const designFontFamilyValues = ["sans", "serif", "mono"] as const;
+export const designFontSizeValues = ["xs", "sm", "md", "lg", "xl", "2xl", "3xl"] as const;
+export const designFontWeightValues = ["regular", "medium", "semibold", "bold"] as const;
+export const designLineHeightValues = ["tight", "normal", "relaxed"] as const;
+export const designTextAlignValues = ["left", "center", "right"] as const;
 
 export type DesignTreeNode = {
   id: string;
@@ -448,22 +456,143 @@ export const designLayoutSchema = z.object({
 }).strict();
 export type DesignLayout = z.infer<typeof designLayoutSchema>;
 
-export const designAppearanceSchema = z.object({
-  tone: z.enum(designToneValues).optional(),
-  variant: z.enum(["plain", "outlined", "filled", "soft"]).optional(),
-  density: z.enum(["compact", "default", "comfortable"]).optional(),
-  radius: z.enum(["none", "sm", "md", "lg"]).optional()
+export const designBorderStyleSchema = z.object({
+  width: z.enum(designBorderWidthValues),
+  style: z.enum(["solid", "dashed", "none"]),
+  color: z.enum(designColorTokenValues)
 }).strict();
-export type DesignAppearance = z.infer<typeof designAppearanceSchema>;
+export type DesignBorderStyle = z.infer<typeof designBorderStyleSchema>;
 
-export const designElementSchema = z.object({
+export const designTextStyleSchema = z.object({
+  color: z.enum(designColorTokenValues),
+  fontFamily: z.enum(designFontFamilyValues),
+  fontSize: z.enum(designFontSizeValues),
+  fontWeight: z.enum(designFontWeightValues),
+  lineHeight: z.enum(designLineHeightValues),
+  align: z.enum(designTextAlignValues)
+}).strict();
+export type DesignTextStyle = z.infer<typeof designTextStyleSchema>;
+
+export const designBaseStyleSchema = z.object({
+  backgroundColor: z.enum(designColorTokenValues),
+  radius: z.enum(designRadiusValues),
+  border: designBorderStyleSchema,
+  text: designTextStyleSchema
+}).strict();
+export type DesignBaseStyle = z.infer<typeof designBaseStyleSchema>;
+
+export const designContainerStyleSchema = z.object({
+  base: designBaseStyleSchema,
+  container: z.object({
+    shadow: z.enum(["none", "sm", "md", "lg"]),
+    overflow: z.enum(["visible", "hidden", "auto"]),
+    surface: z.enum(["flat", "card", "panel"])
+  }).strict()
+}).strict();
+
+export const designTextElementStyleSchema = z.object({
+  base: designBaseStyleSchema,
+  text: z.object({
+    role: z.enum(["heading", "subheading", "body", "caption"]),
+    decoration: z.enum(["none", "underline", "lineThrough"]),
+    transform: z.enum(["none", "uppercase", "lowercase", "capitalize"])
+  }).strict()
+}).strict();
+
+export const designImageElementStyleSchema = z.object({
+  base: designBaseStyleSchema,
+  image: z.object({
+    aspectRatio: z.enum(["wide", "square", "portrait"]),
+    objectFit: z.enum(["cover", "contain", "fill"])
+  }).strict()
+}).strict();
+
+export const designButtonElementStyleSchema = z.object({
+  base: designBaseStyleSchema,
+  button: z.object({
+    size: z.enum(["sm", "md", "lg"]),
+    emphasis: z.enum(["primary", "secondary", "ghost"])
+  }).strict()
+}).strict();
+
+export const designControlElementStyleSchema = z.object({
+  base: designBaseStyleSchema,
+  control: z.object({
+    size: z.enum(["sm", "md", "lg"]),
+    labelPosition: z.enum(["top", "left", "hidden"]),
+    fieldGap: z.enum(designSpacingValues)
+  }).strict()
+}).strict();
+
+export const designBadgeElementStyleSchema = z.object({
+  base: designBaseStyleSchema,
+  badge: z.object({
+    size: z.enum(["sm", "md", "lg"]),
+    shape: z.enum(["square", "pill"]),
+    emphasis: z.enum(["soft", "solid", "outline"])
+  }).strict()
+}).strict();
+
+export const designDividerElementStyleSchema = z.object({
+  base: designBaseStyleSchema,
+  divider: z.object({
+    direction: z.enum(["horizontal", "vertical"]),
+    thickness: z.enum(["sm", "md", "lg"]),
+    labelPosition: z.enum(["start", "center", "end"])
+  }).strict()
+}).strict();
+
+export const designStatElementStyleSchema = z.object({
+  base: designBaseStyleSchema,
+  stat: z.object({
+    valueSize: z.enum(["md", "lg", "xl"]),
+    trendPosition: z.enum(["inline", "below"])
+  }).strict()
+}).strict();
+
+export const designTableElementStyleSchema = z.object({
+  base: designBaseStyleSchema,
+  table: z.object({
+    density: z.enum(["compact", "default", "comfortable"]),
+    zebra: z.boolean(),
+    headerBackground: z.enum(designColorTokenValues),
+    borderMode: z.enum(["none", "rows", "grid"])
+  }).strict()
+}).strict();
+
+export type DesignElementStyle =
+  | z.infer<typeof designContainerStyleSchema>
+  | z.infer<typeof designTextElementStyleSchema>
+  | z.infer<typeof designImageElementStyleSchema>
+  | z.infer<typeof designButtonElementStyleSchema>
+  | z.infer<typeof designControlElementStyleSchema>
+  | z.infer<typeof designBadgeElementStyleSchema>
+  | z.infer<typeof designDividerElementStyleSchema>
+  | z.infer<typeof designStatElementStyleSchema>
+  | z.infer<typeof designTableElementStyleSchema>;
+
+const designElementBaseSchema = z.object({
   id: z.string().min(1),
-  type: z.enum(designElementTypes),
   name: z.string().min(1),
   layout: designLayoutSchema.optional(),
-  appearance: designAppearanceSchema.optional(),
   props: z.record(z.unknown()).default({})
 }).strict();
+
+export const designElementSchema = z.discriminatedUnion("type", [
+  designElementBaseSchema.extend({ type: z.literal("page"), style: designContainerStyleSchema }),
+  designElementBaseSchema.extend({ type: z.literal("section"), style: designContainerStyleSchema }),
+  designElementBaseSchema.extend({ type: z.literal("stack"), style: designContainerStyleSchema }),
+  designElementBaseSchema.extend({ type: z.literal("text"), style: designTextElementStyleSchema }),
+  designElementBaseSchema.extend({ type: z.literal("image"), style: designImageElementStyleSchema }),
+  designElementBaseSchema.extend({ type: z.literal("button"), style: designButtonElementStyleSchema }),
+  designElementBaseSchema.extend({ type: z.literal("input"), style: designControlElementStyleSchema }),
+  designElementBaseSchema.extend({ type: z.literal("filter"), style: designControlElementStyleSchema }),
+  designElementBaseSchema.extend({ type: z.literal("form"), style: designControlElementStyleSchema }),
+  designElementBaseSchema.extend({ type: z.literal("badge"), style: designBadgeElementStyleSchema }),
+  designElementBaseSchema.extend({ type: z.literal("divider"), style: designDividerElementStyleSchema }),
+  designElementBaseSchema.extend({ type: z.literal("stat"), style: designStatElementStyleSchema }),
+  designElementBaseSchema.extend({ type: z.literal("table"), style: designTableElementStyleSchema })
+]);
 export type DesignElement = z.infer<typeof designElementSchema>;
 
 export const designDocumentSchema = z.object({

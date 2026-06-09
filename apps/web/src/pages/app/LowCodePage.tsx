@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import type { DesignAppearance, DesignDocument, DesignElement, DesignLayout, LowCodeImageAsset } from "@flowmind/shared";
+import type { DesignDocument, DesignElement, DesignElementStyle, DesignLayout, LowCodeImageAsset } from "@flowmind/shared";
 import { designDocumentSchema } from "@flowmind/shared";
 import { DesignCanvas } from "../../components/lowcode/DesignCanvas";
 import { LowCodeToolbar } from "../../components/lowcode/LowCodeToolbar";
 import { MaterialPalette } from "../../components/lowcode/MaterialPalette";
 import { PropertyInspector } from "../../components/lowcode/PropertyInspector";
 import { createElementFromMaterial, createImageElementFromAsset, fallbackDesignDocument, isContainerElement, type MaterialDefinition } from "../../components/lowcode/lowcodeData";
-import { elementMap, insertElement, moveNode, removeNode, reparentNode, updateElement, updateElementAppearance, updateElementLayout, updateElementProps } from "../../components/lowcode/designDocumentOps";
+import { elementMap, insertElement, moveNode, removeNode, reparentNode, updateElement, updateElementLayout, updateElementProps, updateElementStyle } from "../../components/lowcode/designDocumentOps";
 import { apiUpload } from "../../api";
 
 const STORAGE_KEY = "flowmind.lowcode.designDocument";
@@ -50,7 +50,7 @@ export function LowCodePage() {
     if (!file) return;
     const asset = await apiUpload<LowCodeImageAsset>("/low-code/assets/images", file);
     const element = createImageElementFromAsset(asset);
-    commit((current) => insertElement(current, document.tree.id, element));
+    commit((current) => insertElement(current, current.tree.id, element));
     setSelectedId(element.id);
   }
 
@@ -92,9 +92,9 @@ export function LowCodePage() {
           parentElement={parentElement}
           selectedElement={selectedElement}
           onUpdate={(patch: Partial<DesignElement>) => commit((current) => updateElement(current, selectedElement.id, patch))}
-          onUpdateAppearance={(patch: Partial<DesignAppearance>) => commit((current) => updateElementAppearance(current, selectedElement.id, patch))}
           onUpdateLayout={(patch: Partial<DesignLayout>) => commit((current) => updateElementLayout(current, selectedElement.id, patch))}
           onUpdateProps={(patch) => commit((current) => updateElementProps(current, selectedElement.id, patch))}
+          onUpdateStyle={(patch: Partial<DesignElementStyle>) => commit((current) => updateElementStyle(current, selectedElement.id, patch))}
         />
       </div>
     </div>

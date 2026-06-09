@@ -3,7 +3,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { MouseEvent as ReactMouseEvent, ReactNode, WheelEvent as ReactWheelEvent } from "react";
 import interact from "interactjs";
 import type { CSSProperties } from "react";
-import type { DesignDocument, DesignElement, DesignLayout, DesignTreeNode } from "@flowmind/shared";
+import type { DesignBaseStyle, DesignDocument, DesignElement, DesignLayout, DesignTreeNode } from "@flowmind/shared";
 import { Button, Input } from "@flowmind/ui";
 import { customerRows, fieldLabels, isContainerElement } from "./lowcodeData";
 import { elementMap } from "./designDocumentOps";
@@ -406,13 +406,13 @@ function renderElementContent(
   emptyContainer: boolean
 ) {
   if (element.type === "page") {
-    return <div className={layoutClass(element, "min-h-[760px] bg-white p-8")}>{children}</div>;
+    return <div className={layoutClass(element, "min-h-[760px] bg-white p-8")} style={baseVisualStyle(element.style.base)}>{children}</div>;
   }
   if (element.type === "section") {
-    return <section className={layoutClass(element, "rounded-lg border border-[#d9e1e8] bg-white p-5")}>{emptyContainer ? <EmptyContainerHint /> : children}</section>;
+    return <section className={layoutClass(element, "rounded-lg border border-[#d9e1e8] bg-white p-5")} style={baseVisualStyle(element.style.base)}>{emptyContainer ? <EmptyContainerHint /> : children}</section>;
   }
   if (element.type === "stack") {
-    return <div className={layoutClass(element, "rounded-lg border border-dashed border-[#cbd5df] bg-[#f8fafb] p-4")}>{emptyContainer ? <EmptyContainerHint /> : children}</div>;
+    return <div className={layoutClass(element, "rounded-lg border border-dashed border-[#cbd5df] bg-[#f8fafb] p-4")} style={baseVisualStyle(element.style.base)}>{emptyContainer ? <EmptyContainerHint /> : children}</div>;
   }
   if (element.type === "text") return <TextPreview element={element} selected={selected} onSelect={onSelect} onUpdateProps={onUpdateProps} />;
   if (element.type === "image") return <ImagePreview element={element} />;
@@ -424,7 +424,7 @@ function renderElementContent(
   if (element.type === "table") return <TablePreview element={element} />;
   if (element.type === "form") return <FormPreview element={element} />;
   if (element.type === "button") return <ButtonPreview element={element} />;
-  return <div>{element.name}</div>;
+  return null;
 }
 
 function TextPreview({
@@ -438,10 +438,16 @@ function TextPreview({
   onSelect: (id: string) => void;
   onUpdateProps: (id: string, patch: Record<string, unknown>) => void;
 }) {
-  const level = String(element.props?.level ?? "body");
+  if (element.type !== "text") return null;
+  const role = element.style.text.role;
   const text = String(element.props?.text ?? element.name);
   const description = String(element.props?.description ?? "");
-  if (level === "h1") {
+  const textStyle: CSSProperties = {
+    ...baseVisualStyle(element.style.base),
+    textDecoration: element.style.text.decoration === "lineThrough" ? "line-through" : element.style.text.decoration,
+    textTransform: element.style.text.transform === "none" ? undefined : element.style.text.transform
+  };
+  if (role === "heading" || role === "subheading") {
     return (
       <div className="min-w-0 flex-1">
         <EditableCanvasText
@@ -449,6 +455,7 @@ function TextPreview({
           className="min-h-[34px] cursor-text rounded px-1 text-[28px] font-bold leading-tight text-[#101828] outline-none focus:bg-[#e8f4f2] focus:ring-2 focus:ring-[#0f766e]/30"
           element={element}
           selected={selected}
+          style={textStyle}
           text={text}
           onSelect={onSelect}
           onUpdateProps={onUpdateProps}
@@ -464,6 +471,7 @@ function TextPreview({
         className="min-h-6 cursor-text rounded px-1 text-sm leading-6 text-[#101828] outline-none focus:bg-[#e8f4f2] focus:ring-2 focus:ring-[#0f766e]/30"
         element={element}
         selected={selected}
+        style={textStyle}
         text={text}
         onSelect={onSelect}
         onUpdateProps={onUpdateProps}
@@ -480,12 +488,14 @@ function EditableCanvasText({
   onSelect,
   onUpdateProps,
   selected,
+  style,
   text
 }: {
   as: "h2" | "p";
   className: string;
   element: DesignElement;
   selected: boolean;
+  style?: CSSProperties;
   text: string;
   onSelect: (id: string) => void;
   onUpdateProps: (id: string, patch: Record<string, unknown>) => void;
@@ -514,6 +524,7 @@ function EditableCanvasText({
       suppressContentEditableWarning
       tabIndex={0}
       className={className}
+      style={style}
       onClick={(event) => {
         event.stopPropagation();
         onSelect(element.id);
@@ -543,22 +554,22 @@ function selectTextNodeContents(node: HTMLElement) {
 }
 
 function StatPreview({ element }: { element: DesignElement }) {
-  const tone = element.appearance?.tone ?? "muted";
-  const toneClass = tone === "brand" ? "bg-[#e8f1ff] text-[#175cd3]" : tone === "success" ? "bg-[#e8f4f2] text-[#0f766e]" : tone === "warning" ? "bg-[#fff4e5] text-[#b54708]" : "bg-[#f3f5f7] text-[#344054]";
-  const textAlign = element.props?.textAlign === "center" ? "text-center" : "text-left";
+  if (element.type !== "stat") return null;
+  const valueClass = element.style.stat.valueSize === "xl" ? "text-2xl" : element.style.stat.valueSize === "lg" ? "text-xl" : "text-lg";
   return (
-    <div data-stat-card className={`rounded-lg border border-[#d9e1e8] p-4 ${textAlign} ${toneClass}`}>
+    <div data-stat-card className="rounded-lg border border-[#d9e1e8] p-4" style={baseVisualStyle(element.style.base)}>
       <div className="text-xs font-semibold opacity-80">{String(element.props?.label ?? element.name)}</div>
-      <div className="mt-2 text-2xl font-bold text-[#101828]">{String(element.props?.value ?? "0")}</div>
+      <div className={`mt-2 font-bold text-[#101828] ${valueClass}`}>{String(element.props?.value ?? "0")}</div>
       <div className="mt-1 text-xs font-semibold">{String(element.props?.delta ?? "")}</div>
     </div>
   );
 }
 
 function FilterPreview({ element }: { element: DesignElement }) {
+  if (element.type !== "filter") return null;
   const fields = arrayProp(element.props?.fields, ["stage", "owner"]);
   return (
-    <div className="rounded-lg border border-[#d9e1e8] bg-white p-4">
+    <div className="rounded-lg border border-[#d9e1e8] bg-white p-4" style={baseVisualStyle(element.style.base)}>
       <div className="flex flex-wrap items-center gap-3">
         <Input readOnly placeholder="搜索客户名称 / 邮箱" className="min-w-[220px] flex-1" />
         {fields.slice(0, 3).map((field) => (
@@ -573,15 +584,17 @@ function FilterPreview({ element }: { element: DesignElement }) {
 }
 
 function TablePreview({ element }: { element: DesignElement }) {
+  if (element.type !== "table") return null;
   const columns = arrayProp(element.props?.columns, ["name", "stage", "owner", "health"]);
+  const rowPadding = element.style.table.density === "compact" ? "px-4 py-2" : element.style.table.density === "comfortable" ? "px-4 py-4" : "px-4 py-3";
   return (
-    <div className="overflow-hidden rounded-lg border border-[#d9e1e8] bg-white">
+    <div className="overflow-hidden rounded-lg border border-[#d9e1e8] bg-white" style={baseVisualStyle(element.style.base)}>
       <div className="border-b border-[#eef2f5] px-4 py-3 text-sm font-bold text-[#101828]">{element.name}</div>
-      <div className="flex bg-[#f8fafb] px-4 py-3 text-xs font-bold text-[#5b6472]">
+      <div className="flex px-4 py-3 text-xs font-bold text-[#5b6472]" style={{ backgroundColor: colorValue(element.style.table.headerBackground) }}>
         {columns.map((column) => <span key={column} className="min-w-[92px] flex-1">{fieldLabels[column] ?? column}</span>)}
       </div>
-      {customerRows.map((row) => (
-        <div key={row.name} className="flex border-t border-[#eef2f5] px-4 py-3 text-sm text-[#101828]">
+      {customerRows.map((row, index) => (
+        <div key={row.name} className={`flex border-t border-[#eef2f5] text-sm text-[#101828] ${rowPadding}`} style={element.style.table.zebra && index % 2 === 1 ? { backgroundColor: colorValue("muted") } : undefined}>
           {columns.map((column) => <span key={column} className="min-w-[92px] flex-1">{String(row[column as keyof typeof row] ?? "-")}</span>)}
         </div>
       ))}
@@ -590,9 +603,10 @@ function TablePreview({ element }: { element: DesignElement }) {
 }
 
 function FormPreview({ element }: { element: DesignElement }) {
+  if (element.type !== "form") return null;
   const fields = arrayProp(element.props?.fields, ["name", "stage", "owner"]);
   return (
-    <div className="rounded-lg border border-[#d9e1e8] bg-white p-4">
+    <div className="rounded-lg border border-[#d9e1e8] bg-white p-4" style={baseVisualStyle(element.style.base)}>
       <div className="mb-3 flex items-center justify-between">
         <div className="text-sm font-bold">{element.name}</div>
         <span className="rounded-md bg-[#eef2f5] px-2 py-1 text-xs text-[#5b6472]">{String(element.props?.mode ?? "drawer")}</span>
@@ -610,24 +624,27 @@ function FormPreview({ element }: { element: DesignElement }) {
 }
 
 function ButtonPreview({ element }: { element: DesignElement }) {
-  const tone = element.appearance?.tone === "brand" ? "bg-[#1e293b] text-white" : "border border-[#d9e1e8] bg-white text-[#101828]";
-  return <button className={`h-10 rounded-md px-4 text-sm font-semibold ${tone}`}>{String(element.props?.label ?? element.name)}</button>;
+  if (element.type !== "button") return null;
+  const sizeClass = element.style.button.size === "lg" ? "h-11 px-5" : element.style.button.size === "sm" ? "h-8 px-3" : "h-10 px-4";
+  return <button className={`${sizeClass} rounded-md text-sm font-semibold`} style={baseVisualStyle(element.style.base)}>{String(element.props?.label ?? element.name)}</button>;
 }
 
 function ImagePreview({ element }: { element: DesignElement }) {
-  const aspectRatio = String(element.props?.aspectRatio ?? "wide") === "square" ? "aspect-square" : "aspect-[16/7]";
+  if (element.type !== "image") return null;
+  const aspectRatio = element.style.image.aspectRatio === "square" ? "aspect-square" : element.style.image.aspectRatio === "portrait" ? "aspect-[4/5]" : "aspect-[16/7]";
   const src = typeof element.props?.src === "string" ? element.props.src : "";
   const alt = String(element.props?.alt ?? element.name);
   return (
-    <div className={`${aspectRatio} flex min-h-[120px] items-center justify-center overflow-hidden rounded-lg border border-[#d9e1e8] bg-[linear-gradient(135deg,#e8f4f2,#eef2f5_45%,#f8fafb)]`}>
-      {src ? <img src={src} alt={alt} className="h-full w-full object-cover" /> : <div className="rounded-md bg-white/80 px-3 py-2 text-xs font-semibold text-[#5b6472]">{alt}</div>}
+    <div className={`${aspectRatio} flex min-h-[120px] items-center justify-center overflow-hidden rounded-lg border border-[#d9e1e8] bg-[linear-gradient(135deg,#e8f4f2,#eef2f5_45%,#f8fafb)]`} style={baseVisualStyle(element.style.base)}>
+      {src ? <img src={src} alt={alt} className="h-full w-full" style={{ objectFit: element.style.image.objectFit }} /> : <div className="rounded-md bg-white/80 px-3 py-2 text-xs font-semibold text-[#5b6472]">{alt}</div>}
     </div>
   );
 }
 
 function InputPreview({ element }: { element: DesignElement }) {
+  if (element.type !== "input") return null;
   return (
-    <label className="block min-w-[220px]">
+    <label className="block min-w-[220px]" style={baseVisualStyle(element.style.base)}>
       <span className="mb-1.5 block text-xs font-semibold text-[#5b6472]">{String(element.props?.label ?? element.name)}</span>
       <Input readOnly placeholder={String(element.props?.placeholder ?? "请输入内容")} />
     </label>
@@ -635,20 +652,107 @@ function InputPreview({ element }: { element: DesignElement }) {
 }
 
 function BadgePreview({ element }: { element: DesignElement }) {
-  const tone = element.appearance?.tone ?? "muted";
-  const toneClass = tone === "brand" ? "border-[#b2ccff] bg-[#eff4ff] text-[#175cd3]" : tone === "success" ? "border-[#b7ddd6] bg-[#e8f4f2] text-[#0f766e]" : tone === "warning" ? "border-[#fedf89] bg-[#fff4e5] text-[#b54708]" : "border-[#d9e1e8] bg-[#f8fafb] text-[#5b6472]";
-  return <span className={`inline-flex h-7 items-center rounded-md border px-2.5 text-xs font-bold ${toneClass}`}>{String(element.props?.label ?? element.name)}</span>;
+  if (element.type !== "badge") return null;
+  const sizeClass = element.style.badge.size === "lg" ? "h-8 px-3 text-sm" : element.style.badge.size === "sm" ? "h-6 px-2 text-[11px]" : "h-7 px-2.5 text-xs";
+  return <span className={`inline-flex items-center rounded-md border font-bold ${sizeClass}`} style={baseVisualStyle(element.style.base)}>{String(element.props?.label ?? element.name)}</span>;
 }
 
 function DividerPreview({ element }: { element: DesignElement }) {
+  if (element.type !== "divider") return null;
   const label = String(element.props?.label ?? "");
   return (
     <div className="flex w-full items-center gap-3 py-1">
-      <div className="h-px flex-1 bg-[#d9e1e8]" />
+      <div className="h-px flex-1" style={{ backgroundColor: colorValue(element.style.base.border.color) }} />
       {label ? <span className="text-xs font-semibold text-[#8a94a3]">{label}</span> : null}
-      <div className="h-px flex-1 bg-[#d9e1e8]" />
+      <div className="h-px flex-1" style={{ backgroundColor: colorValue(element.style.base.border.color) }} />
     </div>
   );
+}
+
+function baseVisualStyle(style: DesignBaseStyle): CSSProperties {
+  const borderWidth = borderWidthValue(style.border.width);
+  return {
+    backgroundColor: style.backgroundColor === "transparent" ? undefined : colorValue(style.backgroundColor),
+    borderColor: colorValue(style.border.color),
+    borderStyle: style.border.style,
+    borderWidth,
+    borderRadius: radiusValue(style.radius),
+    color: colorValue(style.text.color),
+    fontFamily: fontFamilyValue(style.text.fontFamily),
+    fontSize: fontSizeValue(style.text.fontSize),
+    fontWeight: fontWeightValue(style.text.fontWeight),
+    lineHeight: lineHeightValue(style.text.lineHeight),
+    textAlign: style.text.align
+  };
+}
+
+function colorValue(token: string) {
+  const colors: Record<string, string> = {
+    transparent: "transparent",
+    surface: "#ffffff",
+    muted: "#f8fafb",
+    white: "#ffffff",
+    brand: "#0f766e",
+    success: "#12a879",
+    warning: "#f59e0b",
+    danger: "#dc2626",
+    textPrimary: "#101828",
+    textSecondary: "#5b6472",
+    border: "#d9e1e8"
+  };
+  return colors[token] ?? colors.textPrimary;
+}
+
+function radiusValue(token: string) {
+  const radii: Record<string, string> = {
+    none: "0",
+    xs: "2px",
+    sm: "4px",
+    md: "6px",
+    lg: "8px",
+    xl: "12px",
+    full: "999px"
+  };
+  return radii[token] ?? radii.md;
+}
+
+function borderWidthValue(token: string) {
+  if (token === "sm") return 1;
+  if (token === "md") return 2;
+  if (token === "lg") return 3;
+  return 0;
+}
+
+function fontFamilyValue(token: string) {
+  if (token === "mono") return "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
+  if (token === "serif") return "Georgia, Cambria, Times New Roman, serif";
+  return "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif";
+}
+
+function fontSizeValue(token: string) {
+  const sizes: Record<string, string> = {
+    xs: "12px",
+    sm: "14px",
+    md: "16px",
+    lg: "18px",
+    xl: "22px",
+    "2xl": "28px",
+    "3xl": "34px"
+  };
+  return sizes[token] ?? sizes.md;
+}
+
+function fontWeightValue(token: string) {
+  if (token === "medium") return 500;
+  if (token === "semibold") return 600;
+  if (token === "bold") return 700;
+  return 400;
+}
+
+function lineHeightValue(token: string) {
+  if (token === "tight") return 1.2;
+  if (token === "relaxed") return 1.65;
+  return 1.45;
 }
 
 function layoutClass(element: DesignElement, base: string) {

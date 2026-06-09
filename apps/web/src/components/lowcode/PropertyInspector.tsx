@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import type { DesignAppearance, DesignElement, DesignLayout } from "@flowmind/shared";
+import type { DesignElement, DesignElementStyle, DesignLayout } from "@flowmind/shared";
 import { Input } from "@flowmind/ui";
 import { CustomScrollbar } from "../CustomScrollbar";
 import { availableFields, fieldLabels, isContainerElement } from "./lowcodeData";
@@ -12,52 +12,48 @@ type LayoutOption<T extends string> = {
 type AlignmentValue = "start" | "center" | "end";
 
 const spacingOptions: LayoutOption<NonNullable<DesignLayout["gap"]>>[] = [
-  { value: "none", label: "无" },
-  { value: "xs", label: "很小" },
-  { value: "sm", label: "小" },
-  { value: "md", label: "中" },
-  { value: "lg", label: "大" },
-  { value: "xl", label: "很大" }
+  { value: "none", label: "None" },
+  { value: "xs", label: "XS" },
+  { value: "sm", label: "SM" },
+  { value: "md", label: "MD" },
+  { value: "lg", label: "LG" },
+  { value: "xl", label: "XL" }
 ];
+
+const colorOptions = ["transparent", "surface", "muted", "white", "brand", "success", "warning", "danger", "textPrimary", "textSecondary", "border"];
 
 export function PropertyInspector({
   parentElement,
   selectedElement,
   onUpdate,
-  onUpdateAppearance,
   onUpdateLayout,
-  onUpdateProps
+  onUpdateProps,
+  onUpdateStyle
 }: {
   parentElement?: DesignElement;
   selectedElement: DesignElement;
   onUpdate: (patch: Partial<DesignElement>) => void;
-  onUpdateAppearance: (patch: Partial<DesignAppearance>) => void;
   onUpdateLayout: (patch: Partial<DesignLayout>) => void;
   onUpdateProps: (patch: Record<string, unknown>) => void;
+  onUpdateStyle: (patch: Partial<DesignElementStyle>) => void;
 }) {
   return (
     <CustomScrollbar className="h-full min-h-0 border-l border-[#d9e1e8] bg-white max-xl:hidden" variant="slate">
       <div className="p-3.5">
-        <div className="text-sm font-bold">属性设置</div>
-        <p className="mt-1 text-xs leading-5 text-[#5b6472]">当前选中：{selectedElement.name}</p>
+        <div className="text-sm font-bold">Properties</div>
+        <p className="mt-1 text-xs leading-5 text-[#5b6472]">Selected: {selectedElement.name}</p>
 
         <div className="mt-4 space-y-4">
-          <PropertyGroup title="基础">
-            <FieldLabel>节点名称</FieldLabel>
+          <PropertyGroup title="Basics">
+            <FieldLabel>Node name</FieldLabel>
             <Input value={selectedElement.name} className="mt-1 h-9" onChange={(event) => onUpdate({ name: event.target.value })} />
-            <FieldLabel className="mt-3">组件类型</FieldLabel>
+            <FieldLabel className="mt-3">Material type</FieldLabel>
             <Input value={selectedElement.type} readOnly className="mt-1 h-9 font-mono" />
           </PropertyGroup>
 
           <FlexLayoutFields selectedElement={selectedElement} parentElement={parentElement} onUpdateLayout={onUpdateLayout} />
-
-          <PropertyGroup title="外观">
-            <SelectControl label="语义色" value={selectedElement.appearance?.tone ?? "default"} options={["default", "muted", "brand", "success", "warning", "danger"]} onChange={(value) => onUpdateAppearance({ tone: value as DesignAppearance["tone"] })} />
-            <SelectControl label="样式" value={selectedElement.appearance?.variant ?? "plain"} options={["plain", "outlined", "filled", "soft"]} onChange={(value) => onUpdateAppearance({ variant: value as DesignAppearance["variant"] })} />
-            <SelectControl label="密度" value={selectedElement.appearance?.density ?? "default"} options={["compact", "default", "comfortable"]} onChange={(value) => onUpdateAppearance({ density: value as DesignAppearance["density"] })} />
-          </PropertyGroup>
-
-          <TypeSpecificFields selectedElement={selectedElement} onUpdateProps={onUpdateProps} />
+          <StyleFields selectedElement={selectedElement} onUpdateStyle={onUpdateStyle} />
+          <TypeSpecificFields selectedElement={selectedElement} onUpdateProps={onUpdateProps} onUpdateStyle={onUpdateStyle} />
         </div>
       </div>
     </CustomScrollbar>
@@ -79,45 +75,238 @@ function FlexLayoutFields({
   const direction = layout.direction ?? "vertical";
 
   return (
-    <PropertyGroup title={isContainer ? "Flex 容器" : "在父容器中的占位"}>
+    <PropertyGroup title={isContainer ? "Flex container" : "Flex item"}>
       {isContainer ? (
         <>
           <SegmentedControl
-            label="排列方向"
+            label="Direction"
             value={direction}
             options={[
-              { value: "vertical", label: "纵向排列" },
-              { value: "horizontal", label: "横向排列" }
+              { value: "vertical", label: "Vertical" },
+              { value: "horizontal", label: "Horizontal" }
             ]}
             onChange={(direction) => onUpdateLayout({ display: "flex", direction })}
           />
-          <AlignmentGridControl
-            direction={direction}
-            align={normalizeAlignment(layout.align)}
-            justify={normalizeAlignment(layout.justify)}
-            onChange={onUpdateLayout}
-          />
-          <ToggleControl label="允许换行" checked={layout.wrap ?? direction === "horizontal"} onChange={(wrap) => onUpdateLayout({ wrap })} />
-          <SegmentedControl label="间距" value={layout.gap ?? "md"} options={spacingOptions} onChange={(gap) => onUpdateLayout({ gap })} />
-          <SegmentedControl label="内边距" value={layout.padding ?? "none"} options={spacingOptions} onChange={(padding) => onUpdateLayout({ padding })} />
+          <AlignmentGridControl direction={direction} align={normalizeAlignment(layout.align)} justify={normalizeAlignment(layout.justify)} onChange={onUpdateLayout} />
+          <ToggleControl label="Allow wrap" checked={layout.wrap ?? direction === "horizontal"} onChange={(wrap) => onUpdateLayout({ wrap })} />
+          <SegmentedControl label="Gap" value={layout.gap ?? "md"} options={spacingOptions} onChange={(gap) => onUpdateLayout({ gap })} />
+          <SegmentedControl label="Padding" value={layout.padding ?? "none"} options={spacingOptions} onChange={(padding) => onUpdateLayout({ padding })} />
           <SizeControls layout={layout} onUpdateLayout={onUpdateLayout} />
         </>
       ) : parentIsContainer ? (
         <>
           <SegmentedControl
-            label="占位方式"
+            label="Grow"
             value={layout.grow ?? "none"}
             options={[
-              { value: "none", label: "自适应内容" },
-              { value: "fill", label: "填满剩余" }
+              { value: "none", label: "Hug" },
+              { value: "fill", label: "Fill" }
             ]}
             onChange={(grow) => onUpdateLayout({ grow })}
           />
           <SizeControls layout={layout} onUpdateLayout={onUpdateLayout} />
         </>
       ) : (
-        <div className="rounded-md bg-[#f8fafb] p-3 text-xs leading-5 text-[#5b6472]">该组件不在 Flex 容器内，暂无子项占位设置。</div>
+        <div className="rounded-md bg-[#f8fafb] p-3 text-xs leading-5 text-[#5b6472]">This material is not inside a Flex container.</div>
       )}
+    </PropertyGroup>
+  );
+}
+
+function StyleFields({ selectedElement, onUpdateStyle }: { selectedElement: DesignElement; onUpdateStyle: (patch: Partial<DesignElementStyle>) => void }) {
+  const base = selectedElement.style.base;
+  return (
+    <PropertyGroup title="Base style">
+      <SelectControl label="Background color" value={base.backgroundColor} options={colorOptions} onChange={(backgroundColor) => onUpdateStyle({ base: { backgroundColor } } as Partial<DesignElementStyle>)} />
+      <SelectControl label="Radius" value={base.radius} options={["none", "xs", "sm", "md", "lg", "xl", "full"]} onChange={(radius) => onUpdateStyle({ base: { radius } } as Partial<DesignElementStyle>)} />
+      <SelectControl label="Border width" value={base.border.width} options={["none", "sm", "md", "lg"]} onChange={(width) => onUpdateStyle({ base: { border: { width } } } as Partial<DesignElementStyle>)} />
+      <SelectControl label="Border style" value={base.border.style} options={["solid", "dashed", "none"]} onChange={(style) => onUpdateStyle({ base: { border: { style } } } as Partial<DesignElementStyle>)} />
+      <SelectControl label="Border color" value={base.border.color} options={colorOptions} onChange={(color) => onUpdateStyle({ base: { border: { color } } } as Partial<DesignElementStyle>)} />
+      <SelectControl label="Text color" value={base.text.color} options={colorOptions} onChange={(color) => onUpdateStyle({ base: { text: { color } } } as Partial<DesignElementStyle>)} />
+      <SelectControl label="Font size" value={base.text.fontSize} options={["xs", "sm", "md", "lg", "xl", "2xl", "3xl"]} onChange={(fontSize) => onUpdateStyle({ base: { text: { fontSize } } } as Partial<DesignElementStyle>)} />
+      <SelectControl label="Font weight" value={base.text.fontWeight} options={["regular", "medium", "semibold", "bold"]} onChange={(fontWeight) => onUpdateStyle({ base: { text: { fontWeight } } } as Partial<DesignElementStyle>)} />
+      <SelectControl label="Text align" value={base.text.align} options={["left", "center", "right"]} onChange={(align) => onUpdateStyle({ base: { text: { align } } } as Partial<DesignElementStyle>)} />
+    </PropertyGroup>
+  );
+}
+
+function TypeSpecificFields({
+  selectedElement,
+  onUpdateProps,
+  onUpdateStyle
+}: {
+  selectedElement: DesignElement;
+  onUpdateProps: (patch: Record<string, unknown>) => void;
+  onUpdateStyle: (patch: Partial<DesignElementStyle>) => void;
+}) {
+  if (selectedElement.type === "text") {
+    return (
+      <>
+        <PropertyGroup title="Text">
+          <FieldLabel>Content</FieldLabel>
+          <Input value={String(selectedElement.props?.text ?? "")} className="mt-1 h-9" onChange={(event) => onUpdateProps({ text: event.target.value })} />
+          <FieldLabel>Description</FieldLabel>
+          <Input value={String(selectedElement.props?.description ?? "")} className="mt-1 h-9" onChange={(event) => onUpdateProps({ description: event.target.value })} />
+        </PropertyGroup>
+        <PropertyGroup title="Text style">
+          <SelectControl label="Text role" value={selectedElement.style.text.role} options={["heading", "subheading", "body", "caption"]} onChange={(role) => onUpdateStyle({ text: { role } } as Partial<DesignElementStyle>)} />
+          <SelectControl label="Decoration" value={selectedElement.style.text.decoration} options={["none", "underline", "lineThrough"]} onChange={(decoration) => onUpdateStyle({ text: { decoration } } as Partial<DesignElementStyle>)} />
+          <SelectControl label="Transform" value={selectedElement.style.text.transform} options={["none", "uppercase", "lowercase", "capitalize"]} onChange={(transform) => onUpdateStyle({ text: { transform } } as Partial<DesignElementStyle>)} />
+        </PropertyGroup>
+      </>
+    );
+  }
+
+  if (selectedElement.type === "button") {
+    return (
+      <>
+        <PropertyGroup title="Button">
+          <FieldLabel>Label</FieldLabel>
+          <Input value={String(selectedElement.props?.label ?? "")} className="mt-1 h-9" onChange={(event) => onUpdateProps({ label: event.target.value })} />
+          <SelectControl label="Action" value={String(selectedElement.props?.action ?? "platformApi")} options={["openForm", "platformApi", "ai", "mcp"]} onChange={(value) => onUpdateProps({ action: value })} />
+        </PropertyGroup>
+        <PropertyGroup title="Button style">
+          <SelectControl label="Button size" value={selectedElement.style.button.size} options={["sm", "md", "lg"]} onChange={(size) => onUpdateStyle({ button: { size } } as Partial<DesignElementStyle>)} />
+          <SelectControl label="Button emphasis" value={selectedElement.style.button.emphasis} options={["primary", "secondary", "ghost"]} onChange={(emphasis) => onUpdateStyle({ button: { emphasis } } as Partial<DesignElementStyle>)} />
+        </PropertyGroup>
+      </>
+    );
+  }
+
+  if (selectedElement.type === "image") {
+    return (
+      <>
+        <PropertyGroup title="Image">
+          <FieldLabel>Alt text</FieldLabel>
+          <Input value={String(selectedElement.props?.alt ?? "")} className="mt-1 h-9" onChange={(event) => onUpdateProps({ alt: event.target.value })} />
+        </PropertyGroup>
+        <PropertyGroup title="Image style">
+          <SelectControl label="Aspect ratio" value={selectedElement.style.image.aspectRatio} options={["wide", "square", "portrait"]} onChange={(aspectRatio) => onUpdateStyle({ image: { aspectRatio } } as Partial<DesignElementStyle>)} />
+          <SelectControl label="Object fit" value={selectedElement.style.image.objectFit} options={["cover", "contain", "fill"]} onChange={(objectFit) => onUpdateStyle({ image: { objectFit } } as Partial<DesignElementStyle>)} />
+        </PropertyGroup>
+      </>
+    );
+  }
+
+  if (selectedElement.type === "input") {
+    return (
+      <>
+        <PropertyGroup title="Input">
+          <FieldLabel>Label</FieldLabel>
+          <Input value={String(selectedElement.props?.label ?? "")} className="mt-1 h-9" onChange={(event) => onUpdateProps({ label: event.target.value })} />
+          <FieldLabel>Placeholder</FieldLabel>
+          <Input value={String(selectedElement.props?.placeholder ?? "")} className="mt-1 h-9" onChange={(event) => onUpdateProps({ placeholder: event.target.value })} />
+        </PropertyGroup>
+        <ControlStyleFields style={selectedElement.style} onUpdateStyle={onUpdateStyle} />
+      </>
+    );
+  }
+
+  if (selectedElement.type === "badge") {
+    return (
+      <>
+        <PropertyGroup title="Badge">
+          <FieldLabel>Label</FieldLabel>
+          <Input value={String(selectedElement.props?.label ?? "")} className="mt-1 h-9" onChange={(event) => onUpdateProps({ label: event.target.value })} />
+        </PropertyGroup>
+        <PropertyGroup title="Badge style">
+          <SelectControl label="Badge size" value={selectedElement.style.badge.size} options={["sm", "md", "lg"]} onChange={(size) => onUpdateStyle({ badge: { size } } as Partial<DesignElementStyle>)} />
+          <SelectControl label="Badge shape" value={selectedElement.style.badge.shape} options={["square", "pill"]} onChange={(shape) => onUpdateStyle({ badge: { shape } } as Partial<DesignElementStyle>)} />
+          <SelectControl label="Badge emphasis" value={selectedElement.style.badge.emphasis} options={["soft", "solid", "outline"]} onChange={(emphasis) => onUpdateStyle({ badge: { emphasis } } as Partial<DesignElementStyle>)} />
+        </PropertyGroup>
+      </>
+    );
+  }
+
+  if (selectedElement.type === "divider") {
+    return (
+      <>
+        <PropertyGroup title="Divider">
+          <FieldLabel>Label</FieldLabel>
+          <Input value={String(selectedElement.props?.label ?? "")} className="mt-1 h-9" onChange={(event) => onUpdateProps({ label: event.target.value })} />
+        </PropertyGroup>
+        <PropertyGroup title="Divider style">
+          <SelectControl label="Divider direction" value={selectedElement.style.divider.direction} options={["horizontal", "vertical"]} onChange={(direction) => onUpdateStyle({ divider: { direction } } as Partial<DesignElementStyle>)} />
+          <SelectControl label="Divider thickness" value={selectedElement.style.divider.thickness} options={["sm", "md", "lg"]} onChange={(thickness) => onUpdateStyle({ divider: { thickness } } as Partial<DesignElementStyle>)} />
+          <SelectControl label="Divider label position" value={selectedElement.style.divider.labelPosition} options={["start", "center", "end"]} onChange={(labelPosition) => onUpdateStyle({ divider: { labelPosition } } as Partial<DesignElementStyle>)} />
+        </PropertyGroup>
+      </>
+    );
+  }
+
+  if (selectedElement.type === "table") {
+    return (
+      <>
+        <FieldMultiSelect title="Table columns" value={arrayProp(selectedElement.props?.columns)} onChange={(columns) => onUpdateProps({ columns })} />
+        <PropertyGroup title="Table style">
+          <SelectControl label="Table density" value={selectedElement.style.table.density} options={["compact", "default", "comfortable"]} onChange={(density) => onUpdateStyle({ table: { density } } as Partial<DesignElementStyle>)} />
+          <SelectControl label="Header background" value={selectedElement.style.table.headerBackground} options={colorOptions} onChange={(headerBackground) => onUpdateStyle({ table: { headerBackground } } as Partial<DesignElementStyle>)} />
+          <SelectControl label="Border mode" value={selectedElement.style.table.borderMode} options={["none", "rows", "grid"]} onChange={(borderMode) => onUpdateStyle({ table: { borderMode } } as Partial<DesignElementStyle>)} />
+          <ToggleControl label="Zebra rows" checked={selectedElement.style.table.zebra} onChange={(zebra) => onUpdateStyle({ table: { zebra } } as Partial<DesignElementStyle>)} />
+        </PropertyGroup>
+      </>
+    );
+  }
+
+  if (selectedElement.type === "filter") {
+    return (
+      <>
+        <FieldMultiSelect title="Filter fields" value={arrayProp(selectedElement.props?.fields)} onChange={(fields) => onUpdateProps({ fields })} />
+        <ControlStyleFields style={selectedElement.style} onUpdateStyle={onUpdateStyle} />
+      </>
+    );
+  }
+
+  if (selectedElement.type === "form") {
+    return (
+      <>
+        <FieldMultiSelect title="Form fields" value={arrayProp(selectedElement.props?.fields)} onChange={(fields) => onUpdateProps({ fields })} />
+        <PropertyGroup title="Form">
+          <SelectControl label="Submit mode" value={String(selectedElement.props?.mode ?? "drawer")} options={["drawer", "inline", "modal"]} onChange={(value) => onUpdateProps({ mode: value })} />
+        </PropertyGroup>
+        <ControlStyleFields style={selectedElement.style} onUpdateStyle={onUpdateStyle} />
+      </>
+    );
+  }
+
+  if (selectedElement.type === "stat") {
+    return (
+      <>
+        <PropertyGroup title="Stat">
+          <FieldLabel>Label</FieldLabel>
+          <Input value={String(selectedElement.props?.label ?? "")} className="mt-1 h-9" onChange={(event) => onUpdateProps({ label: event.target.value })} />
+          <FieldLabel>Value</FieldLabel>
+          <Input value={String(selectedElement.props?.value ?? "")} className="mt-1 h-9" onChange={(event) => onUpdateProps({ value: event.target.value })} />
+          <FieldLabel>Delta</FieldLabel>
+          <Input value={String(selectedElement.props?.delta ?? "")} className="mt-1 h-9" onChange={(event) => onUpdateProps({ delta: event.target.value })} />
+        </PropertyGroup>
+        <PropertyGroup title="Stat style">
+          <SelectControl label="Value size" value={selectedElement.style.stat.valueSize} options={["md", "lg", "xl"]} onChange={(valueSize) => onUpdateStyle({ stat: { valueSize } } as Partial<DesignElementStyle>)} />
+          <SelectControl label="Trend position" value={selectedElement.style.stat.trendPosition} options={["inline", "below"]} onChange={(trendPosition) => onUpdateStyle({ stat: { trendPosition } } as Partial<DesignElementStyle>)} />
+        </PropertyGroup>
+      </>
+    );
+  }
+
+  if (selectedElement.type === "page" || selectedElement.type === "section" || selectedElement.type === "stack") {
+    return (
+      <PropertyGroup title="Container style">
+        <SelectControl label="Shadow" value={selectedElement.style.container.shadow} options={["none", "sm", "md", "lg"]} onChange={(shadow) => onUpdateStyle({ container: { shadow } } as Partial<DesignElementStyle>)} />
+        <SelectControl label="Overflow" value={selectedElement.style.container.overflow} options={["visible", "hidden", "auto"]} onChange={(overflow) => onUpdateStyle({ container: { overflow } } as Partial<DesignElementStyle>)} />
+        <SelectControl label="Surface" value={selectedElement.style.container.surface} options={["flat", "card", "panel"]} onChange={(surface) => onUpdateStyle({ container: { surface } } as Partial<DesignElementStyle>)} />
+      </PropertyGroup>
+    );
+  }
+
+  return null;
+}
+
+function ControlStyleFields({ style, onUpdateStyle }: { style: Extract<DesignElementStyle, { control: unknown }>; onUpdateStyle: (patch: Partial<DesignElementStyle>) => void }) {
+  return (
+    <PropertyGroup title="Control style">
+      <SelectControl label="Control size" value={style.control.size} options={["sm", "md", "lg"]} onChange={(size) => onUpdateStyle({ control: { size } } as Partial<DesignElementStyle>)} />
+      <SelectControl label="Label position" value={style.control.labelPosition} options={["top", "left", "hidden"]} onChange={(labelPosition) => onUpdateStyle({ control: { labelPosition } } as Partial<DesignElementStyle>)} />
+      <SegmentedControl label="Field gap" value={style.control.fieldGap} options={spacingOptions} onChange={(fieldGap) => onUpdateStyle({ control: { fieldGap } } as Partial<DesignElementStyle>)} />
     </PropertyGroup>
   );
 }
@@ -126,125 +315,28 @@ function SizeControls({ layout, onUpdateLayout }: { layout: DesignLayout; onUpda
   return (
     <>
       <SegmentedControl
-        label="宽度"
+        label="Width"
         value={layout.width ?? "hug"}
         options={[
-          { value: "hug", label: "自适应宽度" },
-          { value: "fill", label: "填满宽度" },
-          { value: "fixed", label: "固定宽度" }
+          { value: "hug", label: "Hug width" },
+          { value: "fill", label: "Fill width" },
+          { value: "fixed", label: "Fixed width" }
         ]}
         onChange={(width) => onUpdateLayout({ width, fixedWidth: width === "fixed" ? layout.fixedWidth ?? 320 : layout.fixedWidth })}
       />
-      {layout.width === "fixed" ? (
-        <NumberControl label="固定宽度数值" value={layout.fixedWidth ?? 320} onChange={(fixedWidth) => onUpdateLayout({ fixedWidth })} />
-      ) : null}
+      {layout.width === "fixed" ? <NumberControl label="Fixed width value" value={layout.fixedWidth ?? 320} onChange={(fixedWidth) => onUpdateLayout({ fixedWidth })} /> : null}
       <SegmentedControl
-        label="高度"
+        label="Height"
         value={layout.height ?? "hug"}
         options={[
-          { value: "hug", label: "自适应高度" },
-          { value: "fill", label: "填满高度" },
-          { value: "fixed", label: "固定高度" }
+          { value: "hug", label: "Hug height" },
+          { value: "fill", label: "Fill height" },
+          { value: "fixed", label: "Fixed height" }
         ]}
         onChange={(height) => onUpdateLayout({ height, fixedHeight: height === "fixed" ? layout.fixedHeight ?? 160 : layout.fixedHeight })}
       />
-      {layout.height === "fixed" ? (
-        <NumberControl label="固定高度数值" value={layout.fixedHeight ?? 160} onChange={(fixedHeight) => onUpdateLayout({ fixedHeight })} />
-      ) : null}
+      {layout.height === "fixed" ? <NumberControl label="Fixed height value" value={layout.fixedHeight ?? 160} onChange={(fixedHeight) => onUpdateLayout({ fixedHeight })} /> : null}
     </>
-  );
-}
-
-function TypeSpecificFields({ selectedElement, onUpdateProps }: { selectedElement: DesignElement; onUpdateProps: (patch: Record<string, unknown>) => void }) {
-  if (selectedElement.type === "text") {
-    return (
-      <PropertyGroup title="文本">
-        <FieldLabel>内容</FieldLabel>
-        <Input value={String(selectedElement.props?.text ?? "")} className="mt-1 h-9" onChange={(event) => onUpdateProps({ text: event.target.value })} />
-        <SelectControl label="层级" value={String(selectedElement.props?.level ?? "body")} options={["h1", "h2", "body", "caption"]} onChange={(value) => onUpdateProps({ level: value })} />
-        <FieldLabel>描述</FieldLabel>
-        <Input value={String(selectedElement.props?.description ?? "")} className="mt-1 h-9" onChange={(event) => onUpdateProps({ description: event.target.value })} />
-      </PropertyGroup>
-    );
-  }
-
-  if (selectedElement.type === "button") {
-    return (
-      <PropertyGroup title="按钮">
-        <FieldLabel>按钮文案</FieldLabel>
-        <Input value={String(selectedElement.props?.label ?? "")} className="mt-1 h-9" onChange={(event) => onUpdateProps({ label: event.target.value })} />
-        <SelectControl label="动作" value={String(selectedElement.props?.action ?? "platformApi")} options={["openForm", "platformApi", "ai", "mcp"]} onChange={(value) => onUpdateProps({ action: value })} />
-      </PropertyGroup>
-    );
-  }
-
-  if (selectedElement.type === "image") {
-    return (
-      <PropertyGroup title="图片">
-        <FieldLabel>替代文本</FieldLabel>
-        <Input value={String(selectedElement.props?.alt ?? "")} className="mt-1 h-9" onChange={(event) => onUpdateProps({ alt: event.target.value })} />
-        <SelectControl label="比例" value={String(selectedElement.props?.aspectRatio ?? "wide")} options={["wide", "square"]} onChange={(value) => onUpdateProps({ aspectRatio: value })} />
-      </PropertyGroup>
-    );
-  }
-
-  if (selectedElement.type === "input") {
-    return (
-      <PropertyGroup title="输入框">
-        <FieldLabel>标签</FieldLabel>
-        <Input value={String(selectedElement.props?.label ?? "")} className="mt-1 h-9" onChange={(event) => onUpdateProps({ label: event.target.value })} />
-        <FieldLabel>占位提示</FieldLabel>
-        <Input value={String(selectedElement.props?.placeholder ?? "")} className="mt-1 h-9" onChange={(event) => onUpdateProps({ placeholder: event.target.value })} />
-      </PropertyGroup>
-    );
-  }
-
-  if (selectedElement.type === "badge" || selectedElement.type === "divider") {
-    return (
-      <PropertyGroup title={selectedElement.type === "badge" ? "徽标" : "分割线"}>
-        <FieldLabel>文案</FieldLabel>
-        <Input value={String(selectedElement.props?.label ?? "")} className="mt-1 h-9" onChange={(event) => onUpdateProps({ label: event.target.value })} />
-      </PropertyGroup>
-    );
-  }
-
-  if (selectedElement.type === "table") {
-    return <FieldMultiSelect title="表格列" value={arrayProp(selectedElement.props?.columns)} onChange={(columns) => onUpdateProps({ columns })} />;
-  }
-
-  if (selectedElement.type === "filter") {
-    return <FieldMultiSelect title="筛选字段" value={arrayProp(selectedElement.props?.fields)} onChange={(fields) => onUpdateProps({ fields })} />;
-  }
-
-  if (selectedElement.type === "form") {
-    return (
-      <>
-        <FieldMultiSelect title="表单字段" value={arrayProp(selectedElement.props?.fields)} onChange={(fields) => onUpdateProps({ fields })} />
-        <PropertyGroup title="表单模式">
-          <SelectControl label="提交方式" value={String(selectedElement.props?.mode ?? "drawer")} options={["drawer", "inline", "modal"]} onChange={(value) => onUpdateProps({ mode: value })} />
-        </PropertyGroup>
-      </>
-    );
-  }
-
-  if (selectedElement.type === "stat") {
-    return (
-      <PropertyGroup title="指标">
-        <FieldLabel>标签</FieldLabel>
-        <Input value={String(selectedElement.props?.label ?? "")} className="mt-1 h-9" onChange={(event) => onUpdateProps({ label: event.target.value })} />
-        <FieldLabel>数值</FieldLabel>
-        <Input value={String(selectedElement.props?.value ?? "")} className="mt-1 h-9" onChange={(event) => onUpdateProps({ value: event.target.value })} />
-        <FieldLabel>变化</FieldLabel>
-        <Input value={String(selectedElement.props?.delta ?? "")} className="mt-1 h-9" onChange={(event) => onUpdateProps({ delta: event.target.value })} />
-        <SelectControl label="指标文字对齐" value={String(selectedElement.props?.textAlign ?? "left")} options={["left", "center"]} onChange={(value) => onUpdateProps({ textAlign: value })} />
-      </PropertyGroup>
-    );
-  }
-
-  return (
-    <PropertyGroup title="组件">
-      <div className="rounded-md bg-[#f8fafb] p-3 text-xs leading-5 text-[#5b6472]">该组件当前只支持通用布局和外观属性。</div>
-    </PropertyGroup>
   );
 }
 
@@ -288,8 +380,8 @@ function AlignmentGridControl({
 
   return (
     <div>
-      <FieldLabel>内容位置</FieldLabel>
-      <div className="mt-1 grid grid-cols-3 gap-1 rounded-md bg-[#eef2f5] p-1" role="group" aria-label="内容位置">
+      <FieldLabel>Content position</FieldLabel>
+      <div className="mt-1 grid grid-cols-3 gap-1 rounded-md bg-[#eef2f5] p-1" role="group" aria-label="Content position">
         {yOptions.flatMap((y) =>
           xOptions.map((x) => {
             const active = selected.x === x && selected.y === y;
@@ -298,7 +390,7 @@ function AlignmentGridControl({
               <button
                 key={`${x}-${y}`}
                 type="button"
-                aria-label={`布局位置：${label}`}
+                aria-label={`Layout position: ${label}`}
                 aria-pressed={active}
                 className={`grid h-12 place-items-center rounded-md border transition ${active ? "border-[#0f766e]/35 bg-white shadow-sm ring-1 ring-[#0f766e]/20" : "border-transparent bg-[#f8fafb] hover:border-[#b9c4cf] hover:bg-white"}`}
                 onClick={() => onChange(gridPositionToLayout(direction, x, y))}
@@ -328,9 +420,9 @@ function normalizeAlignment(value: DesignLayout["align"] | DesignLayout["justify
 }
 
 function alignmentGridLabel(x: AlignmentValue, y: AlignmentValue) {
-  const horizontal = x === "start" ? "左" : x === "center" ? "中" : "右";
-  const vertical = y === "start" ? "上" : y === "center" ? "中" : "下";
-  return x === "center" && y === "center" ? "居中" : `${horizontal}${vertical}`;
+  const horizontal = x === "start" ? "left" : x === "center" ? "center" : "right";
+  const vertical = y === "start" ? "top" : y === "center" ? "middle" : "bottom";
+  return x === "center" && y === "center" ? "center" : `${horizontal} ${vertical}`;
 }
 
 function previewJustifyClass(value: AlignmentValue) {
