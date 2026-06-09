@@ -6,7 +6,7 @@ import { Input } from "@flowmind/ui";
 import { aiActions, materialCategories, type MaterialDefinition } from "./lowcodeData";
 import { CustomScrollbar } from "../CustomScrollbar";
 import { resolveMaterialDropTarget, type MaterialDropTarget } from "./materialDropResolver";
-import { setDropPlacementIndicator } from "./dropPlacementIndicator";
+import { clearDropPlacementIndicator, setDropPlacementIndicator } from "./dropPlacementIndicator";
 
 const dragPreviews = new WeakMap<HTMLElement, HTMLElement>();
 let activeDropTarget: MaterialDropTarget | null = null;
@@ -85,9 +85,25 @@ export function MaterialPalette({
       }
     });
 
+    const clearDragArtifacts = () => {
+      cancelMaterialDragArtifacts();
+    };
+    const clearDragArtifactsOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") cancelMaterialDragArtifacts();
+    };
+    window.addEventListener("blur", clearDragArtifacts);
+    window.addEventListener("drop", clearDragArtifacts);
+    window.addEventListener("dragend", clearDragArtifacts);
+    window.addEventListener("pointerup", clearDragArtifacts);
+    window.addEventListener("keydown", clearDragArtifactsOnEscape);
+
     return () => {
-      setActiveDropTarget(null);
-      unlockNativeTextSelection();
+      window.removeEventListener("blur", clearDragArtifacts);
+      window.removeEventListener("drop", clearDragArtifacts);
+      window.removeEventListener("dragend", clearDragArtifacts);
+      window.removeEventListener("pointerup", clearDragArtifacts);
+      window.removeEventListener("keydown", clearDragArtifactsOnEscape);
+      cancelMaterialDragArtifacts();
       draggable.unset();
     };
   }, []);
@@ -190,6 +206,14 @@ function setActiveDropTarget(next: MaterialDropTarget | null) {
   }
   activeDropTarget = next;
   setDropPlacementIndicator(next);
+}
+
+function cancelMaterialDragArtifacts() {
+  activeDropTarget = null;
+  clearDropPlacementIndicator();
+  document.querySelectorAll(".material-drag-preview").forEach((node) => node.remove());
+  document.querySelectorAll("[data-material-type].opacity-45").forEach((node) => node.classList.remove("opacity-45"));
+  unlockNativeTextSelection();
 }
 
 function lockNativeTextSelection() {

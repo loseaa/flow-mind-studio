@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import type { DesignDocument, DesignElement, DesignElementStyle, DesignLayout, LowCodeImageAsset } from "@flowmind/shared";
 import { designDocumentSchema } from "@flowmind/shared";
+import { apiUpload } from "../../api";
 import { DesignCanvas } from "../../components/lowcode/DesignCanvas";
 import { LowCodeToolbar } from "../../components/lowcode/LowCodeToolbar";
 import { MaterialPalette } from "../../components/lowcode/MaterialPalette";
 import { PropertyInspector } from "../../components/lowcode/PropertyInspector";
 import { createElementFromMaterial, createImageElementFromAsset, fallbackDesignDocument, isContainerElement, type MaterialDefinition } from "../../components/lowcode/lowcodeData";
 import { elementMap, insertElement, moveNode, removeNode, reparentNode, updateElement, updateElementLayout, updateElementProps, updateElementStyle } from "../../components/lowcode/designDocumentOps";
-import { apiUpload } from "../../api";
 
 const STORAGE_KEY = "flowmind.lowcode.designDocument";
 
@@ -74,6 +74,11 @@ export function LowCodePage() {
     setSaveState("published");
   }
 
+  async function uploadBackgroundImage(file: File) {
+    const result = await apiUpload<{ url: string }>("/low-code/assets/background-image", file);
+    return result.url;
+  }
+
   return (
     <div className="lowcode-page flex h-[calc(100vh-72px)] min-h-0 flex-col bg-[#f6f8fa]">
       <LowCodeToolbar document={document} saveState={saveState} onPublish={publishPreview} onSave={saveDraft} />
@@ -95,6 +100,7 @@ export function LowCodePage() {
           onUpdateLayout={(patch: Partial<DesignLayout>) => commit((current) => updateElementLayout(current, selectedElement.id, patch))}
           onUpdateProps={(patch) => commit((current) => updateElementProps(current, selectedElement.id, patch))}
           onUpdateStyle={(patch: Partial<DesignElementStyle>) => commit((current) => updateElementStyle(current, selectedElement.id, patch))}
+          onUploadBackgroundImage={uploadBackgroundImage}
         />
       </div>
     </div>

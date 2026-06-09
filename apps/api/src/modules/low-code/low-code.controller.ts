@@ -2,11 +2,11 @@ import { Body, Controller, Get, Param, Post, UploadedFile, UseInterceptors } fro
 import { FileInterceptor } from "@nestjs/platform-express";
 import { lowCodePageSchema } from "@flowmind/shared";
 import { mockStore } from "../../common/mock-store";
-import { LowCodeAssetsService, type UploadedImageAsset } from "./low-code-assets.service";
+import { OssAssetsService, type UploadedAsset } from "./oss-assets.service";
 
 @Controller("low-code")
 export class LowCodeController {
-  constructor(private readonly assetsService: LowCodeAssetsService) {}
+  constructor(private readonly ossAssetsService: OssAssetsService) {}
 
   @Get("pages")
   pages() {
@@ -36,7 +36,13 @@ export class LowCodeController {
 
   @Post("assets/images")
   @UseInterceptors(FileInterceptor("file"))
-  uploadImage(@UploadedFile() file?: UploadedImageAsset) {
-    return this.assetsService.uploadImage(file);
+  uploadImage(@UploadedFile() file?: UploadedAsset) {
+    return this.ossAssetsService.uploadImageAsset(file);
+  }
+
+  @Post("assets/background-image")
+  @UseInterceptors(FileInterceptor("file"))
+  uploadBackgroundImage(@UploadedFile() file?: UploadedAsset) {
+    return this.ossAssetsService.uploadBackgroundImage(file);
   }
 }

@@ -1,6 +1,6 @@
 import { Module } from "@nestjs/common";
 import { LowCodeController } from "./low-code.controller";
-import { LowCodeAssetsService } from "./low-code-assets.service";
+import { OssAssetsService } from "./oss-assets.service";
 
-@Module({ controllers: [LowCodeController], providers: [LowCodeAssetsService] })
+@Module({ controllers: [LowCodeController], providers: [OssAssetsService] })
 export class LowCodeModule {}
