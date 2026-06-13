@@ -56,6 +56,48 @@ describe("shared contracts", () => {
     expect(() => designDocumentSchema.parse(validDesignDocument())).not.toThrow();
   });
 
+  it("validates design documents with variables", () => {
+    const parsed = designDocumentSchema.parse({
+      ...validDesignDocument(),
+      variables: {
+        customerName: "Acme",
+        customer: { name: "Ada" },
+        order: { total: 128, paid: true }
+      }
+    });
+
+    expect(parsed.variables).toEqual({
+      customerName: "Acme",
+      customer: { name: "Ada" },
+      order: { total: 128, paid: true }
+    });
+  });
+
+  it("defaults missing design document variables to an empty object", () => {
+    const { variables: _variables, ...legacyDocument } = validDesignDocument();
+    const parsed = designDocumentSchema.parse(legacyDocument);
+
+    expect(parsed.variables).toEqual({});
+  });
+
+  it("converts legacy design variable arrays to a variable object", () => {
+    const parsed = designDocumentSchema.parse({
+      ...validDesignDocument(),
+      variables: [{ key: "customerName", name: "Customer name", description: "", defaultValue: "Acme" }]
+    });
+
+    expect(parsed.variables).toEqual({ customerName: "Acme" });
+  });
+
+  it("rejects non-object design variables", () => {
+    expect(() =>
+      designDocumentSchema.parse({
+        ...validDesignDocument(),
+        variables: "Acme"
+      })
+    ).toThrow();
+  });
+
   it("validates typed design element style by material type", () => {
     const document = validDesignDocument();
 
@@ -137,6 +179,7 @@ function validDesignDocument(): DesignDocument {
       width: 1440,
       background: "surface"
     },
+    variables: {},
     tree: {
       id: "page_root",
       children: [

@@ -28,6 +28,7 @@ function baseDocument(): DesignDocument {
     id: "doc",
     name: "Doc",
     canvas: { viewport: "desktop", width: 1200, background: "white" },
+    variables: {},
     tree: {
       id: "page",
       children: [

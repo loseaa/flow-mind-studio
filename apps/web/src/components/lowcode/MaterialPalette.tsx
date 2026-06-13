@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from "react";
-import type { DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent, ReactNode } from "react";
+import type { DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent, MutableRefObject, PointerEvent as ReactPointerEvent, ReactNode } from "react";
 import interact from "interactjs";
 import { Upload } from "lucide-react";
+import type { DesignVariables } from "@flowmind/shared";
 import { Input } from "@flowmind/ui";
 import { aiActions, materialCategories, type MaterialDefinition } from "./lowcodeData";
 import { CustomScrollbar } from "../CustomScrollbar";
 import { resolveMaterialDropTarget, type MaterialDropTarget } from "./materialDropResolver";
 import { clearDropPlacementIndicator, setDropPlacementIndicator } from "./dropPlacementIndicator";
+import { VariablesEditor } from "./VariablesJsonEditor";
 
 const dragPreviews = new WeakMap<HTMLElement, HTMLElement>();
 let activeDropTarget: MaterialDropTarget | null = null;
@@ -14,12 +16,17 @@ let previousBodyUserSelect: string | null = null;
 
 export function MaterialPalette({
   onAdd,
-  onUploadImage
+  onUpdateVariables,
+  onUploadImage,
+  variables
 }: {
   onAdd: (type: MaterialDefinition["type"], parentId?: string, index?: number) => void;
+  onUpdateVariables: (variables: DesignVariables) => void;
   onUploadImage: (file: File | undefined) => Promise<void> | void;
+  variables: DesignVariables;
 }) {
   const onAddRef = useRef(onAdd);
+  const [activeTab, setActiveTab] = useState<"materials" | "variables">("materials");
   const [uploading, setUploading] = useState(false);
   onAddRef.current = onAdd;
 
@@ -111,77 +118,138 @@ export function MaterialPalette({
   return (
     <CustomScrollbar className="relative z-40 h-full min-h-0 border-r border-[#d9e1e8] bg-white max-lg:hidden" variant="slate">
       <div className="p-3.5">
-        <div className="flex items-center justify-between">
-          <div className="text-sm font-bold">物料区</div>
-          <span className="text-xs text-[#8a94a3]">拖拽到画布</span>
+        <div className="grid grid-cols-2 gap-1 rounded-md bg-[#eef2f5] p-1">
+          <button
+            type="button"
+            aria-pressed={activeTab === "materials"}
+            className={`h-8 rounded text-xs font-bold transition ${activeTab === "materials" ? "bg-white text-[#101828] shadow-sm" : "text-[#5b6472] hover:bg-white/70"}`}
+            onClick={() => setActiveTab("materials")}
+          >
+            物料
+          </button>
+          <button
+            type="button"
+            aria-pressed={activeTab === "variables"}
+            className={`h-8 rounded text-xs font-bold transition ${activeTab === "variables" ? "bg-white text-[#101828] shadow-sm" : "text-[#5b6472] hover:bg-white/70"}`}
+            onClick={() => setActiveTab("variables")}
+          >
+            变量
+          </button>
         </div>
-        <Input placeholder="搜索物料" className="mt-3 h-9" />
-        <label className="mt-3 flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-[#b9c4cf] bg-[#f8fafb] px-3 py-2 text-sm font-semibold text-[#344054] hover:border-[#8a94a3] hover:bg-white">
-          <Upload size={16} />
-          <span>{uploading ? "上传中..." : "上传图片物料"}</span>
-          <input
-            aria-label="上传图片物料"
-            className="sr-only"
-            type="file"
-            accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
-            disabled={uploading}
-            onChange={(event) => {
-              const file = event.target.files?.[0];
-              setUploading(true);
-              void Promise.resolve(onUploadImage(file)).finally(() => {
-                setUploading(false);
-                event.target.value = "";
-              });
-            }}
-          />
-        </label>
-        <div className="mt-4 space-y-5">
-          {materialCategories.map((category) => (
-            <section key={category.title} className="space-y-3">
-              <SectionTitle>{category.title}</SectionTitle>
-              {category.items.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <button
-                    key={item.type}
-                    data-material-type={item.type}
-                    type="button"
-                    className="flex w-full cursor-grab touch-none select-none items-start gap-3 rounded-lg border border-[#d9e1e8] bg-white p-3 text-left transition hover:border-[#b9c4cf] hover:bg-[#f8fafb]"
-                    onDragStart={preventNativeMaterialSelection}
-                    onMouseDown={preventNativeMaterialSelection}
-                    onPointerDown={preventNativeMaterialSelection}
-                    onClick={(event) => {
-                      const target = event.currentTarget;
-                      if (target.getAttribute("data-was-dragged") === "true") {
-                        target.removeAttribute("data-was-dragged");
-                        return;
-                      }
-                      onAddRef.current(item.type);
-                    }}
-                  >
-                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-md bg-[#eef2f5] text-[#5b6472]">
-                      <Icon size={16} />
-                    </span>
-                    <span className="min-w-0">
-                      <span className="block text-sm font-semibold">{item.label}</span>
-                      <span className="mt-1 block text-xs leading-5 text-[#5b6472]">{item.desc}</span>
-                    </span>
-                  </button>
-                );
-              })}
-            </section>
-          ))}
-        </div>
-        <div className="mt-5 space-y-3">
-          <SectionTitle>AI / MCP 动作</SectionTitle>
-          {aiActions.map((item) => (
-            <button key={item} type="button" className="w-full rounded-lg border border-dashed border-[#b9c4cf] bg-[#f8fafb] px-3 py-2 text-left text-sm font-medium text-[#5b6472]">
-              {item}
-            </button>
-          ))}
-        </div>
+
+        {activeTab === "materials" ? (
+          <MaterialsTab onAddRef={onAddRef} onUploadImage={onUploadImage} uploading={uploading} setUploading={setUploading} />
+        ) : (
+          <VariablesTab variables={variables} onUpdateVariables={onUpdateVariables} />
+        )}
       </div>
     </CustomScrollbar>
+  );
+}
+
+function MaterialsTab({
+  onAddRef,
+  onUploadImage,
+  setUploading,
+  uploading
+}: {
+  onAddRef: MutableRefObject<(type: MaterialDefinition["type"], parentId?: string, index?: number) => void>;
+  onUploadImage: (file: File | undefined) => Promise<void> | void;
+  setUploading: (value: boolean) => void;
+  uploading: boolean;
+}) {
+  return (
+    <>
+      <div className="mt-3 flex items-center justify-between">
+        <div className="text-sm font-bold">物料区</div>
+        <span className="text-xs text-[#8a94a3]">拖拽到画布</span>
+      </div>
+      <Input placeholder="搜索物料" className="mt-3 h-9" />
+      <label className="mt-3 flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-[#b9c4cf] bg-[#f8fafb] px-3 py-2 text-sm font-semibold text-[#344054] hover:border-[#8a94a3] hover:bg-white">
+        <Upload size={16} />
+        <span>{uploading ? "上传中..." : "上传图片物料"}</span>
+        <input
+          aria-label="上传图片物料"
+          className="sr-only"
+          type="file"
+          accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
+          disabled={uploading}
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            setUploading(true);
+            void Promise.resolve(onUploadImage(file)).finally(() => {
+              setUploading(false);
+              event.target.value = "";
+            });
+          }}
+        />
+      </label>
+      <div className="mt-4 space-y-5">
+        {materialCategories.map((category) => (
+          <section key={category.title} className="space-y-3">
+            <SectionTitle>{category.title}</SectionTitle>
+            {category.items.map((item) => {
+              const Icon = item.icon;
+              return (
+                <button
+                  key={item.type}
+                  data-material-type={item.type}
+                  type="button"
+                  className="flex w-full cursor-grab touch-none select-none items-start gap-3 rounded-lg border border-[#d9e1e8] bg-white p-3 text-left transition hover:border-[#b9c4cf] hover:bg-[#f8fafb]"
+                  onDragStart={preventNativeMaterialSelection}
+                  onMouseDown={preventNativeMaterialSelection}
+                  onPointerDown={preventNativeMaterialSelection}
+                  onClick={(event) => {
+                    const target = event.currentTarget;
+                    if (target.getAttribute("data-was-dragged") === "true") {
+                      target.removeAttribute("data-was-dragged");
+                      return;
+                    }
+                    onAddRef.current(item.type);
+                  }}
+                >
+                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-md bg-[#eef2f5] text-[#5b6472]">
+                    <Icon size={16} />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-sm font-semibold">{item.label}</span>
+                    <span className="mt-1 block text-xs leading-5 text-[#5b6472]">{item.desc}</span>
+                  </span>
+                </button>
+              );
+            })}
+          </section>
+        ))}
+      </div>
+      <div className="mt-5 space-y-3">
+        <SectionTitle>AI / MCP 动作</SectionTitle>
+        {aiActions.map((item) => (
+          <button key={item} type="button" className="w-full rounded-lg border border-dashed border-[#b9c4cf] bg-[#f8fafb] px-3 py-2 text-left text-sm font-medium text-[#5b6472]">
+            {item}
+          </button>
+        ))}
+      </div>
+    </>
+  );
+}
+
+function VariablesTab({
+  onUpdateVariables,
+  variables
+}: {
+  onUpdateVariables: (variables: DesignVariables) => void;
+  variables: DesignVariables;
+}) {
+  return (
+    <div className="mt-4">
+      <div>
+        <div className="text-sm font-bold">全局变量</div>
+        <p className="mt-1 text-xs leading-5 text-[#5b6472]">编辑当前设计稿内的 JSON 变量对象，内容字段可用 {"{{customer.name}}"} 引用。</p>
+      </div>
+      <div className="mt-4">
+        <VariablesEditor value={variables} onChange={onUpdateVariables} />
+      </div>
+    </div>
   );
 }
 

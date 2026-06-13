@@ -428,6 +428,28 @@ export const designFontWeightValues = ["regular", "medium", "semibold", "bold"] 
 export const designLineHeightValues = ["tight", "normal", "relaxed"] as const;
 export const designTextAlignValues = ["left", "center", "right"] as const;
 
+export type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
+
+export const jsonValueSchema: z.ZodType<JsonValue> = z.lazy(() =>
+  z.union([z.string(), z.number(), z.boolean(), z.null(), z.array(jsonValueSchema), z.record(jsonValueSchema)])
+);
+
+const legacyDesignVariableSchema = z.object({
+  key: z.string().min(1),
+  defaultValue: z.string().default("")
+}).passthrough();
+
+export const designVariablesSchema = z.preprocess((value) => {
+  if (!Array.isArray(value)) return value;
+  const variables: Record<string, JsonValue> = {};
+  for (const item of value) {
+    const parsed = legacyDesignVariableSchema.safeParse(item);
+    if (parsed.success) variables[parsed.data.key] = parsed.data.defaultValue;
+  }
+  return variables;
+}, z.record(jsonValueSchema)).default({});
+export type DesignVariables = z.infer<typeof designVariablesSchema>;
+
 export type DesignTreeNode = {
   id: string;
   children?: DesignTreeNode[];
@@ -606,7 +628,8 @@ export const designDocumentSchema = z.object({
     background: z.enum(["surface", "muted", "white"])
   }).strict(),
   tree: designTreeNodeSchema,
-  elements: z.array(designElementSchema).min(1)
+  elements: z.array(designElementSchema).min(1),
+  variables: designVariablesSchema
 }).strict().superRefine((document, context) => {
   const elementIds = new Set<string>();
   for (const element of document.elements) {

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import type { DesignDocument, DesignElement, DesignElementStyle, DesignLayout, LowCodeImageAsset } from "@flowmind/shared";
+import type { DesignDocument, DesignElement, DesignElementStyle, DesignLayout, DesignVariables, LowCodeImageAsset } from "@flowmind/shared";
 import { designDocumentSchema } from "@flowmind/shared";
 import { apiUpload } from "../../api";
 import { DesignCanvas } from "../../components/lowcode/DesignCanvas";
@@ -79,11 +79,23 @@ export function LowCodePage() {
     return result.url;
   }
 
+  function updateVariables(variables: DesignVariables) {
+    commit((current) => ({
+      ...current,
+      variables
+    }));
+  }
+
   return (
     <div className="lowcode-page flex h-[calc(100vh-72px)] min-h-0 flex-col bg-[#f6f8fa]">
       <LowCodeToolbar document={document} saveState={saveState} onPublish={publishPreview} onSave={saveDraft} />
       <div className="grid min-h-0 flex-1 grid-cols-[286px_1fr_330px] overflow-hidden max-xl:grid-cols-[260px_1fr] max-lg:grid-cols-1">
-        <MaterialPalette onAdd={(type, parentId, index) => addElement(type, parentId, index)} onUploadImage={uploadImageMaterial} />
+        <MaterialPalette
+          onAdd={(type, parentId, index) => addElement(type, parentId, index)}
+          onUploadImage={uploadImageMaterial}
+          variables={document.variables}
+          onUpdateVariables={updateVariables}
+        />
         <DesignCanvas
           document={document}
           selectedId={selectedElement.id}
@@ -101,6 +113,7 @@ export function LowCodePage() {
           onUpdateProps={(patch) => commit((current) => updateElementProps(current, selectedElement.id, patch))}
           onUpdateStyle={(patch: Partial<DesignElementStyle>) => commit((current) => updateElementStyle(current, selectedElement.id, patch))}
           onUploadBackgroundImage={uploadBackgroundImage}
+          variables={document.variables}
         />
       </div>
     </div>
