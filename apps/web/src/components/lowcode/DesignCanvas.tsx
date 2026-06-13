@@ -3,12 +3,13 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { MouseEvent as ReactMouseEvent, ReactNode, WheelEvent as ReactWheelEvent } from "react";
 import interact from "interactjs";
 import type { CSSProperties } from "react";
-import type { DesignBaseStyle, DesignDocument, DesignElement, DesignLayout, DesignTreeNode } from "@flowmind/shared";
+import type { DesignBaseStyle, DesignDocument, DesignElement, DesignLayout, DesignTreeNode, DesignVariables } from "@flowmind/shared";
 import { Button, Input } from "@flowmind/ui";
 import { customerRows, fieldLabels, isContainerElement } from "./lowcodeData";
 import { elementMap } from "./designDocumentOps";
 import { clearDropPlacementIndicator, setDropPlacementIndicator } from "./dropPlacementIndicator";
 import { resolveMaterialDropTarget } from "./materialDropResolver";
+import { resolveVariableText } from "./variableResolver";
 
 export function DesignCanvas({
   document,
@@ -230,6 +231,7 @@ export function DesignCanvas({
             onMove={onMove}
             onUpdateProps={onUpdateProps}
             onSelect={onSelect}
+            variables={document.variables}
           />
         </DesignCanvasShell>
       </div>
@@ -304,7 +306,8 @@ function DesignRenderer({
   onUpdateProps,
   onSelect,
   parentId,
-  selectedId
+  selectedId,
+  variables
 }: {
   elements: Map<string, DesignElement>;
   node: DesignTreeNode;
@@ -314,6 +317,7 @@ function DesignRenderer({
   onSelect: (id: string) => void;
   parentId: string;
   selectedId: string;
+  variables: DesignVariables;
 }) {
   const element = elements.get(node.id);
   if (!element) return null;
@@ -329,6 +333,7 @@ function DesignRenderer({
       onMove={onMove}
       onUpdateProps={onUpdateProps}
       onSelect={onSelect}
+      variables={variables}
     />
   ));
   const selected = selectedId === element.id;
@@ -343,7 +348,7 @@ function DesignRenderer({
       onMove={onMove}
       onSelect={onSelect}
     >
-      {renderElementContent(element, children, selected, onSelect, onUpdateProps, emptyContainer)}
+      {renderElementContent(element, children, selected, onSelect, onUpdateProps, emptyContainer, variables)}
     </CanvasNodeFrame>
   );
 }
@@ -437,27 +442,28 @@ function renderElementContent(
   selected: boolean,
   onSelect: (id: string) => void,
   onUpdateProps: (id: string, patch: Record<string, unknown>) => void,
-  emptyContainer: boolean
+  emptyContainer: boolean,
+  variables: DesignVariables
 ) {
   if (element.type === "page") {
-    return <div className={layoutClass(element, "min-h-[760px] bg-white p-8")} style={baseVisualStyle(element.style.base)}>{children}</div>;
+    return <div className={layoutClass(element, "min-h-[760px] bg-white p-8")} style={containerVisualStyle(element)}>{children}</div>;
   }
   if (element.type === "section") {
-    return <section className={layoutClass(element, "rounded-lg border border-[#d9e1e8] bg-white p-5")} style={baseVisualStyle(element.style.base)}>{emptyContainer ? <EmptyContainerHint /> : children}</section>;
+    return <section className={layoutClass(element, "rounded-lg border border-[#d9e1e8] bg-white p-5")} style={containerVisualStyle(element)}>{emptyContainer ? <EmptyContainerHint /> : children}</section>;
   }
   if (element.type === "stack") {
-    return <div className={layoutClass(element, "rounded-lg border border-dashed border-[#cbd5df] bg-[#f8fafb] p-4")} style={baseVisualStyle(element.style.base)}>{emptyContainer ? <EmptyContainerHint /> : children}</div>;
+    return <div className={layoutClass(element, "rounded-lg border border-dashed border-[#cbd5df] bg-[#f8fafb] p-4")} style={containerVisualStyle(element)}>{emptyContainer ? <EmptyContainerHint /> : children}</div>;
   }
-  if (element.type === "text") return <TextPreview element={element} selected={selected} onSelect={onSelect} onUpdateProps={onUpdateProps} />;
-  if (element.type === "image") return <ImagePreview element={element} />;
-  if (element.type === "input") return <InputPreview element={element} />;
-  if (element.type === "badge") return <BadgePreview element={element} />;
-  if (element.type === "divider") return <DividerPreview element={element} />;
-  if (element.type === "stat") return <StatPreview element={element} />;
+  if (element.type === "text") return <TextPreview element={element} selected={selected} onSelect={onSelect} onUpdateProps={onUpdateProps} variables={variables} />;
+  if (element.type === "image") return <ImagePreview element={element} variables={variables} />;
+  if (element.type === "input") return <InputPreview element={element} variables={variables} />;
+  if (element.type === "badge") return <BadgePreview element={element} variables={variables} />;
+  if (element.type === "divider") return <DividerPreview element={element} variables={variables} />;
+  if (element.type === "stat") return <StatPreview element={element} variables={variables} />;
   if (element.type === "filter") return <FilterPreview element={element} />;
   if (element.type === "table") return <TablePreview element={element} />;
   if (element.type === "form") return <FormPreview element={element} />;
-  if (element.type === "button") return <ButtonPreview element={element} />;
+  if (element.type === "button") return <ButtonPreview element={element} variables={variables} />;
   return null;
 }
 
@@ -465,16 +471,18 @@ function TextPreview({
   element,
   onSelect,
   onUpdateProps,
-  selected
+  selected,
+  variables
 }: {
   element: DesignElement;
   selected: boolean;
+  variables: DesignVariables;
   onSelect: (id: string) => void;
   onUpdateProps: (id: string, patch: Record<string, unknown>) => void;
 }) {
   if (element.type !== "text") return null;
   const role = element.style.text.role;
-  const text = String(element.props?.text ?? element.name);
+  const text = resolveVariableText(String(element.props?.text ?? element.name), selected ? {} : variables);
   const textStyle: CSSProperties = {
     ...baseVisualStyle(element.style.base),
     textDecoration: element.style.text.decoration === "lineThrough" ? "line-through" : element.style.text.decoration,
@@ -584,14 +592,14 @@ function selectTextNodeContents(node: HTMLElement) {
   selection.addRange(range);
 }
 
-function StatPreview({ element }: { element: DesignElement }) {
+function StatPreview({ element, variables }: { element: DesignElement; variables: DesignVariables }) {
   if (element.type !== "stat") return null;
   const valueClass = element.style.stat.valueSize === "xl" ? "text-2xl" : element.style.stat.valueSize === "lg" ? "text-xl" : "text-lg";
   return (
     <div data-stat-card className="rounded-lg border border-[#d9e1e8] p-4" style={baseVisualStyle(element.style.base)}>
-      <div className="text-xs font-semibold opacity-80">{String(element.props?.label ?? element.name)}</div>
-      <div className={`mt-2 font-bold text-[#101828] ${valueClass}`}>{String(element.props?.value ?? "0")}</div>
-      <div className="mt-1 text-xs font-semibold">{String(element.props?.delta ?? "")}</div>
+      <div className="text-xs font-semibold opacity-80">{resolveVariableText(String(element.props?.label ?? element.name), variables)}</div>
+      <div className={`mt-2 font-bold text-[#101828] ${valueClass}`}>{resolveVariableText(String(element.props?.value ?? "0"), variables)}</div>
+      <div className="mt-1 text-xs font-semibold">{resolveVariableText(String(element.props?.delta ?? ""), variables)}</div>
     </div>
   );
 }
@@ -654,17 +662,17 @@ function FormPreview({ element }: { element: DesignElement }) {
   );
 }
 
-function ButtonPreview({ element }: { element: DesignElement }) {
+function ButtonPreview({ element, variables }: { element: DesignElement; variables: DesignVariables }) {
   if (element.type !== "button") return null;
   const sizeClass = element.style.button.size === "lg" ? "h-11 px-5" : element.style.button.size === "sm" ? "h-8 px-3" : "h-10 px-4";
-  return <button className={`${sizeClass} rounded-md text-sm font-semibold`} style={baseVisualStyle(element.style.base)}>{String(element.props?.label ?? element.name)}</button>;
+  return <button className={`${sizeClass} rounded-md text-sm font-semibold`} style={baseVisualStyle(element.style.base)}>{resolveVariableText(String(element.props?.label ?? element.name), variables)}</button>;
 }
 
-function ImagePreview({ element }: { element: DesignElement }) {
+function ImagePreview({ element, variables }: { element: DesignElement; variables: DesignVariables }) {
   if (element.type !== "image") return null;
   const aspectRatio = element.style.image.aspectRatio === "square" ? "aspect-square" : element.style.image.aspectRatio === "portrait" ? "aspect-[4/5]" : "aspect-[16/7]";
   const src = typeof element.props?.src === "string" ? element.props.src : "";
-  const alt = String(element.props?.alt ?? element.name);
+  const alt = resolveVariableText(String(element.props?.alt ?? element.name), variables);
   return (
     <div className={`${aspectRatio} flex min-h-[120px] items-center justify-center overflow-hidden rounded-lg border border-[#d9e1e8] bg-[linear-gradient(135deg,#e8f4f2,#eef2f5_45%,#f8fafb)]`} style={baseVisualStyle(element.style.base)}>
       {src ? <img src={src} alt={alt} className="h-full w-full" style={{ objectFit: element.style.image.objectFit }} /> : <div className="rounded-md bg-white/80 px-3 py-2 text-xs font-semibold text-[#5b6472]">{alt}</div>}
@@ -672,25 +680,25 @@ function ImagePreview({ element }: { element: DesignElement }) {
   );
 }
 
-function InputPreview({ element }: { element: DesignElement }) {
+function InputPreview({ element, variables }: { element: DesignElement; variables: DesignVariables }) {
   if (element.type !== "input") return null;
   return (
     <label className="block min-w-[220px]" style={baseVisualStyle(element.style.base)}>
-      <span className="mb-1.5 block text-xs font-semibold text-[#5b6472]">{String(element.props?.label ?? element.name)}</span>
-      <Input readOnly placeholder={String(element.props?.placeholder ?? "请输入内容")} />
+      <span className="mb-1.5 block text-xs font-semibold text-[#5b6472]">{resolveVariableText(String(element.props?.label ?? element.name), variables)}</span>
+      <Input readOnly placeholder={resolveVariableText(String(element.props?.placeholder ?? "请输入内容"), variables)} />
     </label>
   );
 }
 
-function BadgePreview({ element }: { element: DesignElement }) {
+function BadgePreview({ element, variables }: { element: DesignElement; variables: DesignVariables }) {
   if (element.type !== "badge") return null;
   const sizeClass = element.style.badge.size === "lg" ? "h-8 px-3 text-sm" : element.style.badge.size === "sm" ? "h-6 px-2 text-[11px]" : "h-7 px-2.5 text-xs";
-  return <span className={`inline-flex items-center rounded-md border font-bold ${sizeClass}`} style={baseVisualStyle(element.style.base)}>{String(element.props?.label ?? element.name)}</span>;
+  return <span className={`inline-flex items-center rounded-md border font-bold ${sizeClass}`} style={baseVisualStyle(element.style.base)}>{resolveVariableText(String(element.props?.label ?? element.name), variables)}</span>;
 }
 
-function DividerPreview({ element }: { element: DesignElement }) {
+function DividerPreview({ element, variables }: { element: DesignElement; variables: DesignVariables }) {
   if (element.type !== "divider") return null;
-  const label = String(element.props?.label ?? "");
+  const label = resolveVariableText(String(element.props?.label ?? ""), variables);
   return (
     <div className="flex w-full items-center gap-3 py-1">
       <div className="h-px flex-1" style={{ backgroundColor: colorValue(element.style.base.border.color) }} />
@@ -719,6 +727,15 @@ function baseVisualStyle(style: DesignBaseStyle): CSSProperties {
     fontWeight: fontWeightValue(style.text.fontWeight),
     lineHeight: lineHeightValue(style.text.lineHeight),
     textAlign: style.text.align
+  };
+}
+
+function containerVisualStyle(element: DesignElement): CSSProperties {
+  const container = "container" in element.style ? element.style.container : undefined;
+  return {
+    ...baseVisualStyle(element.style.base),
+    boxShadow: shadowValue(container?.shadow),
+    overflow: container?.overflow === "visible" ? undefined : container?.overflow
   };
 }
 
@@ -793,6 +810,13 @@ function lineHeightValue(token: string) {
   if (token === "tight") return 1.2;
   if (token === "relaxed") return 1.65;
   return 1.45;
+}
+
+function shadowValue(token: string | undefined) {
+  if (token === "sm") return "0 2px 4px rgba(16, 24, 40, 0.15)";
+  if (token === "md") return "0 5px 10px rgba(16, 24, 40, 0.18)";
+  if (token === "lg") return "0 9px 16px rgba(16, 24, 40, 0.2)";
+  return undefined;
 }
 
 function layoutClass(element: DesignElement, base: string) {

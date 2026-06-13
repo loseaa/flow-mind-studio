@@ -157,6 +157,14 @@ export const fallbackDesignDocument: DesignDocument = {
     width: 1440,
     background: "surface"
   },
+  variables: {
+    customerName: "星云科技",
+    ownerName: "Ada",
+    monthlyRevenue: "¥455K",
+    customer: {
+      name: "星云科技"
+    }
+  },
   tree: {
     id: "page_root",
     children: [

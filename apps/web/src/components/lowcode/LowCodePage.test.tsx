@@ -42,6 +42,33 @@ describe("LowCodePage design builder", () => {
     expect(screen.getByText(/Selected:/).textContent).toContain("文本");
   });
 
+  it("shows materials by default and exposes variables in the left sidebar tab", () => {
+    const { container } = render(<LowCodePage />);
+
+    expect(screen.getByRole("button", { name: "物料" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "变量" })).toHaveAttribute("aria-pressed", "false");
+    expect(container.querySelector('[data-material-type="text"]')).not.toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "变量" }));
+
+    expect(screen.getByRole("button", { name: "变量" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByText("全局变量")).toBeInTheDocument();
+    expect(screen.getByText("Path")).toBeInTheDocument();
+    expect(screen.getByText("Value")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "新增变量" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "高级 JSON" })).toBeInTheDocument();
+    expect(screen.queryByLabelText(/Variable default value:/)).not.toBeInTheDocument();
+  });
+
+  it("does not show variable management in the right property inspector", () => {
+    const { container } = render(<LowCodePage />);
+    const inspector = container.querySelector('[data-property-inspector="true"]') as HTMLElement | null;
+
+    expect(inspector).not.toBeNull();
+    expect(inspector?.textContent).not.toContain("全局变量");
+    expect(inspector?.textContent).not.toContain("新增变量");
+  });
+
   it("only exposes the Flex container in layout materials", () => {
     render(<LowCodePage />);
 
@@ -103,6 +130,7 @@ describe("LowCodePage design builder", () => {
     const heading = container.querySelector('[data-node-id="title_text"] h2') as HTMLElement;
 
     fireEvent.click(heading);
+    fireEvent.click(screen.getByRole("button", { name: "Choose Background color: None" }));
     fireEvent.click(screen.getByRole("button", { name: "Background color: Muted" }));
     clickSave(container);
 
@@ -111,6 +139,38 @@ describe("LowCodePage design builder", () => {
 
     expect(savedTitle?.style?.base.backgroundColor).toBe("muted");
     expect(heading.style.backgroundColor).toBe("rgb(248, 250, 251)");
+  });
+
+  it("prioritizes display controls above basics and keeps color choices in a popover", () => {
+    const { container } = render(<LowCodePage />);
+    const heading = container.querySelector('[data-node-id="title_text"] h2') as HTMLElement;
+
+    fireEvent.click(heading);
+
+    const inspector = container.querySelector('[data-property-inspector="true"]') as HTMLElement;
+    const inspectorText = inspector.textContent ?? "";
+    expect(inspectorText.indexOf("Text")).toBeGreaterThanOrEqual(0);
+    expect(inspectorText.indexOf("Basics")).toBeGreaterThanOrEqual(0);
+    expect(inspectorText.indexOf("Text")).toBeLessThan(inspectorText.indexOf("Basics"));
+
+    expect(screen.getByRole("button", { name: "Choose Background color: None" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Background color: Muted" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Choose Background color: None" }));
+
+    expect(screen.getByRole("button", { name: "Background color: Muted" })).toBeInTheDocument();
+  });
+
+  it("applies container shadow settings to the canvas", () => {
+    const { container } = render(<LowCodePage />);
+    const stack = container.querySelector('[data-node-id="content_stack"]') as HTMLElement;
+
+    fireEvent.click(stack);
+    fireEvent.click(screen.getByRole("button", { name: "Shadow: Lg" }));
+
+    const stackInnerFrame = Array.from(stack.children).find((child) => child.classList.contains("min-h-8")) as HTMLElement;
+    const stackContent = stackInnerFrame.firstElementChild as HTMLElement;
+    expect(stackContent).toHaveStyle({ boxShadow: "0 9px 16px rgba(16, 24, 40, 0.2)" });
   });
 
   it("stores a background image URL and renders it from the inspector", () => {
@@ -302,6 +362,88 @@ describe("LowCodePage design builder", () => {
     fireEvent.change(screen.getByDisplayValue(heading.textContent ?? ""), { target: { value: "Customer overview" } });
 
     expect(screen.getByRole("heading", { name: "Customer overview" })).toBeInTheDocument();
+  });
+
+  it("resolves document variables in canvas text while saving template strings", () => {
+    const document = structuredClone(fallbackDesignDocument);
+    document.variables = { customer: { name: "Acme" } };
+    const title = document.elements.find((element) => element.id === "title_text");
+    if (title) title.props = { ...title.props, text: "Customer: {{customer.name}}" };
+    localStorage.setItem("flowmind.lowcode.designDocument", JSON.stringify(document));
+
+    const { container } = render(<LowCodePage />);
+
+    expect(screen.getByRole("heading", { name: "Customer: Acme" })).toBeInTheDocument();
+    clickSave(container);
+
+    const savedDocument = JSON.parse(localStorage.getItem("flowmind.lowcode.designDocument") ?? "{}") as typeof fallbackDesignDocument;
+    const savedTitle = savedDocument.elements.find((element) => element.id === "title_text");
+    expect(savedDocument.variables).toEqual({ customer: { name: "Acme" } });
+    expect(savedTitle?.props?.text).toBe("Customer: {{customer.name}}");
+  });
+
+  it("updates the canvas when table variable values change", () => {
+    const document = structuredClone(fallbackDesignDocument);
+    document.variables = { customer: { name: "Acme" } };
+    const title = document.elements.find((element) => element.id === "title_text");
+    if (title) title.props = { ...title.props, text: "Customer: {{customer.name}}" };
+    localStorage.setItem("flowmind.lowcode.designDocument", JSON.stringify(document));
+
+    render(<LowCodePage />);
+
+    fireEvent.click(screen.getByRole("button", { name: "变量" }));
+    fireEvent.change(screen.getByLabelText("Variable value: customer.name"), { target: { value: "Beta" } });
+
+    expect(screen.getByRole("heading", { name: "Customer: Beta" })).toBeInTheDocument();
+  });
+
+  it("saves array variables created from table paths", () => {
+    const document = structuredClone(fallbackDesignDocument);
+    document.variables = {};
+    localStorage.setItem("flowmind.lowcode.designDocument", JSON.stringify(document));
+
+    const { container } = render(<LowCodePage />);
+
+    fireEvent.click(screen.getByRole("button", { name: "变量" }));
+    fireEvent.click(screen.getByRole("button", { name: "新增变量" }));
+    fireEvent.change(screen.getByLabelText("Variable path: variable1"), { target: { value: "order.items.0.title" } });
+    fireEvent.change(screen.getByLabelText("Variable value: order.items.0.title"), { target: { value: "Starter" } });
+    clickSave(container);
+
+    const savedDocument = JSON.parse(localStorage.getItem("flowmind.lowcode.designDocument") ?? "{}") as typeof fallbackDesignDocument;
+    expect(savedDocument.variables).toEqual({ order: { items: [{ title: "Starter" }] } });
+  });
+
+  it("keeps the last valid variables when JSON editing is invalid", () => {
+    const document = structuredClone(fallbackDesignDocument);
+    document.variables = { customerName: "Acme" };
+    const title = document.elements.find((element) => element.id === "title_text");
+    if (title) title.props = { ...title.props, text: "Customer: {{customerName}}" };
+    localStorage.setItem("flowmind.lowcode.designDocument", JSON.stringify(document));
+
+    render(<LowCodePage />);
+
+    fireEvent.click(screen.getByRole("button", { name: "变量" }));
+    fireEvent.click(screen.getByRole("button", { name: "高级 JSON" }));
+    fireEvent.change(screen.getByLabelText("Variables JSON"), { target: { value: "{ invalid json" } });
+
+    expect(screen.getByText("Invalid JSON object")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Customer: Acme" })).toBeInTheDocument();
+  });
+
+  it("syncs table rows after valid advanced JSON editing", () => {
+    const document = structuredClone(fallbackDesignDocument);
+    document.variables = { customerName: "Acme" };
+    localStorage.setItem("flowmind.lowcode.designDocument", JSON.stringify(document));
+
+    render(<LowCodePage />);
+
+    fireEvent.click(screen.getByRole("button", { name: "变量" }));
+    fireEvent.click(screen.getByRole("button", { name: "高级 JSON" }));
+    fireEvent.change(screen.getByLabelText("Variables JSON"), { target: { value: '{\n  "customer": {\n    "name": "Beta"\n  }\n}' } });
+
+    expect(screen.getByDisplayValue("customer.name")).toBeInTheDocument();
+    expect(screen.getByLabelText("Variable value: customer.name")).toHaveValue("Beta");
   });
 
   it("uses content as the only editable text-node body", () => {

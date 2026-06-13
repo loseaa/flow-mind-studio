@@ -1,10 +1,11 @@
 import { useRef, useState, type ReactNode } from "react";
 import { AlignCenter, AlignLeft, AlignRight } from "lucide-react";
-import type { DesignElement, DesignElementStyle, DesignLayout } from "@flowmind/shared";
+import type { DesignElement, DesignElementStyle, DesignLayout, DesignVariables } from "@flowmind/shared";
 import { Input } from "@flowmind/ui";
 import { CustomScrollbar } from "../CustomScrollbar";
 import { availableFields, fieldLabels, isContainerElement } from "./lowcodeData";
 import { clearDropPlacementIndicator } from "./dropPlacementIndicator";
+import { VariableTextEditor } from "./VariableTextEditor";
 
 type LayoutOption<T extends string> = {
   value: T;
@@ -79,7 +80,8 @@ export function PropertyInspector({
   onUpdateLayout,
   onUpdateProps,
   onUpdateStyle,
-  onUploadBackgroundImage
+  onUploadBackgroundImage,
+  variables
 }: {
   parentElement?: DesignElement;
   selectedElement: DesignElement;
@@ -88,27 +90,29 @@ export function PropertyInspector({
   onUpdateProps: (patch: Record<string, unknown>) => void;
   onUpdateStyle: (patch: Partial<DesignElementStyle>) => void;
   onUploadBackgroundImage: (file: File) => Promise<string>;
+  variables: DesignVariables;
 }) {
   return (
-    <CustomScrollbar className="h-full min-h-0 border-l border-[#d9e1e8] bg-white max-xl:hidden" variant="slate">
-      <div className="p-3.5">
-        <div className="text-sm font-bold">Properties</div>
-        <p className="mt-1 text-xs leading-5 text-[#5b6472]">Selected: {selectedElement.name}</p>
+    <div data-property-inspector="true" className="h-full min-h-0 max-xl:hidden">
+      <CustomScrollbar className="h-full min-h-0 border-l border-[#d9e1e8] bg-white" variant="slate">
+        <div className="p-3.5">
+          <div className="text-sm font-bold">Properties</div>
+          <p className="mt-1 text-xs leading-5 text-[#5b6472]">Selected: {selectedElement.name}</p>
 
-        <div className="mt-4 space-y-4">
-          <PropertyGroup title="Basics">
-            <FieldLabel>Node name</FieldLabel>
-            <Input value={selectedElement.name} className="mt-1 h-9" onChange={(event) => onUpdate({ name: event.target.value })} />
-            <FieldLabel className="mt-3">Material type</FieldLabel>
-            <Input value={selectedElement.type} readOnly className="mt-1 h-9 font-mono" />
-          </PropertyGroup>
-
-          <FlexLayoutFields selectedElement={selectedElement} parentElement={parentElement} onUpdateLayout={onUpdateLayout} />
-          <StyleFields selectedElement={selectedElement} onUpdateStyle={onUpdateStyle} onUploadBackgroundImage={onUploadBackgroundImage} />
-          <TypeSpecificFields selectedElement={selectedElement} onUpdateProps={onUpdateProps} onUpdateStyle={onUpdateStyle} />
+          <div className="mt-4 space-y-4">
+            <TypeSpecificFields selectedElement={selectedElement} onUpdateProps={onUpdateProps} onUpdateStyle={onUpdateStyle} variables={variables} />
+            <FlexLayoutFields selectedElement={selectedElement} parentElement={parentElement} onUpdateLayout={onUpdateLayout} />
+            <StyleFields selectedElement={selectedElement} onUpdateStyle={onUpdateStyle} onUploadBackgroundImage={onUploadBackgroundImage} />
+            <PropertyGroup title="Basics">
+              <FieldLabel>Node name</FieldLabel>
+              <Input value={selectedElement.name} className="mt-1 h-9" onChange={(event) => onUpdate({ name: event.target.value })} />
+              <FieldLabel className="mt-3">Material type</FieldLabel>
+              <Input value={selectedElement.type} readOnly className="mt-1 h-9 font-mono" />
+            </PropertyGroup>
+          </div>
         </div>
-      </div>
-    </CustomScrollbar>
+      </CustomScrollbar>
+    </div>
   );
 }
 
@@ -207,18 +211,20 @@ function StyleFields({
 function TypeSpecificFields({
   selectedElement,
   onUpdateProps,
-  onUpdateStyle
+  onUpdateStyle,
+  variables
 }: {
   selectedElement: DesignElement;
   onUpdateProps: (patch: Record<string, unknown>) => void;
   onUpdateStyle: (patch: Partial<DesignElementStyle>) => void;
+  variables: DesignVariables;
 }) {
   if (selectedElement.type === "text") {
     return (
       <>
         <PropertyGroup title="Text">
           <FieldLabel>Content</FieldLabel>
-          <Input value={String(selectedElement.props?.text ?? "")} className="mt-1 h-9" onChange={(event) => onUpdateProps({ text: event.target.value })} />
+          <VariableTextEditor ariaLabel="Content" value={String(selectedElement.props?.text ?? "")} variables={variables} onChange={(value) => onUpdateProps({ text: value })} />
         </PropertyGroup>
         <PropertyGroup title="Text style">
           <SegmentedControl label="Text role" value={selectedElement.style.text.role} options={toOptions(["heading", "subheading", "body", "caption"])} onChange={(role) => onUpdateStyle({ text: { role } } as Partial<DesignElementStyle>)} />
@@ -234,7 +240,7 @@ function TypeSpecificFields({
       <>
         <PropertyGroup title="Button">
           <FieldLabel>Label</FieldLabel>
-          <Input value={String(selectedElement.props?.label ?? "")} className="mt-1 h-9" onChange={(event) => onUpdateProps({ label: event.target.value })} />
+          <VariableTextEditor ariaLabel="Button label" value={String(selectedElement.props?.label ?? "")} variables={variables} onChange={(value) => onUpdateProps({ label: value })} />
           <SelectControl label="Action" value={String(selectedElement.props?.action ?? "platformApi")} options={["openForm", "platformApi", "ai", "mcp"]} onChange={(value) => onUpdateProps({ action: value })} />
         </PropertyGroup>
         <PropertyGroup title="Button style">
@@ -250,7 +256,7 @@ function TypeSpecificFields({
       <>
         <PropertyGroup title="Image">
           <FieldLabel>Alt text</FieldLabel>
-          <Input value={String(selectedElement.props?.alt ?? "")} className="mt-1 h-9" onChange={(event) => onUpdateProps({ alt: event.target.value })} />
+          <VariableTextEditor ariaLabel="Image alt text" value={String(selectedElement.props?.alt ?? "")} variables={variables} onChange={(value) => onUpdateProps({ alt: value })} />
         </PropertyGroup>
         <PropertyGroup title="Image style">
           <VisualTokenControl label="Aspect ratio" value={selectedElement.style.image.aspectRatio} options={toOptions(["wide", "square", "portrait"])} variant="aspect" onChange={(aspectRatio) => onUpdateStyle({ image: { aspectRatio } } as Partial<DesignElementStyle>)} />
@@ -265,9 +271,9 @@ function TypeSpecificFields({
       <>
         <PropertyGroup title="Input">
           <FieldLabel>Label</FieldLabel>
-          <Input value={String(selectedElement.props?.label ?? "")} className="mt-1 h-9" onChange={(event) => onUpdateProps({ label: event.target.value })} />
+          <VariableTextEditor ariaLabel="Input label" value={String(selectedElement.props?.label ?? "")} variables={variables} onChange={(value) => onUpdateProps({ label: value })} />
           <FieldLabel>Placeholder</FieldLabel>
-          <Input value={String(selectedElement.props?.placeholder ?? "")} className="mt-1 h-9" onChange={(event) => onUpdateProps({ placeholder: event.target.value })} />
+          <VariableTextEditor ariaLabel="Input placeholder" value={String(selectedElement.props?.placeholder ?? "")} variables={variables} onChange={(value) => onUpdateProps({ placeholder: value })} />
         </PropertyGroup>
         <ControlStyleFields style={selectedElement.style} onUpdateStyle={onUpdateStyle} />
       </>
@@ -279,7 +285,7 @@ function TypeSpecificFields({
       <>
         <PropertyGroup title="Badge">
           <FieldLabel>Label</FieldLabel>
-          <Input value={String(selectedElement.props?.label ?? "")} className="mt-1 h-9" onChange={(event) => onUpdateProps({ label: event.target.value })} />
+          <VariableTextEditor ariaLabel="Badge label" value={String(selectedElement.props?.label ?? "")} variables={variables} onChange={(value) => onUpdateProps({ label: value })} />
         </PropertyGroup>
         <PropertyGroup title="Badge style">
           <SegmentedControl label="Badge size" value={selectedElement.style.badge.size} options={toOptions(["sm", "md", "lg"])} onChange={(size) => onUpdateStyle({ badge: { size } } as Partial<DesignElementStyle>)} />
@@ -295,7 +301,7 @@ function TypeSpecificFields({
       <>
         <PropertyGroup title="Divider">
           <FieldLabel>Label</FieldLabel>
-          <Input value={String(selectedElement.props?.label ?? "")} className="mt-1 h-9" onChange={(event) => onUpdateProps({ label: event.target.value })} />
+          <VariableTextEditor ariaLabel="Divider label" value={String(selectedElement.props?.label ?? "")} variables={variables} onChange={(value) => onUpdateProps({ label: value })} />
         </PropertyGroup>
         <PropertyGroup title="Divider style">
           <SegmentedControl label="Divider direction" value={selectedElement.style.divider.direction} options={toOptions(["horizontal", "vertical"])} onChange={(direction) => onUpdateStyle({ divider: { direction } } as Partial<DesignElementStyle>)} />
@@ -346,11 +352,11 @@ function TypeSpecificFields({
       <>
         <PropertyGroup title="Stat">
           <FieldLabel>Label</FieldLabel>
-          <Input value={String(selectedElement.props?.label ?? "")} className="mt-1 h-9" onChange={(event) => onUpdateProps({ label: event.target.value })} />
+          <VariableTextEditor ariaLabel="Stat label" value={String(selectedElement.props?.label ?? "")} variables={variables} onChange={(value) => onUpdateProps({ label: value })} />
           <FieldLabel>Value</FieldLabel>
-          <Input value={String(selectedElement.props?.value ?? "")} className="mt-1 h-9" onChange={(event) => onUpdateProps({ value: event.target.value })} />
+          <VariableTextEditor ariaLabel="Stat value" value={String(selectedElement.props?.value ?? "")} variables={variables} onChange={(value) => onUpdateProps({ value })} />
           <FieldLabel>Delta</FieldLabel>
-          <Input value={String(selectedElement.props?.delta ?? "")} className="mt-1 h-9" onChange={(event) => onUpdateProps({ delta: event.target.value })} />
+          <VariableTextEditor ariaLabel="Stat delta" value={String(selectedElement.props?.delta ?? "")} variables={variables} onChange={(value) => onUpdateProps({ delta: value })} />
         </PropertyGroup>
         <PropertyGroup title="Stat style">
           <VisualTokenControl label="Value size" value={selectedElement.style.stat.valueSize} options={toOptions(["md", "lg", "xl"])} variant="textSize" onChange={(valueSize) => onUpdateStyle({ stat: { valueSize } } as Partial<DesignElementStyle>)} />
@@ -620,34 +626,54 @@ function SelectControl({ label, onChange, options, value }: { label: string; onC
 }
 
 function ColorSwatchControl({ label, onChange, value }: { label: string; onChange: (value: string) => void; value: string }) {
+  const [open, setOpen] = useState(false);
+  const current = colorMeta[value] ?? { label: value, value };
+
   return (
-    <div>
-      <div className="flex items-center justify-between gap-2">
-        <FieldLabel>{label}</FieldLabel>
-        <span className="text-[11px] font-semibold text-[#8a94a3]">{colorMeta[value]?.label ?? value}</span>
-      </div>
-      <div className="mt-1 grid grid-cols-4 gap-1.5">
-        {colorOptions.map((option) => {
-          const meta = colorMeta[option] ?? { label: option, value: option };
-          const active = option === value;
-          return (
-            <button
-              key={option}
-              type="button"
-              aria-label={`${label}: ${meta.label}`}
-              aria-pressed={active}
-              title={meta.label}
-              className={`grid h-9 place-items-center rounded-md border text-[10px] font-bold transition ${
-                active ? "border-[#0f766e] ring-2 ring-[#0f766e]/20" : "border-[#d9e1e8] hover:border-[#9cc8c2]"
-              }`}
-              style={{ background: meta.value, color: meta.text }}
-              onClick={() => onChange(option)}
-            >
-              {active ? "On" : ""}
-            </button>
-          );
-        })}
-      </div>
+    <div className="relative">
+      <FieldLabel>{label}</FieldLabel>
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-label={`Choose ${label}: ${current.label}`}
+        className="mt-1 flex h-9 w-full items-center justify-between gap-2 rounded-md border border-[#d9e1e8] bg-white px-2.5 text-left text-xs font-semibold text-[#344054] transition hover:border-[#9cc8c2] hover:bg-[#f8fafb]"
+        onClick={() => setOpen((next) => !next)}
+      >
+        <span className="flex min-w-0 items-center gap-2">
+          <span className="h-5 w-5 shrink-0 rounded border border-[#cbd5df]" style={{ background: current.value }} />
+          <span className="truncate">{current.label}</span>
+        </span>
+        <span className="text-[11px] font-semibold text-[#8a94a3]">{open ? "Close" : "Change"}</span>
+      </button>
+      {open ? (
+        <div className="absolute left-0 right-0 top-[calc(100%+6px)] z-50 rounded-lg border border-[#d9e1e8] bg-white p-2 shadow-xl shadow-slate-900/10">
+          <div className="grid grid-cols-4 gap-1.5">
+            {colorOptions.map((option) => {
+              const meta = colorMeta[option] ?? { label: option, value: option };
+              const active = option === value;
+              return (
+                <button
+                  key={option}
+                  type="button"
+                  aria-label={`${label}: ${meta.label}`}
+                  aria-pressed={active}
+                  title={meta.label}
+                  className={`grid h-9 place-items-center rounded-md border text-[10px] font-bold transition ${
+                    active ? "border-[#0f766e] ring-2 ring-[#0f766e]/20" : "border-[#d9e1e8] hover:border-[#9cc8c2]"
+                  }`}
+                  style={{ background: meta.value, color: meta.text }}
+                  onClick={() => {
+                    onChange(option);
+                    setOpen(false);
+                  }}
+                >
+                  {active ? "On" : ""}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
