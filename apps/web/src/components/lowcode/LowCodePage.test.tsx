@@ -1,12 +1,20 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { designDocumentSchema } from "@flowmind/shared";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { LowCodeCustomMaterialPage } from "../../pages/app/LowCodeCustomMaterialPage";
 import { LowCodePage } from "../../pages/app/LowCodePage";
 import { clearDropPlacementIndicator, setDropPlacementIndicator } from "./dropPlacementIndicator";
-import { createElementFromMaterial, DEFAULT_LOW_CODE_IMAGE_URL, defaultBackgroundImageUrl, fallbackDesignDocument, materials } from "./lowcodeData";
+import { complexMaterials, createElementFromMaterial, DEFAULT_LOW_CODE_IMAGE_URL, defaultBackgroundImageUrl, fallbackDesignDocument, materials } from "./lowcodeData";
+
+const interactMock = vi.hoisted(() => ({
+  draggableCalls: [] as Array<{ selector: string; config: { listeners?: Record<string, (event: Record<string, unknown>) => void> } | undefined }>
+}));
 
 vi.mock("interactjs", () => ({
-  default: () => ({
-    draggable() {
+  default: (selector: string) => ({
+    draggable(config?: { listeners?: Record<string, (event: Record<string, unknown>) => void> }) {
+      interactMock.draggableCalls.push({ selector, config });
       return { unset: vi.fn() };
     },
     dropzone() {
@@ -20,6 +28,7 @@ describe("LowCodePage design builder", () => {
     localStorage.clear();
     vi.restoreAllMocks();
     clearDropPlacementIndicator();
+    interactMock.draggableCalls.length = 0;
   });
 
   it("renders the default design document", () => {
@@ -42,12 +51,55 @@ describe("LowCodePage design builder", () => {
     expect(screen.getByText(/Selected:/).textContent).toContain("文本");
   });
 
-  it("shows materials by default and exposes variables in the left sidebar tab", () => {
+  it("adds an editable complex material tree and saves a valid design document", () => {
     const { container } = render(<LowCodePage />);
 
-    expect(screen.getByRole("button", { name: "物料" })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByRole("button", { name: "变量" })).toHaveAttribute("aria-pressed", "false");
+    clickComplexMaterial(container, "tabs");
+    clickSave(container);
+
+    expect(container.querySelector('[data-node-id^="node_complex_tabs_"][data-node-id$="_root"]')).not.toBeNull();
+    expect(container.querySelector('[data-node-id*="_active_item"]')).not.toBeNull();
+    expect(container.querySelector('[data-node-id*="_active_badge"]')).not.toBeNull();
+    expect(container.querySelector('[data-node-id*="_active_line"]')).not.toBeNull();
+
+    const savedDocument = JSON.parse(localStorage.getItem("flowmind.lowcode.designDocument") ?? "{}");
+    const parsed = designDocumentSchema.safeParse(savedDocument);
+    expect(parsed.success).toBe(true);
+    if (!parsed.success) return;
+    expect(parsed.data.elements.some((element) => element.id.includes("_active_text") && element.type === "text")).toBe(true);
+    expect(parsed.data.elements.some((element) => element.id.includes("_active_badge") && element.type === "badge")).toBe(true);
+    expect(parsed.data.elements.some((element) => element.id.includes("_active_line") && element.type === "shape")).toBe(true);
+  });
+
+  it("shows complex materials by default and keeps basic materials one tab away", () => {
+    const { container } = render(<LowCodePage />);
+
+    expect(screen.getByRole("button", { name: "复杂物料" })).toHaveAttribute("aria-pressed", "true");
+    expect(container.querySelector('[data-complex-material-id="tabs"]')).not.toBeNull();
+    expect(container.querySelector('[data-material-type="text"]')).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "基础物料" }));
+
+    expect(screen.getByRole("button", { name: "基础物料" })).toHaveAttribute("aria-pressed", "true");
     expect(container.querySelector('[data-material-type="text"]')).not.toBeNull();
+  });
+
+  it("summarizes the selected complex material root and its basic materials", () => {
+    render(<LowCodePage />);
+
+    clickComplexMaterial(document.body, "customer-card");
+
+    expect(screen.getByText("复杂物料根容器")).toBeInTheDocument();
+    expect(screen.getByText("子物料结构")).toBeInTheDocument();
+    expect(screen.getAllByText(/图片/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/指标卡/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/按钮/).length).toBeGreaterThan(0);
+  });
+
+  it("exposes variables in the left sidebar tab", () => {
+    render(<LowCodePage />);
+
+    expect(screen.getByRole("button", { name: "变量" })).toHaveAttribute("aria-pressed", "false");
 
     fireEvent.click(screen.getByRole("button", { name: "变量" }));
 
@@ -69,12 +121,222 @@ describe("LowCodePage design builder", () => {
     expect(inspector?.textContent).not.toContain("新增变量");
   });
 
-  it("only exposes the Flex container in layout materials", () => {
+  it("only exposes the Flex container in layout materials and keeps divider as a basic material", () => {
     render(<LowCodePage />);
 
     expect(materials.filter((item) => item.type === "stack")).toHaveLength(1);
     expect(materials.some((item) => item.type === "section")).toBe(false);
-    expect(materials.some((item) => item.type === "divider")).toBe(false);
+    expect(materials.some((item) => item.type === "divider")).toBe(true);
+  });
+
+  it("exposes shape materials and inserts a schema-valid circle", () => {
+    const { container } = render(<LowCodePage />);
+
+    fireEvent.click(screen.getByRole("button", { name: "基础物料" }));
+    const circle = container.querySelector('[data-material-id="shape-circle"]') as HTMLElement | null;
+    expect(circle).not.toBeNull();
+    fireEvent.click(circle!);
+    clickSave(container);
+
+    const savedDocument = JSON.parse(localStorage.getItem("flowmind.lowcode.designDocument") ?? "{}");
+    const parsed = designDocumentSchema.safeParse(savedDocument);
+    expect(parsed.success).toBe(true);
+    if (!parsed.success) return;
+    const shape = parsed.data.elements.find((element) => element.type === "shape");
+    expect(shape?.props?.kind).toBe("circle");
+  });
+
+  it("switches the basic line material between horizontal and vertical", () => {
+    const { container } = render(<LowCodePage />);
+
+    fireEvent.click(screen.getByRole("button", { name: "基础物料" }));
+    const line = container.querySelector('[data-material-id="shape-line"]') as HTMLElement | null;
+    expect(line).not.toBeNull();
+    fireEvent.click(line!);
+
+    expect(screen.getByRole("button", { name: "Horizontal" })).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(screen.getByRole("button", { name: "Vertical" }));
+
+    const linePreview = container.querySelector('[data-node-id^="node_shape_"] [data-shape-line]') as HTMLElement | null;
+    expect(screen.getByRole("button", { name: "Vertical" })).toHaveAttribute("aria-pressed", "true");
+    expect(linePreview).toHaveStyle({ width: "1px", height: "100%" });
+
+    clickSave(container);
+    const savedDocument = JSON.parse(localStorage.getItem("flowmind.lowcode.designDocument") ?? "{}");
+    const parsed = designDocumentSchema.safeParse(savedDocument);
+    expect(parsed.success).toBe(true);
+    if (!parsed.success) return;
+    const savedLine = parsed.data.elements.find((element) => element.type === "shape");
+    expect(savedLine?.type).toBe("shape");
+    if (!savedLine || savedLine.type !== "shape") return;
+    expect(savedLine.style.shape.kind).toBe("line");
+    expect(savedLine.style.shape.direction).toBe("vertical");
+  });
+
+  it("creates a custom complex material from the builder route and inserts it into the canvas", () => {
+    const { container } = renderCustomMaterialRoutes("/app/lowcode/materials/new");
+
+    expect(container.querySelector('[data-custom-complex-save]')).toBeDisabled();
+
+    fireEvent.click(container.querySelector('[data-builder-material-id="text"]') as HTMLElement);
+    fireEvent.change(screen.getByLabelText("Custom material name"), { target: { value: "Customer mini block" } });
+    fireEvent.change(screen.getByLabelText("Custom material description"), { target: { value: "Reusable text block" } });
+    fireEvent.click(container.querySelector('[data-custom-complex-save]') as HTMLElement);
+
+    const stored = JSON.parse(localStorage.getItem("flowmind.lowcode.customComplexMaterials") ?? "[]") as Array<{ label: string; desc: string; composition: string[] }>;
+    expect(stored).toHaveLength(1);
+    expect(stored[0]).toMatchObject({ label: "Customer mini block", desc: "Reusable text block" });
+    expect(stored[0].composition.length).toBeGreaterThan(0);
+
+    const customCard = container.querySelector('[data-complex-material-id^="custom_"]') as HTMLElement | null;
+    expect(customCard).not.toBeNull();
+    fireEvent.click(customCard!);
+
+    clickSave(container);
+    const savedDocument = JSON.parse(localStorage.getItem("flowmind.lowcode.designDocument") ?? "{}");
+    const parsed = designDocumentSchema.safeParse(savedDocument);
+    expect(parsed.success).toBe(true);
+    if (!parsed.success) return;
+    expect(parsed.data.elements.some((element) => element.id.startsWith("node_complex_custom_") && element.id.endsWith("_root"))).toBe(true);
+    expect(parsed.data.elements.some((element) => element.id.startsWith("node_complex_custom_") && element.type === "text")).toBe(true);
+  });
+
+  it("drags a basic material into the custom complex material builder canvas", () => {
+    const { container } = renderCustomMaterialRoutes("/app/lowcode/materials/new");
+    const root = container.querySelector('[data-node-id="custom_builder_root"]') as HTMLElement | null;
+    const material = container.querySelector('[data-builder-material-id="text"]') as HTMLElement | null;
+    expect(root).not.toBeNull();
+    expect(material).not.toBeNull();
+    root!.getBoundingClientRect = () => ({ bottom: 500, height: 420, left: 300, right: 900, top: 80, width: 600, x: 300, y: 80, toJSON: () => ({}) });
+    material!.getBoundingClientRect = () => ({ bottom: 52, height: 36, left: 16, right: 220, top: 16, width: 204, x: 16, y: 16, toJSON: () => ({}) });
+
+    const registration = interactMock.draggableCalls.find((call) => call.selector === "[data-builder-material-id]");
+    expect(registration).toBeTruthy();
+    act(() => {
+      registration?.config?.listeners?.end?.({ target: material, clientX: 360, clientY: 160 });
+    });
+
+    expect(container.querySelector('[data-node-id^="node_text_"]')).not.toBeNull();
+  });
+
+  it("persists custom complex materials and generates fresh ids on repeated insertion", () => {
+    const { container, unmount } = renderCustomMaterialRoutes("/app/lowcode/materials/new");
+
+    fireEvent.click(container.querySelector('[data-builder-material-id="button"]') as HTMLElement);
+    fireEvent.change(screen.getByLabelText("Custom material name"), { target: { value: "Action block" } });
+    fireEvent.change(screen.getByLabelText("Custom material description"), { target: { value: "Reusable action" } });
+    fireEvent.click(container.querySelector('[data-custom-complex-save]') as HTMLElement);
+
+    unmount();
+    const rerendered = render(<LowCodePage />);
+    const customCard = rerendered.container.querySelector('[data-complex-material-id^="custom_"]') as HTMLElement | null;
+    expect(customCard).not.toBeNull();
+
+    fireEvent.click(customCard!);
+    fireEvent.click(customCard!);
+    clickSave(rerendered.container);
+
+    const savedDocument = JSON.parse(localStorage.getItem("flowmind.lowcode.designDocument") ?? "{}");
+    const parsed = designDocumentSchema.safeParse(savedDocument);
+    expect(parsed.success).toBe(true);
+    if (!parsed.success) return;
+    const customIds = parsed.data.elements.filter((element) => element.id.startsWith("node_complex_custom_")).map((element) => element.id);
+    expect(customIds.length).toBeGreaterThan(3);
+    expect(new Set(customIds).size).toBe(customIds.length);
+    expect(parsed.data.elements.filter((element) => element.id.startsWith("node_complex_custom_") && element.id.endsWith("_root"))).toHaveLength(2);
+  });
+
+  it("cancels custom complex material creation without writing local storage", () => {
+    const { container } = renderCustomMaterialRoutes("/app/lowcode/materials/new");
+
+    fireEvent.click(container.querySelector('[data-builder-material-id="text"]') as HTMLElement);
+    fireEvent.change(screen.getByLabelText("Custom material name"), { target: { value: "Discard me" } });
+    fireEvent.click(container.querySelector('[data-custom-complex-cancel]') as HTMLElement);
+
+    expect(localStorage.getItem("flowmind.lowcode.customComplexMaterials")).toBeNull();
+    expect(container.querySelector('[data-complex-material-id^="custom_"]')).toBeNull();
+  });
+
+  it("matches the Pencil complex material structure keywords", () => {
+    const customerCard = complexMaterials.find((item) => item.id === "customer-card")?.createTemplate();
+    const tableSection = complexMaterials.find((item) => item.id === "table-section")?.createTemplate();
+    const approvalCard = complexMaterials.find((item) => item.id === "approval-card")?.createTemplate();
+
+    expect(customerCard?.elements.map((element) => element.name)).toEqual(expect.arrayContaining(["Selection root label", "Customer top editable group", "基础物料 / 指标卡 row", "Customer action row"]));
+    expect(tableSection?.elements.map((element) => element.name)).toEqual(expect.arrayContaining(["Table block header", "基础物料 / 筛选区", "基础物料 / 数据表格"]));
+    expect(approvalCard?.elements.some((element) => element.type === "shape")).toBe(true);
+  });
+
+  it("wraps every complex material in a basic container shell", () => {
+    for (const material of complexMaterials) {
+      const template = material.createTemplate();
+      const rootElement = template.elements.find((element) => element.id === template.root.id);
+      const contentId = template.root.children?.[0]?.id;
+      const contentElement = template.elements.find((element) => element.id === contentId);
+
+      expect(rootElement?.type).toBe("stack");
+      expect(rootElement?.layout?.height).toBe("fill");
+      expect(rootElement?.style.base.backgroundColor).toBe("transparent");
+      expect(rootElement?.style.base.border.width).toBe("none");
+      expect(template.root.children).toHaveLength(1);
+      expect(contentId).toContain("_content");
+      expect(contentElement?.type).toBe("stack");
+      expect(contentElement?.name).toContain("Complex Material");
+    }
+  });
+
+  it("defaults every material and complex material child to fill height", () => {
+    for (const material of materials) {
+      const element = createElementFromMaterial(material.id);
+      expect(element.layout?.height).toBe("fill");
+      expect(element.layout?.fixedHeight).toBeUndefined();
+    }
+
+    for (const material of complexMaterials) {
+      const template = material.createTemplate();
+      for (const element of template.elements) {
+        expect(element.layout?.height).toBe("fill");
+        expect(element.layout?.fixedHeight).toBeUndefined();
+      }
+    }
+  });
+
+  it("gives complex material roots full-height canvas occupancy", () => {
+    const { container } = render(<LowCodePage />);
+
+    clickComplexMaterial(container, "customer-card");
+
+    const root = container.querySelector('[data-node-id^="node_complex_customer_card_"][data-node-id$="_root"]') as HTMLElement | null;
+    expect(root).not.toBeNull();
+    expect(root).toHaveStyle({ width: "420px", height: "100%" });
+    const contentWrap = Array.from(root?.children ?? []).find((child) => child.classList.contains("h-full"));
+    expect(contentWrap).toHaveClass("h-full", "w-full");
+  });
+
+  it("stretches full-height container visuals to their reserved canvas slot", () => {
+    const { container } = render(<LowCodePage />);
+
+    clickComplexMaterial(container, "tabs");
+
+    const root = container.querySelector('[data-node-id^="node_complex_tabs_"][data-node-id$="_root"]') as HTMLElement | null;
+    const visibleContainer = root?.querySelector(".min-h-8 > div") as HTMLElement | null;
+    expect(root).toHaveStyle({ height: "100%" });
+    expect(visibleContainer).toHaveClass("h-full");
+  });
+
+  it("stretches inner complex material widgets to their canvas slots", () => {
+    const { container } = render(<LowCodePage />);
+
+    clickComplexMaterial(container, "customer-card");
+    clickComplexMaterial(container, "table-section");
+
+    const stat = container.querySelector('[data-node-id*="_amount"] [data-stat-card]') as HTMLElement | null;
+    const filter = container.querySelector('[data-node-id*="table_section_"][data-node-id*="_filter"] > div > div') as HTMLElement | null;
+    const table = container.querySelector('[data-node-id*="table_section_"][data-node-id*="_table"] > div > div') as HTMLElement | null;
+
+    expect(stat).toHaveClass("h-full");
+    expect(filter).toHaveClass("h-full");
+    expect(table).toHaveClass("h-full");
   });
 
   it("uses only current palette materials in the default document", () => {
@@ -115,6 +377,7 @@ describe("LowCodePage design builder", () => {
     render(<LowCodePage />);
 
     const file = new File(["image!"], "uploaded.png", { type: "image/png" });
+    fireEvent.click(screen.getByRole("button", { name: "基础物料" }));
     fireEvent.change(screen.getByLabelText("上传图片物料"), { target: { files: [file] } });
 
     const image = await screen.findByRole("img", { name: "uploaded.png" });
@@ -492,8 +755,28 @@ describe("LowCodePage design builder", () => {
   });
 });
 
+function renderCustomMaterialRoutes(initialPath: string) {
+  return render(
+    <MemoryRouter initialEntries={[initialPath]}>
+      <Routes>
+        <Route path="/app/lowcode/materials/new" element={<LowCodeCustomMaterialPage />} />
+        <Route path="/app/lowcode" element={<LowCodePage />} />
+      </Routes>
+    </MemoryRouter>
+  );
+}
+
 function clickMaterial(container: HTMLElement, type: string) {
+  if (!container.querySelector(`[data-material-type="${type}"]`)) {
+    fireEvent.click(screen.getByRole("button", { name: "基础物料" }));
+  }
   const material = container.querySelector(`[data-material-type="${type}"]`) as HTMLElement | null;
+  expect(material).not.toBeNull();
+  fireEvent.click(material!);
+}
+
+function clickComplexMaterial(container: HTMLElement, id: string) {
+  const material = container.querySelector(`[data-complex-material-id="${id}"]`) as HTMLElement | null;
   expect(material).not.toBeNull();
   fireEvent.click(material!);
 }

@@ -6,28 +6,47 @@ import { DesignCanvas } from "../../components/lowcode/DesignCanvas";
 import { LowCodeToolbar } from "../../components/lowcode/LowCodeToolbar";
 import { MaterialPalette } from "../../components/lowcode/MaterialPalette";
 import { PropertyInspector } from "../../components/lowcode/PropertyInspector";
-import { createElementFromMaterial, createImageElementFromAsset, fallbackDesignDocument, isContainerElement, type MaterialDefinition } from "../../components/lowcode/lowcodeData";
-import { elementMap, insertElement, moveNode, removeNode, reparentNode, updateElement, updateElementLayout, updateElementProps, updateElementStyle } from "../../components/lowcode/designDocumentOps";
+import {
+  CUSTOM_COMPLEX_MATERIALS_STORAGE_KEY,
+  complexMaterials,
+  createElementFromMaterial,
+  createImageElementFromAsset,
+  customComplexMaterialRecordToDefinition,
+  fallbackDesignDocument,
+  isContainerElement,
+  readCustomComplexMaterialRecords,
+  type ComplexMaterialDefinition,
+  type CustomComplexMaterialRecord,
+  type MaterialDefinition
+} from "../../components/lowcode/lowcodeData";
+import { elementMap, insertElement, insertElementTree, moveNode, removeNode, reparentNode, updateElement, updateElementLayout, updateElementProps, updateElementStyle } from "../../components/lowcode/designDocumentOps";
 
 const STORAGE_KEY = "flowmind.lowcode.designDocument";
 
 export function LowCodePage() {
   const [document, setDocument] = useState<DesignDocument>(fallbackDesignDocument);
+  const [customComplexRecords, setCustomComplexRecords] = useState<CustomComplexMaterialRecord[]>([]);
   const [selectedId, setSelectedId] = useState(fallbackDesignDocument.tree.id);
   const [saveState, setSaveState] = useState<"draft" | "saved" | "published">("draft");
   const elements = useMemo(() => elementMap(document), [document]);
+  const availableComplexMaterials = useMemo(() => [
+    ...complexMaterials,
+    ...customComplexRecords.map(customComplexMaterialRecordToDefinition)
+  ], [customComplexRecords]);
   const selectedElement = elements.get(selectedId) ?? elements.get(document.tree.id) ?? document.elements[0];
   const parentElement = elements.get(findParentId(document.tree, selectedElement.id) ?? "");
 
   useEffect(() => {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return;
-    const parsed = designDocumentSchema.safeParse(JSON.parse(raw) as unknown);
-    if (parsed.success) {
-      setDocument(parsed.data);
-      setSelectedId(parsed.data.tree.id);
-      setSaveState("saved");
+    if (raw) {
+      const parsed = designDocumentSchema.safeParse(JSON.parse(raw) as unknown);
+      if (parsed.success) {
+        setDocument(parsed.data);
+        setSelectedId(parsed.data.tree.id);
+        setSaveState("saved");
+      }
     }
+    setCustomComplexRecords(readCustomComplexMaterialRecords(localStorage.getItem(CUSTOM_COMPLEX_MATERIALS_STORAGE_KEY)));
   }, []);
 
   function commit(next: DesignDocument | ((current: DesignDocument) => DesignDocument)) {
@@ -35,8 +54,8 @@ export function LowCodePage() {
     setSaveState("draft");
   }
 
-  function addElement(type: MaterialDefinition["type"], parentId = selectedElement?.id ?? document.tree.id, index?: number) {
-    const element = createElementFromMaterial(type);
+  function addElement(materialId: MaterialDefinition["id"], parentId = selectedElement?.id ?? document.tree.id, index?: number) {
+    const element = createElementFromMaterial(materialId);
     commit((current) => {
       const currentElements = elementMap(current);
       const parent = currentElements.get(parentId);
@@ -44,6 +63,14 @@ export function LowCodePage() {
       return insertElement(current, normalizedParentId, element, index);
     });
     setSelectedId(element.id);
+  }
+
+  function addComplexMaterial(id: ComplexMaterialDefinition["id"], parentId = selectedElement?.id ?? document.tree.id, index?: number) {
+    const definition = availableComplexMaterials.find((item) => item.id === id);
+    if (!definition) return;
+    const template = definition.createTemplate();
+    commit((current) => insertElementTree(current, parentId, template, index));
+    setSelectedId(template.selectId ?? template.root.id);
   }
 
   async function uploadImageMaterial(file: File | undefined) {
@@ -79,6 +106,14 @@ export function LowCodePage() {
     return result.url;
   }
 
+  function deleteCustomComplexMaterial(id: ComplexMaterialDefinition["id"]) {
+    setCustomComplexRecords((current) => {
+      const next = current.filter((item) => item.id !== id);
+      localStorage.setItem(CUSTOM_COMPLEX_MATERIALS_STORAGE_KEY, JSON.stringify(next));
+      return next;
+    });
+  }
+
   function updateVariables(variables: DesignVariables) {
     commit((current) => ({
       ...current,
@@ -91,7 +126,10 @@ export function LowCodePage() {
       <LowCodeToolbar document={document} saveState={saveState} onPublish={publishPreview} onSave={saveDraft} />
       <div className="grid min-h-0 flex-1 grid-cols-[286px_1fr_330px] overflow-hidden max-xl:grid-cols-[260px_1fr] max-lg:grid-cols-1">
         <MaterialPalette
+          complexMaterials={availableComplexMaterials}
           onAdd={(type, parentId, index) => addElement(type, parentId, index)}
+          onAddComplex={(id, parentId, index) => addComplexMaterial(id, parentId, index)}
+          onDeleteCustomComplex={deleteCustomComplexMaterial}
           onUploadImage={uploadImageMaterial}
           variables={document.variables}
           onUpdateVariables={updateVariables}
@@ -106,6 +144,7 @@ export function LowCodePage() {
           onSelect={setSelectedId}
         />
         <PropertyInspector
+          document={document}
           parentElement={parentElement}
           selectedElement={selectedElement}
           onUpdate={(patch: Partial<DesignElement>) => commit((current) => updateElement(current, selectedElement.id, patch))}
