@@ -399,7 +399,7 @@ function CanvasNodeFrame({
           <IconAction label="删除" onClick={() => onDelete(element.id)}><Trash2 size={13} /></IconAction>
         </div>
       ) : null}
-      <div className={container ? "min-h-8" : ""}>
+      <div className={container ? "h-full min-h-8 w-full" : "h-full w-full"}>
         {children}
       </div>
     </div>
@@ -459,6 +459,7 @@ function renderElementContent(
   if (element.type === "input") return <InputPreview element={element} variables={variables} />;
   if (element.type === "badge") return <BadgePreview element={element} variables={variables} />;
   if (element.type === "divider") return <DividerPreview element={element} variables={variables} />;
+  if (element.type === "shape") return <ShapePreview element={element} />;
   if (element.type === "stat") return <StatPreview element={element} variables={variables} />;
   if (element.type === "filter") return <FilterPreview element={element} />;
   if (element.type === "table") return <TablePreview element={element} />;
@@ -595,11 +596,12 @@ function selectTextNodeContents(node: HTMLElement) {
 function StatPreview({ element, variables }: { element: DesignElement; variables: DesignVariables }) {
   if (element.type !== "stat") return null;
   const valueClass = element.style.stat.valueSize === "xl" ? "text-2xl" : element.style.stat.valueSize === "lg" ? "text-xl" : "text-lg";
+  const compact = Boolean(element.props?.compact);
   return (
-    <div data-stat-card className="rounded-lg border border-[#d9e1e8] p-4" style={baseVisualStyle(element.style.base)}>
+    <div data-stat-card className={`rounded-md border border-[#d9e1e8] ${slotFillClass(element)} ${compact ? "p-2" : "p-4"}`} style={baseVisualStyle(element.style.base)}>
       <div className="text-xs font-semibold opacity-80">{resolveVariableText(String(element.props?.label ?? element.name), variables)}</div>
-      <div className={`mt-2 font-bold text-[#101828] ${valueClass}`}>{resolveVariableText(String(element.props?.value ?? "0"), variables)}</div>
-      <div className="mt-1 text-xs font-semibold">{resolveVariableText(String(element.props?.delta ?? ""), variables)}</div>
+      <div className={`${compact ? "mt-0.5" : "mt-2"} font-bold text-[#101828] ${compact ? "text-sm" : valueClass}`}>{resolveVariableText(String(element.props?.value ?? "0"), variables)}</div>
+      <div className={`${compact ? "mt-0 text-[11px]" : "mt-1 text-xs"} font-semibold`}>{resolveVariableText(String(element.props?.delta ?? ""), variables)}</div>
     </div>
   );
 }
@@ -607,6 +609,19 @@ function StatPreview({ element, variables }: { element: DesignElement; variables
 function FilterPreview({ element }: { element: DesignElement }) {
   if (element.type !== "filter") return null;
   const fields = arrayProp(element.props?.fields, ["stage", "owner"]);
+  if (element.props?.compact) {
+    return (
+      <div className={`flex flex-wrap items-center gap-2 rounded-md p-1.5 ${slotFillClass(element)}`} style={baseVisualStyle(element.style.base)}>
+        {fields.slice(0, 3).map((field) => (
+          <div key={field} className="flex h-8 min-w-[108px] items-center justify-between gap-2 rounded-md border border-[#d9e1e8] bg-white px-2.5 text-xs text-[#101828]">
+            <span>{fieldLabels[field] ?? field}</span>
+            <span className="text-[#8a94a3]">⌄</span>
+          </div>
+        ))}
+        {typeof element.props.activeLabel === "string" ? <span className="inline-flex h-6 items-center rounded-md bg-[#ddf7ef] px-2 text-[11px] font-medium text-[#0f766e]">{element.props.activeLabel}</span> : null}
+      </div>
+    );
+  }
   return (
     <div className="rounded-lg border border-[#d9e1e8] bg-white p-4" style={baseVisualStyle(element.style.base)}>
       <div className="flex flex-wrap items-center gap-3">
@@ -626,10 +641,11 @@ function TablePreview({ element }: { element: DesignElement }) {
   if (element.type !== "table") return null;
   const columns = arrayProp(element.props?.columns, ["name", "stage", "owner", "health"]);
   const rowPadding = element.style.table.density === "compact" ? "px-4 py-2" : element.style.table.density === "comfortable" ? "px-4 py-4" : "px-4 py-3";
+  const compact = Boolean(element.props?.compact);
   return (
-    <div className="overflow-hidden rounded-lg border border-[#d9e1e8] bg-white" style={baseVisualStyle(element.style.base)}>
-      <div className="border-b border-[#eef2f5] px-4 py-3 text-sm font-bold text-[#101828]">{element.name}</div>
-      <div className="flex px-4 py-3 text-xs font-bold text-[#5b6472]" style={{ backgroundColor: colorValue(element.style.table.headerBackground) }}>
+    <div className={`overflow-hidden rounded-lg border border-[#d9e1e8] bg-white ${slotFillClass(element)}`} style={baseVisualStyle(element.style.base)}>
+      {compact ? null : <div className="border-b border-[#eef2f5] px-4 py-3 text-sm font-bold text-[#101828]">{element.name}</div>}
+      <div className={`flex ${compact ? "px-3 py-2" : "px-4 py-3"} text-xs font-bold text-[#5b6472]`} style={{ backgroundColor: colorValue(element.style.table.headerBackground) }}>
         {columns.map((column) => <span key={column} className="min-w-[92px] flex-1">{fieldLabels[column] ?? column}</span>)}
       </div>
       {customerRows.map((row, index) => (
@@ -665,7 +681,7 @@ function FormPreview({ element }: { element: DesignElement }) {
 function ButtonPreview({ element, variables }: { element: DesignElement; variables: DesignVariables }) {
   if (element.type !== "button") return null;
   const sizeClass = element.style.button.size === "lg" ? "h-11 px-5" : element.style.button.size === "sm" ? "h-8 px-3" : "h-10 px-4";
-  return <button className={`${sizeClass} rounded-md text-sm font-semibold`} style={baseVisualStyle(element.style.base)}>{resolveVariableText(String(element.props?.label ?? element.name), variables)}</button>;
+  return <button className={`inline-flex items-center justify-center ${slotFillClass(element) || sizeClass} rounded-md text-sm font-semibold`} style={baseVisualStyle(element.style.base)}>{resolveVariableText(String(element.props?.label ?? element.name), variables)}</button>;
 }
 
 function ImagePreview({ element, variables }: { element: DesignElement; variables: DesignVariables }) {
@@ -673,8 +689,9 @@ function ImagePreview({ element, variables }: { element: DesignElement; variable
   const aspectRatio = element.style.image.aspectRatio === "square" ? "aspect-square" : element.style.image.aspectRatio === "portrait" ? "aspect-[4/5]" : "aspect-[16/7]";
   const src = typeof element.props?.src === "string" ? element.props.src : "";
   const alt = resolveVariableText(String(element.props?.alt ?? element.name), variables);
+  const fixedSize = element.layout?.width === "fixed" || element.layout?.height === "fixed";
   return (
-    <div className={`${aspectRatio} flex min-h-[120px] items-center justify-center overflow-hidden rounded-lg border border-[#d9e1e8] bg-[linear-gradient(135deg,#e8f4f2,#eef2f5_45%,#f8fafb)]`} style={baseVisualStyle(element.style.base)}>
+    <div className={`${fixedSize ? "h-full w-full" : `${aspectRatio} min-h-[120px]`} flex items-center justify-center overflow-hidden rounded-lg border border-[#d9e1e8] bg-[linear-gradient(135deg,#e8f4f2,#eef2f5_45%,#f8fafb)]`} style={baseVisualStyle(element.style.base)}>
       {src ? <img src={src} alt={alt} className="h-full w-full" style={{ objectFit: element.style.image.objectFit }} /> : <div className="rounded-md bg-white/80 px-3 py-2 text-xs font-semibold text-[#5b6472]">{alt}</div>}
     </div>
   );
@@ -682,6 +699,13 @@ function ImagePreview({ element, variables }: { element: DesignElement; variable
 
 function InputPreview({ element, variables }: { element: DesignElement; variables: DesignVariables }) {
   if (element.type !== "input") return null;
+  if (element.props?.compact) {
+    return (
+      <label className={`block min-w-[220px] ${slotFillClass(element)}`} style={baseVisualStyle(element.style.base)}>
+        <Input readOnly placeholder={resolveVariableText(String(element.props?.placeholder ?? "请输入内容"), variables)} className="h-8 text-xs" />
+      </label>
+    );
+  }
   return (
     <label className="block min-w-[220px]" style={baseVisualStyle(element.style.base)}>
       <span className="mb-1.5 block text-xs font-semibold text-[#5b6472]">{resolveVariableText(String(element.props?.label ?? element.name), variables)}</span>
@@ -693,7 +717,7 @@ function InputPreview({ element, variables }: { element: DesignElement; variable
 function BadgePreview({ element, variables }: { element: DesignElement; variables: DesignVariables }) {
   if (element.type !== "badge") return null;
   const sizeClass = element.style.badge.size === "lg" ? "h-8 px-3 text-sm" : element.style.badge.size === "sm" ? "h-6 px-2 text-[11px]" : "h-7 px-2.5 text-xs";
-  return <span className={`inline-flex items-center rounded-md border font-bold ${sizeClass}`} style={baseVisualStyle(element.style.base)}>{resolveVariableText(String(element.props?.label ?? element.name), variables)}</span>;
+  return <span className={`inline-flex items-center justify-center rounded-md border font-bold ${slotFillClass(element) || sizeClass}`} style={baseVisualStyle(element.style.base)}>{resolveVariableText(String(element.props?.label ?? element.name), variables)}</span>;
 }
 
 function DividerPreview({ element, variables }: { element: DesignElement; variables: DesignVariables }) {
@@ -706,6 +730,36 @@ function DividerPreview({ element, variables }: { element: DesignElement; variab
       <div className="h-px flex-1" style={{ backgroundColor: colorValue(element.style.base.border.color) }} />
     </div>
   );
+}
+
+function ShapePreview({ element }: { element: DesignElement }) {
+  if (element.type !== "shape") return null;
+  const kind = element.style.shape.kind;
+  const baseStyle = baseVisualStyle(element.style.base);
+  if (kind === "line") {
+    const thickness = element.style.shape.thickness === "lg" ? 3 : element.style.shape.thickness === "md" ? 2 : 1;
+    const direction = element.style.shape.direction ?? "horizontal";
+    const lineStyle: CSSProperties = direction === "vertical"
+      ? { width: thickness, height: "100%", minHeight: 48 }
+      : { width: "100%", minWidth: 48, height: thickness };
+    return <div data-shape-line data-shape-line-direction={direction} style={{ ...baseStyle, ...lineStyle, borderRadius: 999 }} />;
+  }
+  const fillClass = slotFillClass(element);
+  return (
+    <div
+      className={fillClass || "h-12 w-12"}
+      style={{
+        ...baseStyle,
+        borderRadius: kind === "circle" ? 999 : baseStyle.borderRadius
+      }}
+    />
+  );
+}
+
+function slotFillClass(element: DesignElement) {
+  const width = element.layout?.width === "fill" || element.layout?.width === "fixed" ? "w-full" : "";
+  const height = element.layout?.height === "fill" || element.layout?.height === "fixed" ? "h-full" : "";
+  return [width, height].filter(Boolean).join(" ");
 }
 
 function baseVisualStyle(style: DesignBaseStyle): CSSProperties {
@@ -859,7 +913,7 @@ function paddingClass(value: string | undefined) {
 }
 
 function sizeClass(axis: "w" | "h", value: DesignLayout["width"] | DesignLayout["height"]) {
-  if (value === "fill") return axis === "w" ? "w-full" : "h-full";
+  if (value === "fill" || value === "fixed") return axis === "w" ? "w-full" : "h-full";
   if (value === "hug") return axis === "w" ? "w-fit" : "h-fit";
   return "";
 }
@@ -867,6 +921,18 @@ function sizeClass(axis: "w" | "h", value: DesignLayout["width"] | DesignLayout[
 function flexItemStyle(layout: DesignLayout | undefined): CSSProperties | undefined {
   if (!layout) return undefined;
   const style: CSSProperties = {};
+  if (layout.width === "fill") {
+    style.width = "100%";
+    style.minWidth = 0;
+  } else if (layout.width === "hug") {
+    style.width = "fit-content";
+  }
+  if (layout.height === "fill") {
+    style.height = "100%";
+    style.minHeight = 0;
+  } else if (layout.height === "hug") {
+    style.height = "fit-content";
+  }
   if (layout.grow === "fill") {
     style.flexGrow = 1;
     style.flexShrink = 1;

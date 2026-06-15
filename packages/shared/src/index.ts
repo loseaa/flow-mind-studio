@@ -414,7 +414,7 @@ export const lowCodeImageAssetSchema = z.object({
 });
 export type LowCodeImageAsset = z.infer<typeof lowCodeImageAssetSchema>;
 
-export const designElementTypes = ["page", "section", "stack", "text", "image", "button", "input", "badge", "divider", "stat", "filter", "table", "form"] as const;
+export const designElementTypes = ["page", "section", "stack", "text", "image", "button", "input", "badge", "divider", "shape", "stat", "filter", "table", "form"] as const;
 export type DesignElementType = (typeof designElementTypes)[number];
 
 export const designSpacingValues = ["none", "xs", "sm", "md", "lg", "xl"] as const;
@@ -565,6 +565,15 @@ export const designDividerElementStyleSchema = z.object({
   }).strict()
 }).strict();
 
+export const designShapeElementStyleSchema = z.object({
+  base: designBaseStyleSchema,
+  shape: z.object({
+    kind: z.enum(["rectangle", "circle", "line"]),
+    direction: z.enum(["horizontal", "vertical"]).default("horizontal"),
+    thickness: z.enum(["sm", "md", "lg"])
+  }).strict()
+}).strict();
+
 export const designStatElementStyleSchema = z.object({
   base: designBaseStyleSchema,
   stat: z.object({
@@ -591,6 +600,7 @@ export type DesignElementStyle =
   | z.infer<typeof designControlElementStyleSchema>
   | z.infer<typeof designBadgeElementStyleSchema>
   | z.infer<typeof designDividerElementStyleSchema>
+  | z.infer<typeof designShapeElementStyleSchema>
   | z.infer<typeof designStatElementStyleSchema>
   | z.infer<typeof designTableElementStyleSchema>;
 
@@ -613,6 +623,7 @@ export const designElementSchema = z.discriminatedUnion("type", [
   designElementBaseSchema.extend({ type: z.literal("form"), style: designControlElementStyleSchema }),
   designElementBaseSchema.extend({ type: z.literal("badge"), style: designBadgeElementStyleSchema }),
   designElementBaseSchema.extend({ type: z.literal("divider"), style: designDividerElementStyleSchema }),
+  designElementBaseSchema.extend({ type: z.literal("shape"), style: designShapeElementStyleSchema }),
   designElementBaseSchema.extend({ type: z.literal("stat"), style: designStatElementStyleSchema }),
   designElementBaseSchema.extend({ type: z.literal("table"), style: designTableElementStyleSchema })
 ]);

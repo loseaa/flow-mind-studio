@@ -1,131 +1,73 @@
-import { useEffect, useRef, useState } from "react";
-import type { DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent, MutableRefObject, PointerEvent as ReactPointerEvent, ReactNode } from "react";
-import interact from "interactjs";
+import { useRef, useState } from "react";
+import type { MutableRefObject, ReactNode } from "react";
 import { Upload } from "lucide-react";
 import type { DesignVariables } from "@flowmind/shared";
 import { Input } from "@flowmind/ui";
-import { aiActions, materialCategories, type MaterialDefinition } from "./lowcodeData";
+import { aiActions, complexMaterialCategoriesFor, materialCategories, type ComplexMaterialDefinition, type MaterialDefinition } from "./lowcodeData";
 import { CustomScrollbar } from "../CustomScrollbar";
-import { resolveMaterialDropTarget, type MaterialDropTarget } from "./materialDropResolver";
-import { clearDropPlacementIndicator, setDropPlacementIndicator } from "./dropPlacementIndicator";
 import { VariablesEditor } from "./VariablesJsonEditor";
-
-const dragPreviews = new WeakMap<HTMLElement, HTMLElement>();
-let activeDropTarget: MaterialDropTarget | null = null;
-let previousBodyUserSelect: string | null = null;
+import { preventNativeMaterialSelection, useMaterialDragSources } from "./useMaterialDragSources";
 
 export function MaterialPalette({
+  complexMaterials,
   onAdd,
+  onAddComplex,
+  onDeleteCustomComplex,
   onUpdateVariables,
   onUploadImage,
   variables
 }: {
-  onAdd: (type: MaterialDefinition["type"], parentId?: string, index?: number) => void;
+  complexMaterials: ComplexMaterialDefinition[];
+  onAdd: (materialId: MaterialDefinition["id"], parentId?: string, index?: number) => void;
+  onAddComplex: (id: ComplexMaterialDefinition["id"], parentId?: string, index?: number) => void;
+  onDeleteCustomComplex?: (id: ComplexMaterialDefinition["id"]) => void;
   onUpdateVariables: (variables: DesignVariables) => void;
   onUploadImage: (file: File | undefined) => Promise<void> | void;
   variables: DesignVariables;
 }) {
   const onAddRef = useRef(onAdd);
-  const [activeTab, setActiveTab] = useState<"materials" | "variables">("materials");
+  const onAddComplexRef = useRef(onAddComplex);
+  const [activeTab, setActiveTab] = useState<"basic" | "complex" | "variables">("complex");
   const [uploading, setUploading] = useState(false);
   onAddRef.current = onAdd;
+  onAddComplexRef.current = onAddComplex;
 
-  useEffect(() => {
-    const draggable = interact("[data-material-type]").draggable({
-      inertia: false,
-      listeners: {
-        start: (event) => {
-          const target = event.target as HTMLElement;
-          const preview = target.cloneNode(true) as HTMLElement;
-          const rect = target.getBoundingClientRect();
-          const clientX = "clientX" in event ? Number(event.clientX) : rect.left;
-          const clientY = "clientY" in event ? Number(event.clientY) : rect.top;
-          preview.setAttribute("data-pointer-offset-x", String(clientX - rect.left));
-          preview.setAttribute("data-pointer-offset-y", String(clientY - rect.top));
-          preview.setAttribute("data-origin-left", String(rect.left));
-          preview.setAttribute("data-origin-top", String(rect.top));
-          preview.style.position = "fixed";
-          preview.style.left = `${rect.left}px`;
-          preview.style.top = `${rect.top}px`;
-          preview.style.width = `${rect.width}px`;
-          preview.style.pointerEvents = "none";
-          preview.style.zIndex = "2147483646";
-          preview.style.transform = "translate3d(0, 0, 0) scale(1.02)";
-          preview.style.transition = "none";
-          preview.style.willChange = "transform";
-          preview.style.boxShadow = "0 24px 45px -20px rgba(15, 23, 42, 0.55)";
-          preview.style.userSelect = "none";
-          preview.classList.add("material-drag-preview", "opacity-95");
-          lockNativeTextSelection();
-          document.body.appendChild(preview);
-          dragPreviews.set(target, preview);
-          target.classList.add("opacity-45");
-          target.removeAttribute("data-was-dragged");
-        },
-        move: (event) => {
-          const target = event.target as HTMLElement;
-          const preview = dragPreviews.get(target);
-          if (!preview) return;
-          target.setAttribute("data-was-dragged", "true");
-          const offsetX = Number(preview.getAttribute("data-pointer-offset-x")) || 0;
-          const offsetY = Number(preview.getAttribute("data-pointer-offset-y")) || 0;
-          const originLeft = Number(preview.getAttribute("data-origin-left")) || 0;
-          const originTop = Number(preview.getAttribute("data-origin-top")) || 0;
-          const x = Number(event.clientX) - offsetX - originLeft;
-          const y = Number(event.clientY) - offsetY - originTop;
-          preview.style.transform = `translate3d(${x}px, ${y}px, 0) scale(1.02)`;
-          setActiveDropTarget(resolveMaterialDropTarget({ preview, clientX: Number(event.clientX), clientY: Number(event.clientY) }));
-        },
-        end: (event) => {
-          const target = event.target as HTMLElement;
-          const type = target.getAttribute("data-material-type") as MaterialDefinition["type"] | null;
-          const preview = dragPreviews.get(target);
-          const point = preview ? resolveEventPoint(event, preview) : { x: Number(event.clientX), y: Number(event.clientY) };
-          const dropTarget = resolveMaterialDropTarget({ preview, clientX: point.x, clientY: point.y });
-          if (type && dropTarget) onAddRef.current(type, dropTarget.placement.parentId, dropTarget.placement.index);
-          preview?.remove();
-          dragPreviews.delete(target);
-          target.classList.remove("opacity-45");
-          setActiveDropTarget(null);
-          unlockNativeTextSelection();
-        }
-      }
-    });
-
-    const clearDragArtifacts = () => {
-      cancelMaterialDragArtifacts();
-    };
-    const clearDragArtifactsOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") cancelMaterialDragArtifacts();
-    };
-    window.addEventListener("blur", clearDragArtifacts);
-    window.addEventListener("drop", clearDragArtifacts);
-    window.addEventListener("dragend", clearDragArtifacts);
-    window.addEventListener("pointerup", clearDragArtifacts);
-    window.addEventListener("keydown", clearDragArtifactsOnEscape);
-
-    return () => {
-      window.removeEventListener("blur", clearDragArtifacts);
-      window.removeEventListener("drop", clearDragArtifacts);
-      window.removeEventListener("dragend", clearDragArtifacts);
-      window.removeEventListener("pointerup", clearDragArtifacts);
-      window.removeEventListener("keydown", clearDragArtifactsOnEscape);
-      cancelMaterialDragArtifacts();
-      draggable.unset();
-    };
-  }, []);
+  useMaterialDragSources({
+    selector: "[data-material-type], [data-complex-material-id]",
+    onDrop: (target, placement) => {
+      const materialId = target.getAttribute("data-material-id") as MaterialDefinition["id"] | null;
+      const complexId = target.getAttribute("data-complex-material-id") as ComplexMaterialDefinition["id"] | null;
+      if (materialId) onAddRef.current(materialId, placement.parentId, placement.index);
+      if (complexId) onAddComplexRef.current(complexId, placement.parentId, placement.index);
+    }
+  });
 
   return (
     <CustomScrollbar className="relative z-40 h-full min-h-0 border-r border-[#d9e1e8] bg-white max-lg:hidden" variant="slate">
       <div className="p-3.5">
-        <div className="grid grid-cols-2 gap-1 rounded-md bg-[#eef2f5] p-1">
+        <div className="mb-3 flex items-center justify-between">
+          <div>
+            <div className="text-sm font-bold text-[#101828]">物料区</div>
+            <div className="mt-0.5 text-[11px] text-[#8a94a3]">拖拽到画布插入</div>
+          </div>
+          <span className="rounded bg-[#e8f4f2] px-1.5 py-0.5 text-[10px] font-bold text-[#0f766e]">复杂</span>
+        </div>
+        <div className="grid grid-cols-3 gap-1 rounded-md bg-[#eef2f5] p-1">
           <button
             type="button"
-            aria-pressed={activeTab === "materials"}
-            className={`h-8 rounded text-xs font-bold transition ${activeTab === "materials" ? "bg-white text-[#101828] shadow-sm" : "text-[#5b6472] hover:bg-white/70"}`}
-            onClick={() => setActiveTab("materials")}
+            aria-pressed={activeTab === "basic"}
+            className={`h-8 rounded text-xs font-bold transition ${activeTab === "basic" ? "bg-white text-[#101828] shadow-sm" : "text-[#5b6472] hover:bg-white/70"}`}
+            onClick={() => setActiveTab("basic")}
           >
-            物料
+            基础物料
+          </button>
+          <button
+            type="button"
+            aria-pressed={activeTab === "complex"}
+            className={`h-8 rounded text-xs font-bold transition ${activeTab === "complex" ? "bg-white text-[#101828] shadow-sm" : "text-[#5b6472] hover:bg-white/70"}`}
+            onClick={() => setActiveTab("complex")}
+          >
+            复杂物料
           </button>
           <button
             type="button"
@@ -137,8 +79,10 @@ export function MaterialPalette({
           </button>
         </div>
 
-        {activeTab === "materials" ? (
-          <MaterialsTab onAddRef={onAddRef} onUploadImage={onUploadImage} uploading={uploading} setUploading={setUploading} />
+        {activeTab === "basic" ? (
+          <BasicMaterialsTab onAddRef={onAddRef} onUploadImage={onUploadImage} uploading={uploading} setUploading={setUploading} />
+        ) : activeTab === "complex" ? (
+          <ComplexMaterialsTab complexMaterials={complexMaterials} onAddComplexRef={onAddComplexRef} onDeleteCustomComplex={onDeleteCustomComplex} />
         ) : (
           <VariablesTab variables={variables} onUpdateVariables={onUpdateVariables} />
         )}
@@ -147,24 +91,20 @@ export function MaterialPalette({
   );
 }
 
-function MaterialsTab({
+function BasicMaterialsTab({
   onAddRef,
   onUploadImage,
   setUploading,
   uploading
 }: {
-  onAddRef: MutableRefObject<(type: MaterialDefinition["type"], parentId?: string, index?: number) => void>;
+  onAddRef: MutableRefObject<(materialId: MaterialDefinition["id"], parentId?: string, index?: number) => void>;
   onUploadImage: (file: File | undefined) => Promise<void> | void;
   setUploading: (value: boolean) => void;
   uploading: boolean;
 }) {
   return (
     <>
-      <div className="mt-3 flex items-center justify-between">
-        <div className="text-sm font-bold">物料区</div>
-        <span className="text-xs text-[#8a94a3]">拖拽到画布</span>
-      </div>
-      <Input placeholder="搜索物料" className="mt-3 h-9" />
+      <Input placeholder="搜索基础物料" className="mt-3 h-9" />
       <label className="mt-3 flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-[#b9c4cf] bg-[#f8fafb] px-3 py-2 text-sm font-semibold text-[#344054] hover:border-[#8a94a3] hover:bg-white">
         <Upload size={16} />
         <span>{uploading ? "上传中..." : "上传图片物料"}</span>
@@ -192,7 +132,9 @@ function MaterialsTab({
               const Icon = item.icon;
               return (
                 <button
-                  key={item.type}
+                  key={item.id}
+                  data-material-drag-source
+                  data-material-id={item.id}
                   data-material-type={item.type}
                   type="button"
                   className="flex w-full cursor-grab touch-none select-none items-start gap-3 rounded-lg border border-[#d9e1e8] bg-white p-3 text-left transition hover:border-[#b9c4cf] hover:bg-[#f8fafb]"
@@ -205,7 +147,7 @@ function MaterialsTab({
                       target.removeAttribute("data-was-dragged");
                       return;
                     }
-                    onAddRef.current(item.type);
+                    onAddRef.current(item.id);
                   }}
                 >
                   <span className="grid h-8 w-8 shrink-0 place-items-center rounded-md bg-[#eef2f5] text-[#5b6472]">
@@ -214,6 +156,97 @@ function MaterialsTab({
                   <span className="min-w-0">
                     <span className="block text-sm font-semibold">{item.label}</span>
                     <span className="mt-1 block text-xs leading-5 text-[#5b6472]">{item.desc}</span>
+                  </span>
+                </button>
+              );
+            })}
+          </section>
+        ))}
+      </div>
+    </>
+  );
+}
+
+function ComplexMaterialsTab({
+  complexMaterials,
+  onAddComplexRef,
+  onDeleteCustomComplex
+}: {
+  complexMaterials: ComplexMaterialDefinition[];
+  onAddComplexRef: MutableRefObject<(id: ComplexMaterialDefinition["id"], parentId?: string, index?: number) => void>;
+  onDeleteCustomComplex?: (id: ComplexMaterialDefinition["id"]) => void;
+}) {
+  const categories = complexMaterialCategoriesFor(complexMaterials);
+  return (
+    <>
+      <a
+        data-custom-complex-open
+        href="/app/lowcode/materials/new"
+        className="mt-4 flex w-full items-center justify-between rounded-md border border-dashed border-[#8fb9b2] bg-[#f0faf8] px-3 py-2 text-left text-sm font-bold text-[#0f766e] hover:bg-[#e6f4f1]"
+      >
+        <span>新建复杂物料</span>
+        <span className="text-lg leading-none">+</span>
+      </a>
+      <div className="mt-4 space-y-5">
+        {categories.map((category) => (
+          <section key={category.title} className="space-y-3">
+            <SectionTitle>{category.title}</SectionTitle>
+            {category.items.map((item) => {
+              const Icon = item.icon;
+              return (
+                <button
+                  key={item.id}
+                  data-material-drag-source
+                  data-complex-material-id={item.id}
+                  type="button"
+                  className="flex w-full cursor-grab touch-none select-none flex-col gap-2 rounded-md border border-[#d9e1e8] bg-white p-2.5 text-left transition hover:border-[#b9c4cf] hover:bg-[#f8fafb]"
+                  onDragStart={preventNativeMaterialSelection}
+                  onMouseDown={preventNativeMaterialSelection}
+                  onPointerDown={preventNativeMaterialSelection}
+                  onClick={(event) => {
+                    const target = event.currentTarget;
+                    if (target.getAttribute("data-was-dragged") === "true") {
+                      target.removeAttribute("data-was-dragged");
+                      return;
+                    }
+                    onAddComplexRef.current(item.id);
+                  }}
+                >
+                  <span className="flex items-start gap-3">
+                    <span className="grid h-[30px] w-[30px] shrink-0 place-items-center rounded-md bg-[#e6f4f1] text-[#0f766e]">
+                      <Icon size={15} />
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block text-xs font-bold text-[#101828]">{item.label}</span>
+                      <span className="mt-1 block text-[10px] leading-4 text-[#5b6472]">{item.desc}</span>
+                    </span>
+                  </span>
+                  <span className="flex flex-wrap gap-1 pl-[38px]">
+                    {item.composition.map((part) => (
+                      <span key={part} className="rounded bg-[#eef2f5] px-1.5 py-0.5 text-[9px] font-medium text-[#5b6472]">
+                        {part}
+                      </span>
+                    ))}
+                    {item.id.startsWith("custom_") && onDeleteCustomComplex ? (
+                      <span
+                        data-delete-custom-complex-id={item.id}
+                        role="button"
+                        tabIndex={0}
+                        className="rounded bg-[#fff1f2] px-1.5 py-0.5 text-[9px] font-semibold text-[#b42318]"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onDeleteCustomComplex(item.id);
+                        }}
+                        onKeyDown={(event) => {
+                          if (event.key !== "Enter" && event.key !== " ") return;
+                          event.preventDefault();
+                          event.stopPropagation();
+                          onDeleteCustomComplex(item.id);
+                        }}
+                      >
+                        删除
+                      </span>
+                    ) : null}
                   </span>
                 </button>
               );
@@ -253,61 +286,6 @@ function VariablesTab({
   );
 }
 
-function resolveEventPoint(event: { clientX?: number; clientY?: number }, preview: HTMLElement) {
-  const rect = preview.getBoundingClientRect();
-  const x = Number(event.clientX);
-  const y = Number(event.clientY);
-  return {
-    x: Number.isFinite(x) ? x : rect.left + rect.width / 2,
-    y: Number.isFinite(y) ? y : rect.top + rect.height / 2
-  };
-}
-
 function SectionTitle({ children }: { children: ReactNode }) {
   return <div className="text-xs font-bold uppercase tracking-normal text-[#8a94a3]">{children}</div>;
-}
-
-function setActiveDropTarget(next: MaterialDropTarget | null) {
-  if (activeDropTarget?.element === next?.element && activeDropTarget?.placement.position === next?.placement.position && activeDropTarget?.placement.axis === next?.placement.axis) {
-    setDropPlacementIndicator(next);
-    return;
-  }
-  activeDropTarget = next;
-  setDropPlacementIndicator(next);
-}
-
-function cancelMaterialDragArtifacts() {
-  activeDropTarget = null;
-  clearDropPlacementIndicator();
-  document.querySelectorAll(".material-drag-preview").forEach((node) => node.remove());
-  document.querySelectorAll("[data-material-type].opacity-45").forEach((node) => node.classList.remove("opacity-45"));
-  unlockNativeTextSelection();
-}
-
-function lockNativeTextSelection() {
-  if (previousBodyUserSelect !== null) return;
-  previousBodyUserSelect = document.body.style.userSelect;
-  document.body.style.userSelect = "none";
-  document.body.classList.add("material-dragging");
-  document.addEventListener("selectstart", preventDocumentSelection, true);
-  document.addEventListener("dragstart", preventDocumentSelection, true);
-  window.getSelection()?.removeAllRanges();
-}
-
-function unlockNativeTextSelection() {
-  if (previousBodyUserSelect === null) return;
-  document.body.style.userSelect = previousBodyUserSelect;
-  document.body.classList.remove("material-dragging");
-  document.removeEventListener("selectstart", preventDocumentSelection, true);
-  document.removeEventListener("dragstart", preventDocumentSelection, true);
-  window.getSelection()?.removeAllRanges();
-  previousBodyUserSelect = null;
-}
-
-function preventDocumentSelection(event: Event) {
-  event.preventDefault();
-}
-
-function preventNativeMaterialSelection(event: ReactDragEvent<HTMLButtonElement> | ReactMouseEvent<HTMLButtonElement> | ReactPointerEvent<HTMLButtonElement>) {
-  event.preventDefault();
 }

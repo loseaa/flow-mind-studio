@@ -1,6 +1,6 @@
 import { useRef, useState, type ReactNode } from "react";
 import { AlignCenter, AlignLeft, AlignRight } from "lucide-react";
-import type { DesignElement, DesignElementStyle, DesignLayout, DesignVariables } from "@flowmind/shared";
+import type { DesignDocument, DesignElement, DesignElementStyle, DesignLayout, DesignTreeNode, DesignVariables } from "@flowmind/shared";
 import { Input } from "@flowmind/ui";
 import { CustomScrollbar } from "../CustomScrollbar";
 import { availableFields, fieldLabels, isContainerElement } from "./lowcodeData";
@@ -74,6 +74,7 @@ const fontWeightOptions: LayoutOption<string>[] = [
 ];
 
 export function PropertyInspector({
+  document,
   parentElement,
   selectedElement,
   onUpdate,
@@ -83,6 +84,7 @@ export function PropertyInspector({
   onUploadBackgroundImage,
   variables
 }: {
+  document: DesignDocument;
   parentElement?: DesignElement;
   selectedElement: DesignElement;
   onUpdate: (patch: Partial<DesignElement>) => void;
@@ -100,6 +102,7 @@ export function PropertyInspector({
           <p className="mt-1 text-xs leading-5 text-[#5b6472]">Selected: {selectedElement.name}</p>
 
           <div className="mt-4 space-y-4">
+            <ComplexMaterialSummary document={document} selectedElement={selectedElement} />
             <TypeSpecificFields selectedElement={selectedElement} onUpdateProps={onUpdateProps} onUpdateStyle={onUpdateStyle} variables={variables} />
             <FlexLayoutFields selectedElement={selectedElement} parentElement={parentElement} onUpdateLayout={onUpdateLayout} />
             <StyleFields selectedElement={selectedElement} onUpdateStyle={onUpdateStyle} onUploadBackgroundImage={onUploadBackgroundImage} />
@@ -167,6 +170,95 @@ function FlexLayoutFields({
       )}
     </PropertyGroup>
   );
+}
+
+function ComplexMaterialSummary({ document, selectedElement }: { document: DesignDocument; selectedElement: DesignElement }) {
+  if (!isComplexMaterialRoot(document.tree, selectedElement.id)) return null;
+  const childElements = childElementList(document, selectedElement.id);
+  const grouped = summarizeChildTypes(childElements);
+  return (
+    <>
+      <div className="rounded-lg border border-[#d9e1e8] bg-[#f8fafb] p-3">
+        <div className="flex items-center gap-2">
+          <span className="grid h-8 w-8 place-items-center rounded-md bg-[#ddf7ef] text-sm font-bold text-[#0f766e]">F</span>
+          <div className="min-w-0">
+            <div className="truncate text-sm font-bold text-[#101828]">{selectedElement.name}</div>
+            <div className="text-xs text-[#5b6472]">复杂物料根容器</div>
+          </div>
+        </div>
+        <p className="mt-3 text-xs leading-5 text-[#5b6472]">插入后可展开编辑内部文本、图片、徽标、指标卡和按钮。</p>
+      </div>
+      <PropertyGroup title="子物料结构">
+        <div className="mb-3 flex items-center justify-between">
+          <span className="text-xs text-[#5b6472]">由基础物料组成</span>
+          <span className="rounded-md bg-[#eef2f5] px-2 py-1 text-[11px] text-[#5b6472]">{childElements.length} 个基础物料</span>
+        </div>
+        <div className="space-y-1.5">
+          {grouped.map((item, index) => (
+            <div key={item.type} className={`flex items-center gap-2 rounded-md px-2 py-1.5 text-xs ${index === 0 ? "bg-[#ddf7ef] font-semibold text-[#0f766e]" : "border border-[#d9e1e8] bg-white text-[#5b6472]"}`}>
+              <span className="grid h-5 w-5 shrink-0 place-items-center rounded bg-white/70 text-[10px] font-bold">{item.label.slice(0, 1)}</span>
+              <span className="min-w-0 truncate">{item.label} · {item.names.slice(0, 3).join(" / ")}</span>
+            </div>
+          ))}
+        </div>
+      </PropertyGroup>
+    </>
+  );
+}
+
+function isComplexMaterialRoot(tree: DesignTreeNode, id: string) {
+  if (!id.startsWith("node_complex_") || !id.endsWith("_root")) return false;
+  const node = findTreeNode(tree, id);
+  return Boolean(node?.children?.length);
+}
+
+function childElementList(document: DesignDocument, rootId: string) {
+  const node = findTreeNode(document.tree, rootId);
+  const elementLookup = new Map(document.elements.map((element) => [element.id, element]));
+  return collectDescendantNodes(node)
+    .map((child) => elementLookup.get(child.id))
+    .filter((element): element is DesignElement => Boolean(element));
+}
+
+function collectDescendantNodes(node: DesignTreeNode | null): DesignTreeNode[] {
+  if (!node) return [];
+  return (node.children ?? []).flatMap((child) => [child, ...collectDescendantNodes(child)]);
+}
+
+function findTreeNode(node: DesignTreeNode, id: string): DesignTreeNode | null {
+  if (node.id === id) return node;
+  for (const child of node.children ?? []) {
+    const found = findTreeNode(child, id);
+    if (found) return found;
+  }
+  return null;
+}
+
+function summarizeChildTypes(elements: DesignElement[]) {
+  const order: DesignElement["type"][] = ["stack", "image", "text", "badge", "shape", "stat", "button", "input", "filter", "table", "form", "divider"];
+  const labels: Record<DesignElement["type"], string> = {
+    page: "页面",
+    section: "区块",
+    stack: "Flex 容器",
+    text: "文本",
+    image: "图片",
+    button: "按钮",
+    input: "输入框",
+    badge: "徽标",
+    shape: "形状",
+    divider: "分割线",
+    stat: "指标卡",
+    filter: "筛选区",
+    table: "数据表格",
+    form: "表单区"
+  };
+  return order
+    .map((type) => ({
+      type,
+      label: labels[type],
+      names: elements.filter((element) => element.type === type).map((element) => element.name)
+    }))
+    .filter((item) => item.names.length > 0);
 }
 
 function StyleFields({
@@ -312,6 +404,18 @@ function TypeSpecificFields({
     );
   }
 
+  if (selectedElement.type === "shape") {
+    return (
+      <PropertyGroup title="Shape style">
+        <SegmentedControl label="Shape kind" value={selectedElement.style.shape.kind} options={toOptions(["rectangle", "circle", "line"])} onChange={(kind) => onUpdateStyle({ shape: { kind } } as Partial<DesignElementStyle>)} />
+        {selectedElement.style.shape.kind === "line" ? (
+          <SegmentedControl label="Line direction" value={selectedElement.style.shape.direction ?? "horizontal"} options={toOptions(["horizontal", "vertical"])} onChange={(direction) => onUpdateStyle({ shape: { direction } } as Partial<DesignElementStyle>)} />
+        ) : null}
+        <VisualTokenControl label="Line thickness" value={selectedElement.style.shape.thickness} options={toOptions(["sm", "md", "lg"])} variant="border" onChange={(thickness) => onUpdateStyle({ shape: { thickness } } as Partial<DesignElementStyle>)} />
+      </PropertyGroup>
+    );
+  }
+
   if (selectedElement.type === "table") {
     return (
       <>
@@ -405,7 +509,7 @@ function SizeControls({ layout, onUpdateLayout }: { layout: DesignLayout; onUpda
       {layout.width === "fixed" ? <DimensionControl axis="width" label="Fixed width value" max={960} min={120} value={layout.fixedWidth ?? 320} onChange={(fixedWidth) => onUpdateLayout({ fixedWidth })} /> : null}
       <SegmentedControl
         label="Height"
-        value={layout.height ?? "hug"}
+        value={layout.height ?? "fill"}
         options={[
           { value: "hug", label: "Hug height" },
           { value: "fill", label: "Fill height" },

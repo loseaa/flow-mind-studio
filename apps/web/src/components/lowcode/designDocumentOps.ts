@@ -1,6 +1,11 @@
 import type { DesignDocument, DesignElement, DesignElementStyle, DesignLayout, DesignTreeNode } from "@flowmind/shared";
 import { getTreeIds, isContainerElement } from "./lowcodeData";
 
+export type DesignElementTree = {
+  root: DesignTreeNode;
+  elements: DesignElement[];
+};
+
 export function elementMap(document: DesignDocument) {
   return new Map(document.elements.map((element) => [element.id, element]));
 }
@@ -60,6 +65,16 @@ export function insertElement(document: DesignDocument, parentId: string, elemen
     ...document,
     tree: insertTreeNode(document.tree, normalizedParentId, { id: element.id, children: [] }, index),
     elements: [...document.elements, element]
+  };
+}
+
+export function insertElementTree(document: DesignDocument, parentId: string, tree: DesignElementTree, index?: number): DesignDocument {
+  const parent = document.elements.find((item) => item.id === parentId);
+  const normalizedParentId = parent && isContainerElement(parent.type) ? parentId : document.tree.id;
+  return {
+    ...document,
+    tree: insertTreeNode(document.tree, normalizedParentId, tree.root, index),
+    elements: [...document.elements, ...tree.elements]
   };
 }
 
