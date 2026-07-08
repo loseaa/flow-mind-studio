@@ -1,0 +1,733 @@
+{
+  "threadId": "ecommerce-image-planning-verify",
+  "node": "document_assembly",
+  "version": 1,
+  "status": "success",
+  "inputRefs": [
+    {
+      "node": "json_planning",
+      "path": "E:\\FlowMindStudio\\artifacts\\runs\\ecommerce-image-planning-verify\\json_planning.v1.json",
+      "version": 1,
+      "checksum": "bca48f327c3cc338c3b39773c0fd868aa2755c6653acd973675b393134117092"
+    },
+    {
+      "node": "layout_planning",
+      "path": "E:\\FlowMindStudio\\artifacts\\runs\\ecommerce-image-planning-verify\\layout_planning.v1.json",
+      "version": 1,
+      "checksum": "e1480facdfcc8c0cf13c9b7cf2b7cd81bf763bae15ce5d58bbfd7166bc44e546"
+    },
+    {
+      "node": "element_planning",
+      "path": "E:\\FlowMindStudio\\artifacts\\runs\\ecommerce-image-planning-verify\\element_planning.v1.json",
+      "version": 1,
+      "checksum": "c994cb79a8d5d8c32a09a56188f1c9708204c1e5a100e3f700c318d5f88abfa8"
+    },
+    {
+      "node": "interaction_planning",
+      "path": "E:\\FlowMindStudio\\artifacts\\runs\\ecommerce-image-planning-verify\\interaction_planning.v1.json",
+      "version": 1,
+      "checksum": "ff00bd7e340ea45eb73c052bd492690fde1cbb41112951f4f005597cd43fb40b"
+    },
+    {
+      "node": "style_planning",
+      "path": "E:\\FlowMindStudio\\artifacts\\runs\\ecommerce-image-planning-verify\\style_planning.v1.json",
+      "version": 1,
+      "checksum": "cf2dfb4dc63a2561a1190f2880b120e421436b07775fbdbc6be0e07ce544910d"
+    },
+    {
+      "node": "image_planning",
+      "path": "E:\\FlowMindStudio\\artifacts\\runs\\ecommerce-image-planning-verify\\image_planning.v1.json",
+      "version": 1,
+      "checksum": "f667ebfe4bc17356fd26da46d7f3835bda5f4ac00a91b0f47efb678d619ab473"
+    }
+  ],
+  "output": {
+    "document": {
+      "schemaVersion": "fm-design/v1",
+      "id": "fixture_material_orchestration_dashboard",
+      "name": "Material Orchestration Dashboard",
+      "canvas": {
+        "viewport": "desktop",
+        "width": 1440,
+        "background": "muted"
+      },
+      "tree": {
+        "id": "page_root",
+        "children": [
+          {
+            "id": "section_main",
+            "children": [
+              {
+                "id": "title_main",
+                "children": []
+              },
+              {
+                "id": "subtitle_main",
+                "children": []
+              },
+              {
+                "id": "fixture_visual_one",
+                "children": []
+              },
+              {
+                "id": "fixture_visual_two",
+                "children": []
+              }
+            ]
+          }
+        ]
+      },
+      "elements": [
+        {
+          "id": "page_root",
+          "name": "Page",
+          "layout": {
+            "display": "flex",
+            "direction": "vertical",
+            "gap": "lg",
+            "padding": "lg",
+            "width": "fill"
+          },
+          "props": {
+            "purpose": "Application root"
+          },
+          "type": "page",
+          "style": {
+            "base": {
+              "backgroundColor": "muted",
+              "radius": "none",
+              "border": {
+                "width": "none",
+                "style": "none",
+                "color": "border"
+              },
+              "text": {
+                "color": "textPrimary",
+                "fontFamily": "sans",
+                "fontSize": "md",
+                "fontWeight": "regular",
+                "lineHeight": "normal",
+                "align": "left"
+              }
+            },
+            "container": {
+              "shadow": "none",
+              "overflow": "visible",
+              "surface": "flat"
+            }
+          }
+        },
+        {
+          "id": "section_main",
+          "name": "Main Section",
+          "layout": {
+            "display": "flex",
+            "direction": "vertical",
+            "gap": "md",
+            "padding": "md",
+            "width": "fill"
+          },
+          "props": {
+            "purpose": "Create visual depth for the fixture page",
+            "visualAssetId": "fixture_background",
+            "visualAssetKind": "background_image",
+            "visualAssetRole": "hero",
+            "promptBrief": "Low-contrast material orchestration workspace background with safe text area",
+            "requestedWidth": 1440,
+            "requestedHeight": 720,
+            "foregroundTone": "light",
+            "generationPriority": "required"
+          },
+          "type": "section",
+          "style": {
+            "base": {
+              "backgroundColor": "muted",
+              "radius": "md",
+              "border": {
+                "width": "none",
+                "style": "none",
+                "color": "border"
+              },
+              "text": {
+                "color": "textPrimary",
+                "fontFamily": "sans",
+                "fontSize": "md",
+                "fontWeight": "regular",
+                "lineHeight": "normal",
+                "align": "left"
+              }
+            },
+            "container": {
+              "shadow": "none",
+              "overflow": "visible",
+              "surface": "flat"
+            }
+          }
+        },
+        {
+          "id": "title_main",
+          "name": "Title",
+          "layout": {
+            "width": "fill"
+          },
+          "props": {
+            "role": "heading",
+            "purpose": "Identify the material orchestration workspace",
+            "text": "Material Orchestration Dashboard"
+          },
+          "type": "text",
+          "style": {
+            "base": {
+              "backgroundColor": "transparent",
+              "radius": "md",
+              "border": {
+                "width": "none",
+                "style": "none",
+                "color": "border"
+              },
+              "text": {
+                "color": "white",
+                "fontFamily": "sans",
+                "fontSize": "2xl",
+                "fontWeight": "bold",
+                "lineHeight": "tight",
+                "align": "left"
+              }
+            },
+            "text": {
+              "role": "heading",
+              "decoration": "none",
+              "transform": "none"
+            }
+          }
+        },
+        {
+          "id": "subtitle_main",
+          "name": "Description",
+          "layout": {
+            "width": "fill"
+          },
+          "props": {
+            "purpose": "Describe the fixture run",
+            "text": "Fixture draft generated for full-flow CLI debugging."
+          },
+          "type": "text",
+          "style": {
+            "base": {
+              "backgroundColor": "transparent",
+              "radius": "md",
+              "border": {
+                "width": "none",
+                "style": "none",
+                "color": "border"
+              },
+              "text": {
+                "color": "white",
+                "fontFamily": "sans",
+                "fontSize": "md",
+                "fontWeight": "regular",
+                "lineHeight": "normal",
+                "align": "left"
+              }
+            },
+            "text": {
+              "role": "body",
+              "decoration": "none",
+              "transform": "none"
+            }
+          }
+        },
+        {
+          "id": "fixture_visual_one",
+          "name": "Show the material orchestration workflow",
+          "layout": {
+            "width": "fill",
+            "height": "fixed",
+            "fixedHeight": 675
+          },
+          "props": {
+            "alt": "Show the material orchestration workflow",
+            "visualAssetId": "fixture_visual_one",
+            "visualAssetKind": "content_image",
+            "visualAssetRole": "section",
+            "purpose": "Show the material orchestration workflow",
+            "promptBrief": "Material orchestration workflow scene with clear hierarchy",
+            "requestedWidth": 1200,
+            "requestedHeight": 675,
+            "generationPriority": "required"
+          },
+          "type": "image",
+          "style": {
+            "base": {
+              "backgroundColor": "muted",
+              "radius": "md",
+              "border": {
+                "width": "none",
+                "style": "none",
+                "color": "border"
+              },
+              "text": {
+                "color": "textPrimary",
+                "fontFamily": "sans",
+                "fontSize": "md",
+                "fontWeight": "regular",
+                "lineHeight": "normal",
+                "align": "left"
+              }
+            },
+            "image": {
+              "aspectRatio": "wide",
+              "objectFit": "cover"
+            }
+          }
+        },
+        {
+          "id": "fixture_visual_two",
+          "name": "Support material orchestration details",
+          "layout": {
+            "width": "fill",
+            "height": "fixed",
+            "fixedHeight": 800
+          },
+          "props": {
+            "alt": "Support material orchestration details",
+            "visualAssetId": "fixture_visual_two",
+            "visualAssetKind": "content_image",
+            "visualAssetRole": "illustration",
+            "purpose": "Support material orchestration details",
+            "promptBrief": "Material orchestration detail illustration with safe cropping",
+            "requestedWidth": 800,
+            "requestedHeight": 800,
+            "generationPriority": "required"
+          },
+          "type": "image",
+          "style": {
+            "base": {
+              "backgroundColor": "muted",
+              "radius": "md",
+              "border": {
+                "width": "none",
+                "style": "none",
+                "color": "border"
+              },
+              "text": {
+                "color": "textPrimary",
+                "fontFamily": "sans",
+                "fontSize": "md",
+                "fontWeight": "regular",
+                "lineHeight": "normal",
+                "align": "left"
+              }
+            },
+            "image": {
+              "aspectRatio": "square",
+              "objectFit": "cover"
+            }
+          }
+        }
+      ],
+      "variables": {
+        "structurePurposes": {
+          "page_root": "Application root",
+          "section_main": "Material orchestration workspace"
+        },
+        "interactions": [],
+        "designTheme": {
+          "theme": "enterprise_light",
+          "tone": "operational"
+        },
+        "visualAssets": {
+          "imagePolicy": "required",
+          "visualMode": "rich",
+          "minimumGeneratedAssets": 3,
+          "assets": [
+            {
+              "id": "fixture_background",
+              "role": "hero",
+              "purpose": "Create visual depth for the fixture page",
+              "promptBrief": "Low-contrast material orchestration workspace background with safe text area",
+              "width": 1440,
+              "height": 720,
+              "aspectRatio": "wide",
+              "priority": "required",
+              "kind": "background_image",
+              "targetElementId": "section_main",
+              "foregroundTone": "light"
+            },
+            {
+              "id": "fixture_visual_one",
+              "role": "section",
+              "purpose": "Show the material orchestration workflow",
+              "promptBrief": "Material orchestration workflow scene with clear hierarchy",
+              "width": 1200,
+              "height": 675,
+              "aspectRatio": "wide",
+              "priority": "required",
+              "kind": "content_image",
+              "parentId": "section_main",
+              "order": 2
+            },
+            {
+              "id": "fixture_visual_two",
+              "role": "illustration",
+              "purpose": "Support material orchestration details",
+              "promptBrief": "Material orchestration detail illustration with safe cropping",
+              "width": 800,
+              "height": 800,
+              "aspectRatio": "square",
+              "priority": "required",
+              "kind": "content_image",
+              "parentId": "section_main",
+              "order": 3
+            }
+          ],
+          "notes": [
+            "Deterministic complete fixture image plan."
+          ]
+        },
+        "agentPlanning": {
+          "structurePlan": {
+            "document": {
+              "id": "fixture_material_orchestration_dashboard",
+              "name": "Material Orchestration Dashboard",
+              "viewport": "desktop",
+              "width": 1440,
+              "background": "muted"
+            },
+            "nodes": [
+              {
+                "id": "page_root",
+                "parentId": null,
+                "order": 0,
+                "type": "page",
+                "name": "Page",
+                "purpose": "Application root"
+              },
+              {
+                "id": "section_main",
+                "parentId": "page_root",
+                "order": 0,
+                "type": "section",
+                "name": "Main Section",
+                "purpose": "Material orchestration workspace"
+              }
+            ]
+          },
+          "layoutPlan": {
+            "strategy": "dashboard_grid",
+            "rootId": "page_root",
+            "sectionIds": [
+              "section_main"
+            ],
+            "notes": [
+              "Fixture layout plan for a material orchestration dashboard."
+            ]
+          },
+          "elementPlan": {
+            "elements": [
+              {
+                "id": "title_main",
+                "parentId": "section_main",
+                "order": 0,
+                "type": "text",
+                "name": "Title",
+                "purpose": "Identify the material orchestration workspace",
+                "content": "Material Orchestration Dashboard",
+                "attributes": [
+                  {
+                    "key": "role",
+                    "value": "heading"
+                  }
+                ]
+              },
+              {
+                "id": "subtitle_main",
+                "parentId": "section_main",
+                "order": 1,
+                "type": "text",
+                "name": "Description",
+                "purpose": "Describe the fixture run",
+                "content": "Fixture draft generated for full-flow CLI debugging.",
+                "attributes": []
+              }
+            ],
+            "notes": [
+              "Fixture semantic element plan."
+            ]
+          },
+          "interactionPlan": {
+            "interactions": [],
+            "notes": [
+              "Fixture interaction plan."
+            ]
+          },
+          "stylePlan": {
+            "theme": "enterprise_light",
+            "tone": "operational",
+            "assignments": [
+              {
+                "elementId": "page_root",
+                "preset": "page"
+              },
+              {
+                "elementId": "section_main",
+                "preset": "section"
+              },
+              {
+                "elementId": "title_main",
+                "preset": "heading"
+              },
+              {
+                "elementId": "subtitle_main",
+                "preset": "body"
+              }
+            ],
+            "notes": [
+              "Fixture style plan uses a light operational admin theme."
+            ]
+          },
+          "visualAssetPlan": {
+            "imagePolicy": "required",
+            "visualMode": "rich",
+            "minimumGeneratedAssets": 3,
+            "assets": [
+              {
+                "id": "fixture_background",
+                "role": "hero",
+                "purpose": "Create visual depth for the fixture page",
+                "promptBrief": "Low-contrast material orchestration workspace background with safe text area",
+                "width": 1440,
+                "height": 720,
+                "aspectRatio": "wide",
+                "priority": "required",
+                "kind": "background_image",
+                "targetElementId": "section_main",
+                "foregroundTone": "light"
+              },
+              {
+                "id": "fixture_visual_one",
+                "role": "section",
+                "purpose": "Show the material orchestration workflow",
+                "promptBrief": "Material orchestration workflow scene with clear hierarchy",
+                "width": 1200,
+                "height": 675,
+                "aspectRatio": "wide",
+                "priority": "required",
+                "kind": "content_image",
+                "parentId": "section_main",
+                "order": 2
+              },
+              {
+                "id": "fixture_visual_two",
+                "role": "illustration",
+                "purpose": "Support material orchestration details",
+                "promptBrief": "Material orchestration detail illustration with safe cropping",
+                "width": 800,
+                "height": 800,
+                "aspectRatio": "square",
+                "priority": "required",
+                "kind": "content_image",
+                "parentId": "section_main",
+                "order": 3
+              }
+            ],
+            "notes": [
+              "Deterministic complete fixture image plan."
+            ]
+          }
+        }
+      }
+    },
+    "sourcePlans": {
+      "structurePlanning": {
+        "document": {
+          "id": "fixture_material_orchestration_dashboard",
+          "name": "Material Orchestration Dashboard",
+          "viewport": "desktop",
+          "width": 1440,
+          "background": "muted"
+        },
+        "nodes": [
+          {
+            "id": "page_root",
+            "parentId": null,
+            "order": 0,
+            "type": "page",
+            "name": "Page",
+            "purpose": "Application root"
+          },
+          {
+            "id": "section_main",
+            "parentId": "page_root",
+            "order": 0,
+            "type": "section",
+            "name": "Main Section",
+            "purpose": "Material orchestration workspace"
+          }
+        ]
+      },
+      "layoutPlanning": {
+        "strategy": "dashboard_grid",
+        "rootId": "page_root",
+        "sectionIds": [
+          "section_main"
+        ],
+        "notes": [
+          "Fixture layout plan for a material orchestration dashboard."
+        ]
+      },
+      "elementPlanning": {
+        "elements": [
+          {
+            "id": "title_main",
+            "parentId": "section_main",
+            "order": 0,
+            "type": "text",
+            "name": "Title",
+            "purpose": "Identify the material orchestration workspace",
+            "content": "Material Orchestration Dashboard",
+            "attributes": [
+              {
+                "key": "role",
+                "value": "heading"
+              }
+            ]
+          },
+          {
+            "id": "subtitle_main",
+            "parentId": "section_main",
+            "order": 1,
+            "type": "text",
+            "name": "Description",
+            "purpose": "Describe the fixture run",
+            "content": "Fixture draft generated for full-flow CLI debugging.",
+            "attributes": []
+          }
+        ],
+        "notes": [
+          "Fixture semantic element plan."
+        ]
+      },
+      "interactionPlanning": {
+        "interactions": [],
+        "notes": [
+          "Fixture interaction plan."
+        ]
+      },
+      "stylePlanning": {
+        "theme": "enterprise_light",
+        "tone": "operational",
+        "assignments": [
+          {
+            "elementId": "page_root",
+            "preset": "page"
+          },
+          {
+            "elementId": "section_main",
+            "preset": "section"
+          },
+          {
+            "elementId": "title_main",
+            "preset": "heading"
+          },
+          {
+            "elementId": "subtitle_main",
+            "preset": "body"
+          }
+        ],
+        "notes": [
+          "Fixture style plan uses a light operational admin theme."
+        ]
+      },
+      "imagePlanning": {
+        "imagePolicy": "required",
+        "visualMode": "rich",
+        "minimumGeneratedAssets": 3,
+        "assets": [
+          {
+            "id": "fixture_background",
+            "role": "hero",
+            "purpose": "Create visual depth for the fixture page",
+            "promptBrief": "Low-contrast material orchestration workspace background with safe text area",
+            "width": 1440,
+            "height": 720,
+            "aspectRatio": "wide",
+            "priority": "required",
+            "kind": "background_image",
+            "targetElementId": "section_main",
+            "foregroundTone": "light"
+          },
+          {
+            "id": "fixture_visual_one",
+            "role": "section",
+            "purpose": "Show the material orchestration workflow",
+            "promptBrief": "Material orchestration workflow scene with clear hierarchy",
+            "width": 1200,
+            "height": 675,
+            "aspectRatio": "wide",
+            "priority": "required",
+            "kind": "content_image",
+            "parentId": "section_main",
+            "order": 2
+          },
+          {
+            "id": "fixture_visual_two",
+            "role": "illustration",
+            "purpose": "Support material orchestration details",
+            "promptBrief": "Material orchestration detail illustration with safe cropping",
+            "width": 800,
+            "height": 800,
+            "aspectRatio": "square",
+            "priority": "required",
+            "kind": "content_image",
+            "parentId": "section_main",
+            "order": 3
+          }
+        ],
+        "notes": [
+          "Deterministic complete fixture image plan."
+        ]
+      }
+    },
+    "sourceArtifacts": {
+      "structurePlanning": {
+        "node": "json_planning",
+        "path": "E:\\FlowMindStudio\\artifacts\\runs\\ecommerce-image-planning-verify\\json_planning.v1.json",
+        "version": 1,
+        "checksum": "bca48f327c3cc338c3b39773c0fd868aa2755c6653acd973675b393134117092"
+      },
+      "layoutPlanning": {
+        "node": "layout_planning",
+        "path": "E:\\FlowMindStudio\\artifacts\\runs\\ecommerce-image-planning-verify\\layout_planning.v1.json",
+        "version": 1,
+        "checksum": "e1480facdfcc8c0cf13c9b7cf2b7cd81bf763bae15ce5d58bbfd7166bc44e546"
+      },
+      "elementPlanning": {
+        "node": "element_planning",
+        "path": "E:\\FlowMindStudio\\artifacts\\runs\\ecommerce-image-planning-verify\\element_planning.v1.json",
+        "version": 1,
+        "checksum": "c994cb79a8d5d8c32a09a56188f1c9708204c1e5a100e3f700c318d5f88abfa8"
+      },
+      "interactionPlanning": {
+        "node": "interaction_planning",
+        "path": "E:\\FlowMindStudio\\artifacts\\runs\\ecommerce-image-planning-verify\\interaction_planning.v1.json",
+        "version": 1,
+        "checksum": "ff00bd7e340ea45eb73c052bd492690fde1cbb41112951f4f005597cd43fb40b"
+      },
+      "stylePlanning": {
+        "node": "style_planning",
+        "path": "E:\\FlowMindStudio\\artifacts\\runs\\ecommerce-image-planning-verify\\style_planning.v1.json",
+        "version": 1,
+        "checksum": "cf2dfb4dc63a2561a1190f2880b120e421436b07775fbdbc6be0e07ce544910d"
+      },
+      "imagePlanning": {
+        "node": "image_planning",
+        "path": "E:\\FlowMindStudio\\artifacts\\runs\\ecommerce-image-planning-verify\\image_planning.v1.json",
+        "version": 1,
+        "checksum": "f667ebfe4bc17356fd26da46d7f3835bda5f4ac00a91b0f47efb678d619ab473"
+      }
+    }
+  },
+  "errors": [],
+  "createdAt": "2026-07-02T01:08:56.673Z"
+}

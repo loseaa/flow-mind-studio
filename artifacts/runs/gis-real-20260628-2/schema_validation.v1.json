@@ -1,0 +1,245 @@
+{
+  "threadId": "gis-real-20260628-2",
+  "node": "schema_validation",
+  "version": 1,
+  "status": "success",
+  "inputRefs": [
+    {
+      "node": "image_generation",
+      "path": "E:\\FlowMindStudio\\artifacts\\runs\\gis-real-20260628-2\\image_generation.v1.json",
+      "version": 1,
+      "checksum": "2553a3ac07905ea5ad8c008661ae0e588c8aaa1dcb576a7025ce5cafbdcdc100"
+    }
+  ],
+  "output": {
+    "document": {
+      "schemaVersion": "fm-design/v1",
+      "id": "design_generated_page",
+      "name": "AI Generated Design",
+      "canvas": {
+        "viewport": "desktop",
+        "width": 1440,
+        "background": "muted"
+      },
+      "tree": {
+        "id": "page_root",
+        "children": [
+          {
+            "id": "section_main",
+            "children": [
+              {
+                "id": "title_main",
+                "children": []
+              },
+              {
+                "id": "subtitle_main",
+                "children": []
+              }
+            ]
+          }
+        ]
+      },
+      "elements": [
+        {
+          "id": "page_root",
+          "name": "Page",
+          "layout": {
+            "display": "flex",
+            "direction": "vertical",
+            "gap": "lg",
+            "padding": "lg",
+            "width": "fill"
+          },
+          "props": {},
+          "type": "page",
+          "style": {
+            "base": {
+              "backgroundColor": "surface",
+              "radius": "md",
+              "border": {
+                "width": "none",
+                "style": "none",
+                "color": "border"
+              },
+              "text": {
+                "color": "textPrimary",
+                "fontFamily": "sans",
+                "fontSize": "md",
+                "fontWeight": "regular",
+                "lineHeight": "normal",
+                "align": "left"
+              }
+            },
+            "container": {
+              "shadow": "none",
+              "overflow": "visible",
+              "surface": "flat"
+            }
+          }
+        },
+        {
+          "id": "section_main",
+          "name": "Main Section",
+          "layout": {
+            "display": "flex",
+            "direction": "vertical",
+            "gap": "md",
+            "padding": "lg",
+            "width": "fill"
+          },
+          "props": {},
+          "type": "section",
+          "style": {
+            "base": {
+              "backgroundColor": "white",
+              "radius": "md",
+              "border": {
+                "width": "none",
+                "style": "none",
+                "color": "border"
+              },
+              "text": {
+                "color": "textPrimary",
+                "fontFamily": "sans",
+                "fontSize": "md",
+                "fontWeight": "regular",
+                "lineHeight": "normal",
+                "align": "left"
+              }
+            },
+            "container": {
+              "shadow": "none",
+              "overflow": "visible",
+              "surface": "card"
+            }
+          }
+        },
+        {
+          "id": "title_main",
+          "name": "Title",
+          "props": {
+            "text": "AI Generated Design"
+          },
+          "type": "text",
+          "style": {
+            "base": {
+              "backgroundColor": "transparent",
+              "radius": "md",
+              "border": {
+                "width": "none",
+                "style": "none",
+                "color": "border"
+              },
+              "text": {
+                "color": "textPrimary",
+                "fontFamily": "sans",
+                "fontSize": "2xl",
+                "fontWeight": "bold",
+                "lineHeight": "normal",
+                "align": "left"
+              }
+            },
+            "text": {
+              "role": "heading",
+              "decoration": "none",
+              "transform": "none"
+            }
+          }
+        },
+        {
+          "id": "subtitle_main",
+          "name": "Description",
+          "props": {
+            "text": "Initial design document generated from confirmed intent dimensions."
+          },
+          "type": "text",
+          "style": {
+            "base": {
+              "backgroundColor": "transparent",
+              "radius": "md",
+              "border": {
+                "width": "none",
+                "style": "none",
+                "color": "border"
+              },
+              "text": {
+                "color": "textSecondary",
+                "fontFamily": "sans",
+                "fontSize": "md",
+                "fontWeight": "regular",
+                "lineHeight": "normal",
+                "align": "left"
+              }
+            },
+            "text": {
+              "role": "body",
+              "decoration": "none",
+              "transform": "none"
+            }
+          }
+        }
+      ],
+      "variables": {
+        "agentPlanning": {
+          "layoutPlan": {
+            "strategy": "dashboard_grid",
+            "rootId": "page_root",
+            "sectionIds": [
+              "section_main"
+            ],
+            "notes": [
+              "The content structure and presentation rules suggest a traditional three-column layout with distinct areas for filters, main map, and details, which fits well with a dashboard grid strategy.",
+              "The root element is 'page_root' and the main content section is 'section_main'.",
+              "This layout supports the GIS environment monitoring information display with clear separation of title, filters, map, details, and data source description."
+            ]
+          },
+          "elementPlan": {
+            "elementIds": [
+              "page_root",
+              "section_main",
+              "title_main",
+              "subtitle_main"
+            ],
+            "contentElementIds": [
+              "title_main",
+              "subtitle_main"
+            ],
+            "containerElementIds": [
+              "page_root",
+              "section_main"
+            ],
+            "notes": [
+              "Page root is the main container for the desktop GIS environment monitoring information display page.",
+              "Section main is a vertical section container holding the title and subtitle text elements.",
+              "Title main is the main title text element visible to users, showing the page title.",
+              "Subtitle main is a descriptive text element visible to users, providing additional context or description."
+            ]
+          },
+          "stylePlan": {
+            "theme": "neutral_workspace",
+            "styledElementIds": [
+              "page_root",
+              "section_main",
+              "title_main",
+              "subtitle_main"
+            ],
+            "tone": "quiet",
+            "notes": [
+              "Use a cool blue-green color scheme consistent with the GIS environment monitoring context.",
+              "Maintain a clear, professional, and technological visual style to support public daily inquiry usage.",
+              "Apply traditional three-column layout styling principles for spatial organization.",
+              "Typography should be legible and accessible for general public audience.",
+              "Use subtle backgrounds and minimal shadows to keep the interface clean and focused on data.",
+              "Ensure interactive elements like map controls and filters have clear but unobtrusive visual cues.",
+              "Preserve the existing text styling for headings and body text with emphasis on clarity and readability."
+            ]
+          }
+        }
+      }
+    },
+    "valid": true,
+    "errors": []
+  },
+  "errors": [],
+  "createdAt": "2026-06-28T08:19:31.111Z"
+}

@@ -1,0 +1,97 @@
+{
+  "threadId": "ecommerce-image-planning-verify",
+  "node": "completeness_check",
+  "version": 1,
+  "status": "success",
+  "inputRefs": [],
+  "output": {
+    "allComplete": true,
+    "completedDimensions": [
+      {
+        "key": "page_context",
+        "status": "complete",
+        "completeness": 1,
+        "confidence": 1,
+        "value": {
+          "fixture": true,
+          "key": "page_context"
+        },
+        "evidence": [
+          "complete fixture"
+        ],
+        "missingFields": [],
+        "assumptions": [],
+        "questionsAsked": []
+      },
+      {
+        "key": "content_structure",
+        "status": "complete",
+        "completeness": 1,
+        "confidence": 1,
+        "value": {
+          "fixture": true,
+          "key": "content_structure"
+        },
+        "evidence": [
+          "complete fixture"
+        ],
+        "missingFields": [],
+        "assumptions": [],
+        "questionsAsked": []
+      },
+      {
+        "key": "data_requirements",
+        "status": "complete",
+        "completeness": 1,
+        "confidence": 1,
+        "value": {
+          "fixture": true,
+          "key": "data_requirements"
+        },
+        "evidence": [
+          "complete fixture"
+        ],
+        "missingFields": [],
+        "assumptions": [],
+        "questionsAsked": []
+      },
+      {
+        "key": "interaction_flow",
+        "status": "complete",
+        "completeness": 1,
+        "confidence": 1,
+        "value": {
+          "fixture": true,
+          "key": "interaction_flow"
+        },
+        "evidence": [
+          "complete fixture"
+        ],
+        "missingFields": [],
+        "assumptions": [],
+        "questionsAsked": []
+      },
+      {
+        "key": "presentation_rules",
+        "status": "complete",
+        "completeness": 1,
+        "confidence": 1,
+        "value": {
+          "fixture": true,
+          "key": "presentation_rules"
+        },
+        "evidence": [
+          "complete fixture"
+        ],
+        "missingFields": [],
+        "assumptions": [],
+        "questionsAsked": []
+      }
+    ],
+    "incompleteDimensions": [],
+    "conflictingDimensions": [],
+    "blockingReasons": []
+  },
+  "errors": [],
+  "createdAt": "2026-07-02T01:08:56.139Z"
+}

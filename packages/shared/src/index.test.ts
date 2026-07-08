@@ -1,8 +1,34 @@
 import { describe, expect, it } from "vitest";
-import { chatPartSchema, designDocumentSchema, hasPermission, lowCodePageSchema } from "./index.ts";
-import type { DesignDocument } from "./index.ts";
+import { chatPartSchema, designDocumentSchema, designImageSlotSchema, hasPermission, lowCodePageSchema } from "./index.ts";
+import type { DesignDocument, DesignImageSlot } from "./index.ts";
 
 describe("shared contracts", () => {
+  it("validates a hero image slot", () => {
+    expect(() => designImageSlotSchema.parse(validHeroImageSlot())).not.toThrow();
+  });
+
+  it("rejects a section image slot above its maximum height", () => {
+    expect(() =>
+      designImageSlotSchema.parse({
+        ...validHeroImageSlot(),
+        role: "section",
+        display: { ...validHeroImageSlot().display, maxHeight: 421 }
+      })
+    ).toThrow();
+  });
+
+  it("rejects an image slot whose minimum height exceeds its maximum height", () => {
+    expect(() =>
+      designImageSlotSchema.parse({
+        ...validHeroImageSlot(),
+        display: { ...validHeroImageSlot().display, minHeight: 481, maxHeight: 480 }
+      })
+    ).toThrow();
+  });
+
+  it("rejects unknown image slot fields", () => {
+    expect(() => designImageSlotSchema.parse({ ...validHeroImageSlot(), unexpected: true })).toThrow();
+  });
   it("keeps member permissions scoped", () => {
     expect(hasPermission("member", "chat.use")).toBe(true);
     expect(hasPermission("member", "organization.manage")).toBe(false);
@@ -169,6 +195,27 @@ describe("shared contracts", () => {
   });
 });
 
+function validHeroImageSlot(): DesignImageSlot {
+  return {
+    id: "hero_visual",
+    parentId: "hero_section",
+    role: "hero",
+    placement: "background",
+    display: {
+      aspectRatio: "16:9",
+      width: "fill",
+      minHeight: 360,
+      maxHeight: 480,
+      objectFit: "cover",
+      focalPoint: "center"
+    },
+    generation: {
+      width: 1792,
+      height: 1024,
+      safeArea: "left"
+    }
+  };
+}
 function validDesignDocument(): DesignDocument {
   return {
     schemaVersion: "fm-design/v1",

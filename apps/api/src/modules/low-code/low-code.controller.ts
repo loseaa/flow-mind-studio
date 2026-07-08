@@ -1,12 +1,17 @@
-import { Body, Controller, Get, Param, Post, UploadedFile, UseInterceptors } from "@nestjs/common";
+import { BadRequestException, Body, Controller, Get, Param, Post, Res, UploadedFile, UseInterceptors } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
+import type { Response } from "express";
 import { lowCodePageSchema } from "@flowmind/shared";
 import { mockStore } from "../../common/mock-store";
+import { DesignAgentService, type DesignAgentMessageRequest } from "./design-agent.service";
 import { OssAssetsService, type UploadedAsset } from "./oss-assets.service";
 
 @Controller("low-code")
 export class LowCodeController {
-  constructor(private readonly ossAssetsService: OssAssetsService) {}
+  constructor(
+    private readonly ossAssetsService: OssAssetsService,
+    private readonly designAgentService: DesignAgentService
+  ) {}
 
   @Get("pages")
   pages() {
@@ -32,6 +37,24 @@ export class LowCodeController {
     page.status = "published";
     page.version += 1;
     return page;
+  }
+
+
+  @Post("agent/messages")
+  sendAgentMessage(@Body() body: DesignAgentMessageRequest) {
+    return this.designAgentService.sendMessage(body);
+  }
+  @Get("design-agent/assets/:runId/:fileName")
+  generatedAgentAsset(
+    @Param("runId") runId: string,
+    @Param("fileName") fileName: string,
+    @Res() response: Response
+  ) {
+    try {
+      return response.sendFile(this.designAgentService.resolveGeneratedAssetPath(runId, fileName));
+    } catch (error) {
+      throw new BadRequestException(error instanceof Error ? error.message : "Invalid generated asset path.");
+    }
   }
 
   @Post("assets/images")

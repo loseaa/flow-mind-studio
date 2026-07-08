@@ -1,0 +1,128 @@
+{
+  "threadId": "gis-real-20260628-2",
+  "status": "completed",
+  "currentNode": "final_output",
+  "completedNodes": [
+    "intent_recognition",
+    "completeness_check",
+    "intent_compaction",
+    "json_planning",
+    "layout_planning",
+    "element_planning",
+    "style_planning",
+    "document_assembly",
+    "image_generation",
+    "schema_validation",
+    "final_output"
+  ],
+  "artifacts": {
+    "intent_recognition": {
+      "node": "intent_recognition",
+      "path": "E:\\FlowMindStudio\\artifacts\\runs\\gis-real-20260628-2\\intent_recognition.v1.json",
+      "version": 1,
+      "checksum": "1139fbc3143e611e3d63fff9da568c298fc047dda686314945c822284d69bd43",
+      "createdAt": "2026-06-28T08:11:25.315Z",
+      "dependsOn": []
+    },
+    "completeness_check": {
+      "node": "completeness_check",
+      "path": "E:\\FlowMindStudio\\artifacts\\runs\\gis-real-20260628-2\\completeness_check.v1.json",
+      "version": 1,
+      "checksum": "918e44c704044b447fb9480c22751ce62cf22261a4f013e589b5d6bc4b4d50c0",
+      "createdAt": "2026-06-28T08:11:25.394Z",
+      "dependsOn": []
+    },
+    "intent_compaction": {
+      "node": "intent_compaction",
+      "path": "E:\\FlowMindStudio\\artifacts\\runs\\gis-real-20260628-2\\intent_compaction.v1.json",
+      "version": 1,
+      "checksum": "81c7d9d15990945496c3339de1e1a2b8196a6d93f01aed808ae376f46045055e",
+      "createdAt": "2026-06-28T08:11:25.466Z",
+      "dependsOn": [
+        "E:\\FlowMindStudio\\artifacts\\runs\\gis-real-20260628-2\\completeness_check.v1.json"
+      ]
+    },
+    "json_planning": {
+      "node": "json_planning",
+      "path": "E:\\FlowMindStudio\\artifacts\\runs\\gis-real-20260628-2\\json_planning.v1.json",
+      "version": 1,
+      "checksum": "762cae7bebbb5471e0d6fb1c00a19a5f379bf9b1f15afb0c3a21d11bc0fa1bcb",
+      "createdAt": "2026-06-28T08:19:25.133Z",
+      "dependsOn": [
+        "E:\\FlowMindStudio\\artifacts\\runs\\gis-real-20260628-2\\intent_compaction.v1.json"
+      ]
+    },
+    "layout_planning": {
+      "node": "layout_planning",
+      "path": "E:\\FlowMindStudio\\artifacts\\runs\\gis-real-20260628-2\\layout_planning.v1.json",
+      "version": 1,
+      "checksum": "f451e6ba9469b09d5b47fcc0773e82111910a33452673b292a70363e71aa7c4a",
+      "createdAt": "2026-06-28T08:19:27.394Z",
+      "dependsOn": [
+        "E:\\FlowMindStudio\\artifacts\\runs\\gis-real-20260628-2\\json_planning.v1.json"
+      ]
+    },
+    "element_planning": {
+      "node": "element_planning",
+      "path": "E:\\FlowMindStudio\\artifacts\\runs\\gis-real-20260628-2\\element_planning.v1.json",
+      "version": 1,
+      "checksum": "ee765ed41db47ed6538c3fc6a5ad42aae515de5b2c96a28c79040de397db6ecb",
+      "createdAt": "2026-06-28T08:19:29.137Z",
+      "dependsOn": [
+        "E:\\FlowMindStudio\\artifacts\\runs\\gis-real-20260628-2\\layout_planning.v1.json"
+      ]
+    },
+    "style_planning": {
+      "node": "style_planning",
+      "path": "E:\\FlowMindStudio\\artifacts\\runs\\gis-real-20260628-2\\style_planning.v1.json",
+      "version": 1,
+      "checksum": "768f3316a20d083a2415577e2786c003306b14d6e9bd4148505bbc30c9bd8b66",
+      "createdAt": "2026-06-28T08:19:31.001Z",
+      "dependsOn": [
+        "E:\\FlowMindStudio\\artifacts\\runs\\gis-real-20260628-2\\element_planning.v1.json"
+      ]
+    },
+    "document_assembly": {
+      "node": "document_assembly",
+      "path": "E:\\FlowMindStudio\\artifacts\\runs\\gis-real-20260628-2\\document_assembly.v1.json",
+      "version": 1,
+      "checksum": "0a09807d7e30aaccb828c7fb94ff6e549b7deb5bb0552e8a2da748a216caed54",
+      "createdAt": "2026-06-28T08:19:31.038Z",
+      "dependsOn": [
+        "E:\\FlowMindStudio\\artifacts\\runs\\gis-real-20260628-2\\layout_planning.v1.json",
+        "E:\\FlowMindStudio\\artifacts\\runs\\gis-real-20260628-2\\element_planning.v1.json",
+        "E:\\FlowMindStudio\\artifacts\\runs\\gis-real-20260628-2\\style_planning.v1.json"
+      ]
+    },
+    "image_generation": {
+      "node": "image_generation",
+      "path": "E:\\FlowMindStudio\\artifacts\\runs\\gis-real-20260628-2\\image_generation.v1.json",
+      "version": 1,
+      "checksum": "2553a3ac07905ea5ad8c008661ae0e588c8aaa1dcb576a7025ce5cafbdcdc100",
+      "createdAt": "2026-06-28T08:19:31.082Z",
+      "dependsOn": [
+        "E:\\FlowMindStudio\\artifacts\\runs\\gis-real-20260628-2\\document_assembly.v1.json"
+      ]
+    },
+    "schema_validation": {
+      "node": "schema_validation",
+      "path": "E:\\FlowMindStudio\\artifacts\\runs\\gis-real-20260628-2\\schema_validation.v1.json",
+      "version": 1,
+      "checksum": "adb95c7b0c584a4bd2e8ae1543c5da9e386fe6573d63bd00520c31ea174a62b2",
+      "createdAt": "2026-06-28T08:19:31.111Z",
+      "dependsOn": [
+        "E:\\FlowMindStudio\\artifacts\\runs\\gis-real-20260628-2\\image_generation.v1.json"
+      ]
+    },
+    "final_output": {
+      "node": "final_output",
+      "path": "E:\\FlowMindStudio\\artifacts\\runs\\gis-real-20260628-2\\final_output.v1.json",
+      "version": 1,
+      "checksum": "5b215ab48fdf8e56bdabb492ed8b31d5ed2b8065aa2a90111c16a85b9dce6b45",
+      "createdAt": "2026-06-28T08:19:31.139Z",
+      "dependsOn": [
+        "E:\\FlowMindStudio\\artifacts\\runs\\gis-real-20260628-2\\schema_validation.v1.json"
+      ]
+    }
+  }
+}

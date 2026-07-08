@@ -10,18 +10,20 @@ import { McpModule } from "./modules/mcp/mcp.module";
 import { OrganizationsModule } from "./modules/organizations/organizations.module";
 import { TasksModule } from "./modules/tasks/tasks.module";
 
+const dbBackedModules = process.env.FLOWMIND_SKIP_DB_MODULES === "true"
+  ? []
+  : [KnowledgeModule, ChatModule, TasksModule];
+
 @Module({
   imports: [
     ConfigModule.forRoot({ envFilePath: [".env", "../../.env"], isGlobal: true }),
     AuthModule,
     OrganizationsModule,
     DashboardModule,
-    KnowledgeModule,
-    ChatModule,
     McpModule,
     DataModelsModule,
     LowCodeModule,
-    TasksModule
+    ...dbBackedModules
   ]
 })
 export class AppModule {}

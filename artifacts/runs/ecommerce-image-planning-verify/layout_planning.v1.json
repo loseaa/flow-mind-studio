@@ -1,0 +1,133 @@
+{
+  "threadId": "ecommerce-image-planning-verify",
+  "node": "layout_planning",
+  "version": 1,
+  "status": "success",
+  "inputRefs": [
+    {
+      "node": "json_planning",
+      "path": "E:\\FlowMindStudio\\artifacts\\runs\\ecommerce-image-planning-verify\\json_planning.v1.json",
+      "version": 1,
+      "checksum": "bca48f327c3cc338c3b39773c0fd868aa2755c6653acd973675b393134117092"
+    }
+  ],
+  "output": {
+    "document": {
+      "schemaVersion": "fm-design/v1",
+      "id": "fixture_material_orchestration_dashboard",
+      "name": "Material Orchestration Dashboard",
+      "canvas": {
+        "viewport": "desktop",
+        "width": 1440,
+        "background": "muted"
+      },
+      "tree": {
+        "id": "page_root",
+        "children": [
+          {
+            "id": "section_main",
+            "children": []
+          }
+        ]
+      },
+      "elements": [
+        {
+          "id": "page_root",
+          "name": "Page",
+          "layout": {
+            "display": "flex",
+            "direction": "vertical",
+            "gap": "lg",
+            "padding": "lg",
+            "width": "fill"
+          },
+          "props": {
+            "purpose": "Application root"
+          },
+          "type": "page",
+          "style": {
+            "base": {
+              "backgroundColor": "muted",
+              "radius": "none",
+              "border": {
+                "width": "none",
+                "style": "none",
+                "color": "border"
+              },
+              "text": {
+                "color": "textPrimary",
+                "fontFamily": "sans",
+                "fontSize": "md",
+                "fontWeight": "regular",
+                "lineHeight": "normal",
+                "align": "left"
+              }
+            },
+            "container": {
+              "shadow": "none",
+              "overflow": "visible",
+              "surface": "flat"
+            }
+          }
+        },
+        {
+          "id": "section_main",
+          "name": "Main Section",
+          "layout": {
+            "display": "flex",
+            "direction": "vertical",
+            "gap": "md",
+            "padding": "md",
+            "width": "fill"
+          },
+          "props": {
+            "purpose": "Material orchestration workspace"
+          },
+          "type": "section",
+          "style": {
+            "base": {
+              "backgroundColor": "white",
+              "radius": "md",
+              "border": {
+                "width": "none",
+                "style": "none",
+                "color": "border"
+              },
+              "text": {
+                "color": "textPrimary",
+                "fontFamily": "sans",
+                "fontSize": "md",
+                "fontWeight": "regular",
+                "lineHeight": "normal",
+                "align": "left"
+              }
+            },
+            "container": {
+              "shadow": "none",
+              "overflow": "visible",
+              "surface": "card"
+            }
+          }
+        }
+      ],
+      "variables": {
+        "structurePurposes": {
+          "page_root": "Application root",
+          "section_main": "Material orchestration workspace"
+        }
+      }
+    },
+    "layoutPlan": {
+      "strategy": "dashboard_grid",
+      "rootId": "page_root",
+      "sectionIds": [
+        "section_main"
+      ],
+      "notes": [
+        "Fixture layout plan for a material orchestration dashboard."
+      ]
+    }
+  },
+  "errors": [],
+  "createdAt": "2026-07-02T01:08:56.394Z"
+}
