@@ -1,4 +1,4 @@
-﻿import type { DesignDocument } from "@flowmind/shared";
+import type { DesignDocument } from "@flowmind/shared";
 import type { ArtifactRef } from "../../state.js";
 
 export type DocumentRepairOutput = {
@@ -11,6 +11,7 @@ export type DocumentRepairOutput = {
   }>;
   sourceArtifacts: {
     schemaValidation: ArtifactRef;
-    reflectionRepair: ArtifactRef;
+    reflectionRepair?: ArtifactRef;
+    visualReview?: ArtifactRef;
   };
 };

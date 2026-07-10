@@ -2,17 +2,17 @@ import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
-import type { DesignBaseStyle, DesignDocument } from "@flowmind/shared";
+import type { DesignBaseStyle, DesignDocument, DesignImageSlot } from "@flowmind/shared";
 
 import { createArtifactStore } from "../../artifacts/store.js";
 import { createInitialState, type DesignAgentState } from "../../state.js";
 import { compileVisualAssetPlan } from "../image-planning/compiler.js";
 import type { VisualAssetPlan } from "../image-planning/schema.js";
-import { imageGenerationNode } from "./node.js";
+import { buildImageGenerationRequest, imageGenerationNode } from "./node.js";
 import type { ImageGenerationOutput } from "./schema.js";
 
 describe("imageGenerationNode", () => {
-  it("generates planned content and background assets with exact dimensions", async () => {
+  it("generates planned content and background assets from slot metadata", async () => {
     const { state, store } = await stateWithPlan("thread_image_generation_1");
     const requests: Array<{ assetId: string; kind: string; prompt: string; width: number; height: number }> = [];
 
@@ -30,21 +30,90 @@ describe("imageGenerationNode", () => {
 
     expect(requests).toHaveLength(3);
     expect(requests).toEqual(expect.arrayContaining([
-      expect.objectContaining({ assetId: "hero_background", kind: "background_image", width: 1440, height: 720 }),
-      expect.objectContaining({ assetId: "feature_visual", kind: "content_image", width: 800, height: 800 }),
+      expect.objectContaining({ assetId: "hero_background", kind: "background_image", width: 1536, height: 864 }),
+      expect.objectContaining({ assetId: "feature_visual", kind: "content_image", width: 1200, height: 800 }),
     ]));
-    expect(requests.find(({ assetId }) => assetId === "feature_visual")?.prompt).toContain("Required pixel size: 800x800px");
+    expect(requests.find(({ assetId }) => assetId === "feature_visual")?.prompt).toContain("Required pixel size: 1200x800px");
     expect(requests.find(({ assetId }) => assetId === "feature_visual")?.prompt).toContain("Show the primary product capability");
 
     const artifact = await readOutput(store, result);
     const feature = artifact.document.elements.find((element) => element.id === "feature_visual");
     const hero = artifact.document.elements.find((element) => element.id === "hero_section");
+    const featureSlot = feature?.props.imageSlot as DesignImageSlot | undefined;
+    const heroSlot = hero?.props.imageSlot as DesignImageSlot | undefined;
     expect(feature?.props.src).toBe("https://cdn.example.com/generated/feature_visual.png");
     expect(hero?.style.base.backgroundImage).toBe("https://cdn.example.com/generated/hero_background.png");
+    expect(feature?.layout).toEqual({ width: "fill", height: "hug" });
+    expect(featureSlot?.display.maxHeight).toBe(320);
+    expect(heroSlot?.display.maxHeight).toBe(480);
     expect(artifact.generatedCount).toBe(3);
     expect(artifact.minimumGeneratedAssets).toBe(3);
   });
 
+
+  it("derives request identity and dimensions from the slot instead of visual asset fields", () => {
+    const state = createInitialState("thread_image_generation_request");
+    const document = compileVisualAssetPlan(baseDocument(), requiredPlan());
+    const asset = {
+      ...requiredPlan().assets[1],
+      kind: "background_image",
+      role: "hero",
+      width: 1,
+      height: 1,
+      aspectRatio: "portrait",
+      foregroundTone: "dark",
+    } as any;
+
+    const request = buildImageGenerationRequest(state, document, asset);
+
+    expect(request).toMatchObject({
+      assetId: "feature_visual",
+      slotId: "feature_slot",
+      elementId: "feature_visual",
+      kind: "content_image",
+      role: "section",
+      width: 1200,
+      height: 800,
+      aspectRatio: "wide",
+    });
+    expect(request.prompt).toContain("Required pixel size: 1200x800px");
+    expect(request.prompt).toContain("Display slot: aspect=3:2, width=fill, maxHeight=320");
+  });
+
+  it("applies generated image metadata without changing tree, element count, layout, or slot display", async () => {
+    const { state, store } = await stateWithPlan("thread_image_generation_layout_invariant");
+    const assemblyArtifact = await store.readArtifact<any>(state.latestArtifactRefs.document_assembly);
+    const before = assemblyArtifact.output.document as DesignDocument;
+    const beforeTree = structuredClone(before.tree);
+    const beforeElementsCount = before.elements.length;
+    const beforeLayouts = new Map(before.elements.map((element) => [element.id, structuredClone(element.layout)]));
+    const beforeSlotDisplays = new Map(
+      before.elements
+        .filter((element) => element.props.imageSlot)
+        .map((element) => [element.id, structuredClone((element.props.imageSlot as DesignImageSlot).display)]),
+    );
+
+    const result = await imageGenerationNode(state, {
+      artifactStore: store,
+      createImageGeneration(request) {
+        return { url: `https://cdn.example.com/generated/${request.assetId}.png` };
+      },
+    });
+
+    const artifact = await readOutput(store, result);
+    expect(artifact.document.tree).toEqual(beforeTree);
+    expect(artifact.document.elements).toHaveLength(beforeElementsCount);
+    for (const element of artifact.document.elements) {
+      expect(element.layout).toEqual(beforeLayouts.get(element.id));
+      if (element.props.imageSlot) {
+        expect((element.props.imageSlot as DesignImageSlot).display).toEqual(beforeSlotDisplays.get(element.id));
+      }
+    }
+    expect(artifact.document.elements.find((element) => element.id === "feature_visual")?.props).toMatchObject({
+      src: "https://cdn.example.com/generated/feature_visual.png",
+      generatedImageSize: "1200x800",
+    });
+  });
   it("limits independent image calls to two concurrent requests", async () => {
     const { state, store } = await stateWithPlan("thread_image_generation_concurrency", planWithOptional());
     let active = 0;
@@ -218,40 +287,41 @@ function requiredPlan(): VisualAssetPlan {
     assets: [
       {
         id: "hero_background",
+        slotId: "hero_slot",
         kind: "background_image",
         role: "hero",
         targetElementId: "hero_section",
         purpose: "Create visual depth behind the hero copy",
         promptBrief: "Low-contrast premium product background with safe text area",
-        width: 1440,
-        height: 720,
+        width: 640,
+        height: 360,
         aspectRatio: "wide",
         priority: "required",
         foregroundTone: "light",
       },
       {
         id: "feature_visual",
+        slotId: "feature_slot",
         kind: "content_image",
         role: "section",
-        parentId: "hero_section",
-        order: 1,
+        targetElementId: "feature_visual",
         purpose: "Show the primary product capability",
         promptBrief: "Detailed product capability scene",
-        width: 800,
-        height: 800,
-        aspectRatio: "square",
+        width: 640,
+        height: 360,
+        aspectRatio: "wide",
         priority: "required",
       },
       {
         id: "supporting_visual",
+        slotId: "supporting_slot",
         kind: "content_image",
-        role: "illustration",
-        parentId: "hero_section",
-        order: 2,
+        role: "section",
+        targetElementId: "supporting_visual",
         purpose: "Support the secondary product message",
         promptBrief: "Editorial supporting product illustration",
-        width: 1200,
-        height: 675,
+        width: 640,
+        height: 360,
         aspectRatio: "wide",
         priority: "required",
       },
@@ -268,15 +338,15 @@ function planWithOptional(): VisualAssetPlan {
       ...plan.assets,
       {
         id: "optional_thumbnail",
+        slotId: "optional_slot",
         kind: "content_image",
         role: "thumbnail",
-        parentId: "hero_section",
-        order: 3,
+        targetElementId: "optional_thumbnail",
         purpose: "Add optional supporting detail",
         promptBrief: "Small supporting product detail",
-        width: 600,
-        height: 600,
-        aspectRatio: "square",
+        width: 640,
+        height: 360,
+        aspectRatio: "wide",
         priority: "optional",
       },
     ],
@@ -291,11 +361,22 @@ function baseDocument(): DesignDocument {
     canvas: { viewport: "desktop", width: 1440, background: "muted" },
     tree: {
       id: "page_root",
-      children: [{ id: "hero_section", children: [{ id: "hero_title", children: [] }] }],
+      children: [{
+        id: "hero_section",
+        children: [
+          { id: "hero_title", children: [] },
+          { id: "feature_visual", children: [] },
+          { id: "supporting_visual", children: [] },
+          { id: "optional_thumbnail", children: [] },
+        ],
+      }],
     },
     elements: [
       container("page_root", "page"),
-      container("hero_section", "section"),
+      {
+        ...container("hero_section", "section"),
+        props: { imageSlotId: "hero_slot", imageSlot: slot("hero_slot", "hero_section", "hero", "background", "16:9", 1536, 864, 480) },
+      },
       {
         id: "hero_title",
         name: "Hero title",
@@ -306,8 +387,42 @@ function baseDocument(): DesignDocument {
           text: { role: "heading", decoration: "none", transform: "none" },
         },
       },
+      image("feature_visual", slot("feature_slot", "hero_section", "section", "inline", "3:2", 1200, 800, 320)),
+      image("supporting_visual", slot("supporting_slot", "hero_section", "gallery", "inline", "4:3", 1200, 900, 360)),
+      image("optional_thumbnail", slot("optional_slot", "hero_section", "card", "inline", "1:1", 800, 800, 200)),
     ],
     variables: { designTheme: { theme: "commerce_editorial", tone: "premium" } },
+  };
+}
+
+function image(id: string, imageSlot: DesignImageSlot) {
+  return {
+    id,
+    name: id,
+    type: "image" as const,
+    layout: { width: "fill" as const, height: "hug" as const },
+    props: { imageSlotId: imageSlot.id, imageSlot, alt: id },
+    style: { base: baseStyle("muted"), image: { aspectRatio: "wide" as const, objectFit: "cover" as const } },
+  };
+}
+
+function slot(
+  id: string,
+  parentId: string,
+  role: DesignImageSlot["role"],
+  placement: DesignImageSlot["placement"],
+  aspectRatio: DesignImageSlot["display"]["aspectRatio"],
+  width: number,
+  height: number,
+  maxHeight: number,
+): DesignImageSlot {
+  return {
+    id,
+    parentId,
+    role,
+    placement,
+    display: { aspectRatio, width: "fill", maxHeight, objectFit: "cover", focalPoint: "center" },
+    generation: { width, height, safeArea: placement === "background" ? "left" : "none" },
   };
 }
 

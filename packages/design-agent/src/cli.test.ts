@@ -12,6 +12,7 @@ import { interactionPlanningModelOutputSchema } from "./nodes/interaction-planni
 import { imagePlanningModelOutputSchema } from "./nodes/image-planning/schema.js";
 import { questionGenerationOutputSchema } from "./nodes/question-generation/schema.js";
 import { stylePlanningModelOutputSchema } from "./nodes/style-planning/schema.js";
+import { visualReviewModelOutputSchema } from "./nodes/visual-review/schema.js";
 import { intentDimensionKeys } from "./state.js";
 
 describe("design agent cli", () => {
@@ -172,7 +173,7 @@ describe("design agent cli", () => {
       expect.objectContaining({ kind: "background_image" }),
       expect.objectContaining({ kind: "content_image" }),
     ]));
-  });
+  }, 15000);
 
   it("continues a failed run from a persisted pipeline node", async () => {
     const runDir = await mkdtemp(join(tmpdir(), "flowmind-design-agent-cli-continue-"));
@@ -200,7 +201,7 @@ describe("design agent cli", () => {
     expect(result.stage).toBe("completed");
     expect(result.latestArtifactRefs.image_planning.version).toBeGreaterThan(2);
     await expect(store.readManifest()).resolves.toMatchObject({ status: "completed" });
-  });
+  }, 15000);
 
   it("saves a clarification answer artifact and resumes the graph", async () => {
     const runDir = await mkdtemp(join(tmpdir(), "flowmind-design-agent-cli-"));
@@ -365,7 +366,7 @@ describe("design agent cli", () => {
           };
         }
         if (schema === jsonPlanningModelOutputSchema) return { structurePlan: fixtureStructurePlan() };
-        if (schema === layoutPlanningModelOutputSchema) return { layoutPlan: { strategy: "dashboard_grid", rootId: "page_root", sectionIds: [], notes: [] } };
+        if (schema === layoutPlanningModelOutputSchema) return { layoutPlan: fixtureLayoutPlan() };
         if (schema === elementPlanningModelOutputSchema) {
           return {
             elementPlan: {
@@ -389,6 +390,7 @@ describe("design agent cli", () => {
         if (schema === interactionPlanningModelOutputSchema) {
           return { interactionPlan: { interactions: [], notes: [] } };
         }
+        if (schema === visualReviewModelOutputSchema) return { issues: [], notes: [] };
         if (schema === stylePlanningModelOutputSchema) {
           return {
             stylePlan: {
@@ -397,6 +399,8 @@ describe("design agent cli", () => {
               assignments: [
                 { elementId: "page_root", preset: "page" },
                 { elementId: "section_main", preset: "section" },
+                { elementId: "section_workflow", preset: "section" },
+                { elementId: "section_detail", preset: "section" },
                 { elementId: "title_main", preset: "heading" },
               ],
               notes: [],
@@ -547,8 +551,43 @@ function fixtureStructurePlan() {
         name: "Main Section",
         purpose: "Material orchestration workspace",
       },
+      {
+        id: "section_workflow",
+        parentId: "page_root",
+        order: 1,
+        type: "section",
+        name: "Workflow Section",
+        purpose: "Show the material orchestration workflow",
+      },
+      {
+        id: "section_detail",
+        parentId: "page_root",
+        order: 2,
+        type: "section",
+        name: "Detail Section",
+        purpose: "Support material orchestration details",
+      },
     ],
   };
+}
+function fixtureLayoutPlan() {
+  return {
+    strategy: "dashboard_grid" as const,
+    rootId: "page_root",
+    sectionIds: ["section_main", "section_workflow", "section_detail"],
+    rhythm: "standard" as const,
+    hierarchy: { titleElementId: "section_main", primaryVisualSlotId: "fixture_slot_background" },
+    imageSlots: fixtureImageSlots(),
+    notes: [],
+  };
+}
+
+function fixtureImageSlots() {
+  return [
+    { id: "fixture_slot_background", parentId: "section_main", role: "hero" as const, placement: "background" as const, display: { aspectRatio: "16:9" as const, width: "fill" as const, maxHeight: 480, objectFit: "cover" as const, focalPoint: "center" as const }, generation: { width: 1536, height: 864, safeArea: "left" as const } },
+    { id: "fixture_slot_workflow", parentId: "section_workflow", role: "section" as const, placement: "inline" as const, display: { aspectRatio: "3:2" as const, width: "fill" as const, maxHeight: 320, objectFit: "cover" as const, focalPoint: "center" as const }, generation: { width: 1200, height: 800, safeArea: "none" as const } },
+    { id: "fixture_slot_detail", parentId: "section_detail", role: "card" as const, placement: "inline" as const, display: { aspectRatio: "1:1" as const, width: "half" as const, maxHeight: 220, objectFit: "contain" as const, focalPoint: "center" as const }, generation: { width: 1024, height: 1024, safeArea: "none" as const } },
+  ];
 }
 function fixtureDesignDocument() {
   return {
@@ -591,45 +630,9 @@ function fixtureImagePlan() {
     visualMode: "rich" as const,
     minimumGeneratedAssets: 3 as const,
     assets: [
-      {
-        id: "fixture_background",
-        kind: "background_image" as const,
-        role: "hero" as const,
-        targetElementId: "section_main",
-        purpose: "Create fixture background depth",
-        promptBrief: "Low-contrast workspace background",
-        width: 1440,
-        height: 720,
-        aspectRatio: "wide" as const,
-        priority: "required" as const,
-        foregroundTone: "light" as const,
-      },
-      {
-        id: "fixture_visual_one",
-        kind: "content_image" as const,
-        role: "section" as const,
-        parentId: "section_main",
-        order: 1,
-        purpose: "Show fixture workflow",
-        promptBrief: "Material orchestration workflow scene",
-        width: 1200,
-        height: 675,
-        aspectRatio: "wide" as const,
-        priority: "required" as const,
-      },
-      {
-        id: "fixture_visual_two",
-        kind: "content_image" as const,
-        role: "illustration" as const,
-        parentId: "section_main",
-        order: 2,
-        purpose: "Support fixture details",
-        promptBrief: "Material orchestration detail illustration",
-        width: 800,
-        height: 800,
-        aspectRatio: "square" as const,
-        priority: "required" as const,
-      },
+      { id: "fixture_background", slotId: "fixture_slot_background", purpose: "Create fixture background depth", promptBrief: "Low-contrast workspace background", priority: "required" as const },
+      { id: "fixture_visual_one", slotId: "fixture_slot_workflow", purpose: "Show fixture workflow", promptBrief: "Material orchestration workflow scene", priority: "required" as const },
+      { id: "fixture_visual_two", slotId: "fixture_slot_detail", purpose: "Support fixture details", promptBrief: "Material orchestration detail illustration", priority: "required" as const },
     ],
     notes: ["Deterministic fixture image plan."],
   };

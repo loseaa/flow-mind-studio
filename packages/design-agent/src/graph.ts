@@ -18,12 +18,14 @@ import {
   jsonPlanningNode,
   layoutPlanningNode,
   visualSlotReviewNode,
+  visualReviewNode,
   questionGenerationNode,
   reflectionRepairNode,
   routeAfterCompleteness,
   routeAfterQuestionGeneration,
   routeAfterReflectionRepair,
   routeAfterSchemaValidation,
+  routeAfterVisualReview,
   schemaValidationNode,
   stylePlanningNode
 } from "./nodes/index.js";
@@ -64,6 +66,7 @@ export type DesignAgentGraphStartNode =
   | "document_assembly"
   | "image_generation"
   | "schema_validation"
+  | "visual_review"
   | "reflection_repair"
   | "document_repair"
   | "final_output";
@@ -87,6 +90,7 @@ export function createDesignAgentGraph(options: DesignAgentGraphOptions = {}) {
     .addNode("image_generation", (state) => runGraphNode(options, "image_generation", () => imageGenerationNode(state, options)))
     .addNode("document_repair", (state) => runGraphNode(options, "document_repair", () => documentRepairNode(state, options)))
     .addNode("schema_validation", (state) => runGraphNode(options, "schema_validation", () => schemaValidationNode(state, options)))
+    .addNode("visual_review", (state) => runGraphNode(options, "visual_review", () => visualReviewNode(state, options)))
     .addNode("reflection_repair", (state) => runGraphNode(options, "reflection_repair", () => reflectionRepairNode(state, options)))
     .addNode("final_output", (state) => runGraphNode(options, "final_output", () => finalOutputNode(state, options)))
     .addNode("completed", (state) => runGraphNode(options, "completed", () => completedNode(state)))
@@ -102,6 +106,7 @@ export function createDesignAgentGraph(options: DesignAgentGraphOptions = {}) {
       document_assembly: "document_assembly",
       image_generation: "image_generation",
       schema_validation: "schema_validation",
+      visual_review: "visual_review",
       reflection_repair: "reflection_repair",
       document_repair: "document_repair",
       final_output: "final_output",
@@ -127,6 +132,10 @@ export function createDesignAgentGraph(options: DesignAgentGraphOptions = {}) {
     .addEdge("image_generation", "schema_validation")
     .addConditionalEdges("schema_validation", routeAfterSchemaValidation, {
       reflection_repair: "reflection_repair",
+      visual_review: "visual_review"
+    })
+    .addConditionalEdges("visual_review", routeAfterVisualReview, {
+      document_repair: "document_repair",
       final_output: "final_output"
     })
     .addConditionalEdges("reflection_repair", routeAfterReflectionRepair, {

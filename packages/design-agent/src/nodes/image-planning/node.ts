@@ -1,7 +1,7 @@
 import { designDocumentSchema, designImageSlotSchema, type DesignDocument, type DesignImageSlot } from "@flowmind/shared";
 
 import type { ArtifactRef, DesignAgentState } from "../../state.js";
-import { failPipelineNode, readDocumentFromLatestArtifact, writePipelineArtifact } from "../document-pipeline.js";
+import { failPipelineNode, writePipelineArtifact } from "../document-pipeline.js";
 import type { GraphNodeOptions } from "../types.js";
 import { compileVisualAssetPlan } from "./compiler.js";
 import { imagePlanningPrompt } from "./prompt.js";
@@ -20,13 +20,15 @@ type StylePlanningSource = { stylePlan?: { theme?: string; tone?: string } };
 type VisualSlotSource = { document?: DesignDocument; layoutPlan?: { imageSlots?: DesignImageSlot[] } };
 
 export async function imagePlanningNode(state: DesignAgentState, options: GraphNodeOptions): Promise<Partial<DesignAgentState>> {
-  const { document, inputRefs: styleRefs } = await readDocumentFromLatestArtifact(state, options, "style_planning");
+  const styleRef = state.latestArtifactRefs.style_planning;
   const visualRef = state.latestArtifactRefs.visual_slot_review;
-  if (!options.artifactStore || !visualRef) throw new Error("Missing required artifact for visual_slot_review.");
-  const styleSource = await readStyleSource(options, styleRefs[0]);
+  if (!options.artifactStore || !styleRef) throw new Error("Missing required artifact for style_planning.");
+  if (!visualRef) throw new Error("Missing required artifact for visual_slot_review.");
+  const styleSource = await readStyleSource(options, styleRef);
   const visualSource = await options.artifactStore.readArtifact<VisualSlotSource>(visualRef);
+  const document = readVisualReviewDocument(visualSource);
   const slots = (visualSource.output.layoutPlan?.imageSlots ?? []).map((slot) => designImageSlotSchema.parse(slot));
-  const inputRefs = [styleRefs[0], visualRef];
+  const inputRefs = [styleRef, visualRef];
   const planned = await createImagePlan(state, document, slots, styleSource, options, inputRefs);
   return writePipelineArtifact({ state, options, node: "image_planning", stage: "image_planning", inputRefs, output: planned, errors: [] });
 }
@@ -88,6 +90,13 @@ function createRuleBasedImageDraft(state: DesignAgentState, slots: DesignImageSl
   return { visualAssetPlan: { imagePolicy: "required", visualMode: slots.length > 3 ? "rich" : "standard", minimumGeneratedAssets: 3, assets: slots.map((slot, index) => ({ id: `visual_${slot.id}`, slotId: slot.id, purpose: `${slot.role} visual`, promptBrief: `Create a ${slot.role} image composed for the reviewed ${slot.display.aspectRatio} slot with ${slot.generation.safeArea} safe area`, priority: index < 3 ? "required" : "recommended" })), notes: ["Deterministic slot-based fallback."] } };
 }
 
+function readVisualReviewDocument(visualSource: { output: VisualSlotSource }): DesignDocument {
+  const parsed = designDocumentSchema.safeParse(visualSource.output.document);
+  if (!parsed.success) {
+    throw new Error(`Invalid visual_slot_review.output.document: ${parsed.error.message}`);
+  }
+  return parsed.data;
+}
 async function readStyleSource(options: GraphNodeOptions, ref: ArtifactRef): Promise<StylePlanningSource> {
   const artifact = await options.artifactStore!.readArtifact<StylePlanningSource>(ref); return artifact.output;
 }

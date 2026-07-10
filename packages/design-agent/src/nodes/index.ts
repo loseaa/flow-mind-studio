@@ -15,6 +15,7 @@ export { documentAssemblyNode } from "./document-assembly/node.js";
 export { imageGenerationNode } from "./image-generation/node.js";
 export { documentRepairNode } from "./document-repair/node.js";
 export { schemaValidationNode } from "./schema-validation/node.js";
+export { visualReviewNode } from "./visual-review/node.js";
 export { finalOutputNode } from "./final-output/node.js";
 export { reflectionRepairNode } from "./reflection-repair/node.js";
-export { routeAfterCompleteness, routeAfterQuestionGeneration, routeAfterReflectionRepair, routeAfterSchemaValidation } from "./routing.js";
+export { routeAfterCompleteness, routeAfterQuestionGeneration, routeAfterReflectionRepair, routeAfterSchemaValidation, routeAfterVisualReview } from "./routing.js";

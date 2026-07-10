@@ -1,4 +1,4 @@
-import { designDocumentSchema, type DesignDocument } from "@flowmind/shared";
+import { designDocumentSchema, designImageSlotSchema, type DesignDocument, type DesignElement, type DesignImageSlot } from "@flowmind/shared";
 
 import type { ArtifactRef, DesignAgentState } from "../../state.js";
 import { failPipelineNode, readDocumentFromLatestArtifact, writePipelineArtifact } from "../document-pipeline.js";
@@ -92,12 +92,21 @@ export function buildImageGenerationRequest(
   const targetElementId = asset.kind === "content_image"
     ? asset.targetElementId ?? asset.id
     : asset.targetElementId;
+  const target = document.elements.find((element) => element.id === targetElementId);
+  if (!target) throw new Error(`Image generation target does not exist: ${targetElementId}`);
+  const slot = resolveTargetSlot(target, asset);
   const textContext = collectTextContext(document);
   const theme = document.variables.designTheme ?? null;
   const confirmedIntent = state.dimensions.map((dimension) => ({
     key: dimension.key,
     value: dimension.value,
   }));
+  const requestWidth = slot.generation.width;
+  const requestHeight = slot.generation.height;
+  const requestRatio = ratioFor(slot.display.aspectRatio);
+  const requestKind = kindFor(slot);
+  const requestRole = roleFor(slot);
+  const foregroundTone = requestKind === "background_image" ? foregroundToneFor(asset) : undefined;
   const prompt = [
     imageGenerationPrompt,
     "",
@@ -105,34 +114,68 @@ export function buildImageGenerationRequest(
     `Page purpose and audience: ${JSON.stringify(confirmedIntent)}`,
     `Visual theme and tone: ${JSON.stringify(theme)}`,
     `Asset id: ${asset.id}`,
-    `Asset kind and role: ${asset.kind} / ${asset.role}`,
+    `Image slot: ${slot.id} / ${slot.role} / ${slot.placement}`,
+    `Asset kind and role: ${requestKind} / ${requestRole}`,
     `Target UI element: ${targetElementId}`,
     `Purpose: ${asset.purpose}`,
     `Composition brief: ${asset.promptBrief}`,
-    `Required pixel size: ${asset.width}x${asset.height}px`,
-    `Aspect ratio token: ${asset.aspectRatio}`,
+    `Required pixel size: ${requestWidth}x${requestHeight}px`,
+    `Display slot: aspect=${slot.display.aspectRatio}, width=${slot.display.width}, maxHeight=${slot.display.maxHeight ?? "auto"}, objectFit=${slot.display.objectFit}, focalPoint=${slot.display.focalPoint}`,
+    `Safe area: ${slot.generation.safeArea}`,
+    `Aspect ratio token: ${requestRatio}`,
     `Nearby UI text context: ${textContext.join(" | ") || document.name}`,
-    asset.kind === "background_image"
-      ? `Background requirement: keep contrast restrained, preserve a safe text area, and support ${asset.foregroundTone} foreground content.`
+    requestKind === "background_image"
+      ? `Background requirement: keep contrast restrained, preserve the ${slot.generation.safeArea} safe text area, and support ${foregroundTone} foreground content.`
       : "Content image requirement: keep the primary subject inside the safe crop area and match the surrounding UI hierarchy.",
     "Do not include watermarks, logos, unreadable text, UI chrome, or accidental text overlays.",
   ].join("\n");
 
   return {
     assetId: asset.id,
+    slotId: slot.id,
     elementId: targetElementId,
     targetElementId,
-    kind: asset.kind,
-    role: asset.role,
+    kind: requestKind,
+    role: requestRole,
     priority: asset.priority,
     purpose: asset.purpose,
     prompt,
-    width: asset.width,
-    height: asset.height,
-    aspectRatio: asset.aspectRatio,
+    width: requestWidth,
+    height: requestHeight,
+    aspectRatio: requestRatio,
   };
 }
 
+
+function kindFor(slot: DesignImageSlot): ImageGenerationRequest["kind"] {
+  return slot.placement === "background" ? "background_image" : "content_image";
+}
+
+function roleFor(slot: DesignImageSlot): ImageGenerationRequest["role"] {
+  if (slot.role === "hero") return "hero";
+  if (slot.role === "section") return "section";
+  if (slot.role === "card") return "thumbnail";
+  return "illustration";
+}
+
+function foregroundToneFor(asset: VisualAsset): "light" | "dark" {
+  return asset.kind === "background_image" ? asset.foregroundTone : "dark";
+}
+
+function resolveTargetSlot(target: DesignElement, asset: VisualAsset): DesignImageSlot {
+  const slot = designImageSlotSchema.parse(target.props.imageSlot);
+  if (asset.slotId && slot.id !== asset.slotId) {
+    throw new Error(`Visual asset ${asset.id} expects slot ${asset.slotId}, but target ${target.id} owns slot ${slot.id}.`);
+  }
+  if (target.props.imageSlotId !== slot.id) {
+    throw new Error(`Image generation target ${target.id} has inconsistent imageSlot metadata.`);
+  }
+  return slot;
+}
+
+function ratioFor(ratio: DesignImageSlot["display"]["aspectRatio"]): ImageGenerationRequest["aspectRatio"] {
+  return ratio === "1:1" ? "square" : ratio === "3:4" ? "portrait" : "wide";
+}
 async function generateAsset(
   state: DesignAgentState,
   document: DesignDocument,

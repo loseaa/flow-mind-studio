@@ -9,6 +9,7 @@ import { elementPlanningNode } from "../element-planning/node.js";
 import { interactionPlanningNode } from "../interaction-planning/node.js";
 import { jsonPlanningNode } from "../json-planning/node.js";
 import { layoutPlanningNode } from "../layout-planning/node.js";
+import { visualSlotReviewNode } from "../visual-slot-review/node.js";
 import { stylePlanningNode } from "./node.js";
 import { stylePlanningModelOutputSchema, type StylePlan } from "./schema.js";
 
@@ -152,6 +153,7 @@ async function stateWithInteractions(threadId: string) {
   let state: DesignAgentState = createInitialState(threadId);
   state = mergeState(state, await jsonPlanningNode(state, { artifactStore: store }));
   state = mergeState(state, await layoutPlanningNode(state, { artifactStore: store }));
+  state = mergeState(state, await visualSlotReviewNode(state, { artifactStore: store }));
   state = mergeState(state, await elementPlanningNode(state, {
     artifactStore: store,
     createStructuredOutput() {

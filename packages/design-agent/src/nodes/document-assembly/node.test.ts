@@ -6,11 +6,12 @@ import { describe, expect, it } from "vitest";
 import { createArtifactStore } from "../../artifacts/store.js";
 import { createInitialState, type DesignAgentState } from "../../state.js";
 import { elementPlanningNode } from "../element-planning/node.js";
-import { interactionPlanningNode } from "../interaction-planning/node.js";
 import { imagePlanningNode } from "../image-planning/node.js";
+import { interactionPlanningNode } from "../interaction-planning/node.js";
 import { jsonPlanningNode } from "../json-planning/node.js";
 import { layoutPlanningNode } from "../layout-planning/node.js";
 import { stylePlanningNode } from "../style-planning/node.js";
+import { visualSlotReviewNode } from "../visual-slot-review/node.js";
 import { documentAssemblyNode } from "./node.js";
 
 describe("documentAssemblyNode", () => {
@@ -23,8 +24,10 @@ describe("documentAssemblyNode", () => {
     const stateWithJson = mergeState(state, jsonUpdate);
     const layoutUpdate = await layoutPlanningNode(stateWithJson, { artifactStore: store });
     const stateWithLayout = mergeState(stateWithJson, layoutUpdate);
-    const elementUpdate = await elementPlanningNode(stateWithLayout, { artifactStore: store });
-    const stateWithElement = mergeState(stateWithLayout, elementUpdate);
+    const visualSlotUpdate = await visualSlotReviewNode(stateWithLayout, { artifactStore: store });
+    const stateWithVisualSlot = mergeState(stateWithLayout, visualSlotUpdate);
+    const elementUpdate = await elementPlanningNode(stateWithVisualSlot, { artifactStore: store });
+    const stateWithElement = mergeState(stateWithVisualSlot, elementUpdate);
     const interactionUpdate = await interactionPlanningNode(stateWithElement, { artifactStore: store });
     const stateWithInteraction = mergeState(stateWithElement, interactionUpdate);
     const styleUpdate = await stylePlanningNode(stateWithInteraction, { artifactStore: store });
@@ -42,6 +45,7 @@ describe("documentAssemblyNode", () => {
       inputRefs: [
         expect.objectContaining({ node: "json_planning" }),
         expect.objectContaining({ node: "layout_planning" }),
+        expect.objectContaining({ node: "visual_slot_review" }),
         expect.objectContaining({ node: "element_planning" }),
         expect.objectContaining({ node: "interaction_planning" }),
         expect.objectContaining({ node: "style_planning" }),
@@ -51,11 +55,12 @@ describe("documentAssemblyNode", () => {
         document: {
           schemaVersion: "fm-design/v1",
           elements: expect.arrayContaining([
-            expect.objectContaining({ id: "ai_content_visual_1", type: "image" }),
+            expect.objectContaining({ type: "image", props: expect.objectContaining({ imageSlotId: expect.any(String), imageSlot: expect.any(Object) }) }),
           ]),
           variables: {
             visualAssets: expect.any(Object),
             agentPlanning: {
+              visualSlotReview: expect.objectContaining({ layoutPlan: expect.any(Object) }),
               visualAssetPlan: expect.objectContaining({ imagePolicy: "required", minimumGeneratedAssets: 3 }),
             },
           },
@@ -63,6 +68,7 @@ describe("documentAssemblyNode", () => {
         sourcePlans: {
           structurePlanning: expect.any(Object),
           layoutPlanning: expect.any(Object),
+          visualSlotReview: expect.objectContaining({ layoutPlan: expect.any(Object) }),
           elementPlanning: expect.any(Object),
           interactionPlanning: expect.any(Object),
           stylePlanning: expect.any(Object),
@@ -71,6 +77,7 @@ describe("documentAssemblyNode", () => {
         sourceArtifacts: {
           structurePlanning: expect.objectContaining({ node: "json_planning" }),
           layoutPlanning: expect.objectContaining({ node: "layout_planning" }),
+          visualSlotReview: expect.objectContaining({ node: "visual_slot_review" }),
           elementPlanning: expect.objectContaining({ node: "element_planning" }),
           interactionPlanning: expect.objectContaining({ node: "interaction_planning" }),
           stylePlanning: expect.objectContaining({ node: "style_planning" }),

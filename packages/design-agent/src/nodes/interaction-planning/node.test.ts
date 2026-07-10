@@ -8,6 +8,7 @@ import { createInitialState, type DesignAgentState } from "../../state.js";
 import { elementPlanningNode } from "../element-planning/node.js";
 import { jsonPlanningNode } from "../json-planning/node.js";
 import { layoutPlanningNode } from "../layout-planning/node.js";
+import { visualSlotReviewNode } from "../visual-slot-review/node.js";
 import { interactionPlanningNode } from "./node.js";
 import { interactionPlanningModelOutputSchema, type InteractionPlan } from "./schema.js";
 
@@ -108,6 +109,7 @@ async function stateWithElements(threadId: string) {
   let state: DesignAgentState = createInitialState(threadId);
   state = mergeState(state, await jsonPlanningNode(state, { artifactStore: store }));
   state = mergeState(state, await layoutPlanningNode(state, { artifactStore: store }));
+  state = mergeState(state, await visualSlotReviewNode(state, { artifactStore: store }));
   state = mergeState(state, await elementPlanningNode(state, {
     artifactStore: store,
     createStructuredOutput() {

@@ -12,6 +12,7 @@ export type CreateStructuredOutput = (schema: unknown) => StructuredOutputRunnab
 
 export type ImageGenerationRequest = {
   assetId: string;
+  slotId: string;
   elementId: string;
   targetElementId: string;
   kind: "content_image" | "background_image";

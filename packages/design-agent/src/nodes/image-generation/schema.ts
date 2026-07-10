@@ -3,6 +3,7 @@ import { z } from "zod";
 
 export const imageGenerationItemSchema = z.object({
   assetId: z.string().min(1),
+  slotId: z.string().min(1),
   elementId: z.string().min(1),
   targetElementId: z.string().min(1),
   kind: z.enum(["content_image", "background_image"]),

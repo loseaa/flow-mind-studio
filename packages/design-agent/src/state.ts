@@ -42,6 +42,7 @@ export type AgentStage =
   | "document_assembly"
   | "image_generation"
   | "schema_validation"
+  | "visual_review"
   | "final_output"
   | "reflection_repair"
   | "document_repair"

@@ -89,7 +89,7 @@ async function generateOpenAICompatibleImage(input: {
       model: input.model,
       prompt: input.request.prompt,
       n: 1,
-      size: input.request.width + "x" + input.request.height,
+      size: openAICompatibleImageSize(input.request, input.model),
     }),
   });
   const bodyText = await response.text();
@@ -176,6 +176,21 @@ function geminiAspectRatio(aspectRatio: ImageGenerationRequest["aspectRatio"]) {
   if (aspectRatio === "square") return "1:1";
   if (aspectRatio === "portrait") return "3:4";
   return "16:9";
+}
+
+function openAICompatibleImageSize(request: ImageGenerationRequest, model: string) {
+  const normalizedModel = model.toLowerCase();
+  if (normalizedModel.includes("dall-e-3")) {
+    if (request.aspectRatio === "portrait") return "1024x1792";
+    if (request.aspectRatio === "wide") return "1792x1024";
+    return "1024x1024";
+  }
+  if (normalizedModel.includes("gpt-image-1")) {
+    if (request.aspectRatio === "portrait") return "1024x1536";
+    if (request.aspectRatio === "wide") return "1536x1024";
+    return "1024x1024";
+  }
+  return request.width + "x" + request.height;
 }
 
 function extensionForMimeType(mimeType?: string) {

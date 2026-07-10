@@ -9,6 +9,7 @@ type PlanningArtifactOutput = {
   document?: DesignDocument;
   structurePlan?: unknown;
   layoutPlan?: unknown;
+  issues?: unknown;
   elementPlan?: unknown;
   interactionPlan?: unknown;
   stylePlan?: unknown;
@@ -22,10 +23,15 @@ export async function documentAssemblyNode(
   const { document } = await readDocumentFromLatestArtifact(state, options, "image_planning");
   const structure = await readPlanningArtifact(state, options, "json_planning");
   const layout = await readPlanningArtifact(state, options, "layout_planning");
+  const visualSlot = await readPlanningArtifact(state, options, "visual_slot_review");
   const element = await readPlanningArtifact(state, options, "element_planning");
   const interaction = await readPlanningArtifact(state, options, "interaction_planning");
   const style = await readPlanningArtifact(state, options, "style_planning");
   const image = await readPlanningArtifact(state, options, "image_planning");
+  const visualSlotReview = {
+    layoutPlan: visualSlot.output.layoutPlan ?? null,
+    issues: visualSlot.output.issues ?? [],
+  };
   const assembledDocument = designDocumentSchema.parse({
     ...document,
     variables: {
@@ -33,6 +39,7 @@ export async function documentAssemblyNode(
       agentPlanning: {
         structurePlan: structure.output.structurePlan ?? null,
         layoutPlan: layout.output.layoutPlan ?? null,
+        visualSlotReview,
         elementPlan: element.output.elementPlan ?? null,
         interactionPlan: interaction.output.interactionPlan ?? null,
         stylePlan: style.output.stylePlan ?? null,
@@ -45,6 +52,7 @@ export async function documentAssemblyNode(
     sourcePlans: {
       structurePlanning: structure.output.structurePlan ?? null,
       layoutPlanning: layout.output.layoutPlan ?? null,
+      visualSlotReview,
       elementPlanning: element.output.elementPlan ?? null,
       interactionPlanning: interaction.output.interactionPlan ?? null,
       stylePlanning: style.output.stylePlan ?? null,
@@ -53,6 +61,7 @@ export async function documentAssemblyNode(
     sourceArtifacts: {
       structurePlanning: structure.ref,
       layoutPlanning: layout.ref,
+      visualSlotReview: visualSlot.ref,
       elementPlanning: element.ref,
       interactionPlanning: interaction.ref,
       stylePlanning: style.ref,
@@ -65,7 +74,7 @@ export async function documentAssemblyNode(
     options,
     node: "document_assembly",
     stage: "document_assembly",
-    inputRefs: [structure.ref, layout.ref, element.ref, interaction.ref, style.ref, image.ref],
+    inputRefs: [structure.ref, layout.ref, visualSlot.ref, element.ref, interaction.ref, style.ref, image.ref],
     output,
   });
 }

@@ -12,7 +12,7 @@ describe("createImageGenerationFactory", () => {
       {},
       {
         DESIGN_AGENT_IMAGE_API_KEY: "image-key",
-        DESIGN_AGENT_IMAGE_MODEL: "image-model",
+        DESIGN_AGENT_IMAGE_MODEL: "dall-e-3",
         DESIGN_AGENT_IMAGE_BASE_URL: "https://image.example.com/v1/",
       },
       async (url, init) => {
@@ -28,6 +28,7 @@ describe("createImageGenerationFactory", () => {
     expect(generator).toBeDefined();
     const result = await generator!({
       assetId: "hero_visual",
+      slotId: "hero_slot",
       elementId: "hero_image",
       targetElementId: "hero_image",
       kind: "content_image",
@@ -43,7 +44,7 @@ describe("createImageGenerationFactory", () => {
     expect(result).toEqual({
       url: "https://cdn.example.com/generated.png",
       provider: "openai-compatible",
-      model: "image-model",
+      model: "dall-e-3",
       revisedPrompt: "revised",
     });
     expect(calls).toEqual([
@@ -51,13 +52,37 @@ describe("createImageGenerationFactory", () => {
         url: "https://image.example.com/v1/images/generations",
         authorization: "Bearer image-key",
         body: expect.objectContaining({
-          model: "image-model",
+          model: "dall-e-3",
           prompt: "Generate a 800x200 ecommerce hero image",
-          size: "800x200",
+          size: "1792x1024",
         }),
       },
     ]);
     expect(calls[0].body).not.toHaveProperty("response_format");
+  });
+
+  it("keeps custom OpenAI-compatible image model sizes unchanged", async () => {
+    const calls: Array<{ body: unknown }> = [];
+    const generator = createImageGenerationFactory(
+      {},
+      {
+        DESIGN_AGENT_IMAGE_API_KEY: "image-key",
+        DESIGN_AGENT_IMAGE_MODEL: "custom-image-model",
+        DESIGN_AGENT_IMAGE_BASE_URL: "https://image.example.com/v1/",
+      },
+      async (_url, init) => {
+        calls.push({ body: JSON.parse(init.body) });
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({ data: [{ url: "https://cdn.example.com/generated.png" }] }),
+        };
+      },
+    );
+
+    await generator!({ ...imageRequest(), width: 800, height: 200, aspectRatio: "wide" });
+
+    expect(calls[0].body).toEqual(expect.objectContaining({ size: "800x200" }));
   });
 
   it("returns undefined when no image API key is configured", () => {
@@ -108,6 +133,7 @@ describe("createImageGenerationFactory", () => {
 function imageRequest() {
   return {
     assetId: "hero_visual",
+    slotId: "hero_slot",
     elementId: "hero_image",
     targetElementId: "hero_image",
     kind: "content_image" as const,

@@ -17,6 +17,7 @@ import { layoutPlanningModelOutputSchema } from "./nodes/layout-planning/schema.
 import { questionGenerationOutputSchema } from "./nodes/question-generation/schema.js";
 import { reflectionRepairModelOutputSchema } from "./nodes/reflection-repair/schema.js";
 import { stylePlanningModelOutputSchema } from "./nodes/style-planning/schema.js";
+import { visualReviewModelOutputSchema } from "./nodes/visual-review/schema.js";
 import type { CreateImageGeneration, CreateStructuredOutput } from "./nodes/types.js";
 import type { ArtifactRef, ClarificationPlan, CompletenessResult, DesignAgentState, IntentDimension } from "./state.js";
 import { createInitialState, intentDimensionKeys } from "./state.js";
@@ -419,6 +420,7 @@ function readGraphStartNode(value: string): DesignAgentGraphStartNode {
     "intent_recognition",
     "json_planning",
     "layout_planning",
+    "visual_slot_review",
     "element_planning",
     "interaction_planning",
     "style_planning",
@@ -426,6 +428,7 @@ function readGraphStartNode(value: string): DesignAgentGraphStartNode {
     "document_assembly",
     "image_generation",
     "schema_validation",
+    "visual_review",
     "reflection_repair",
     "document_repair",
     "final_output",
@@ -464,14 +467,7 @@ function createCompleteFixtureStructuredOutput(): CreateStructuredOutput {
         return { structurePlan: fixtureStructurePlan() };
       }
       if (schema === layoutPlanningModelOutputSchema) {
-        return {
-          layoutPlan: {
-            strategy: "dashboard_grid",
-            rootId: "page_root",
-            sectionIds: ["section_main"],
-            notes: ["Fixture layout plan for a material orchestration dashboard."],
-          },
-        };
+        return { layoutPlan: fixtureLayoutPlan() };
       }
       if (schema === elementPlanningModelOutputSchema) {
         return {
@@ -516,12 +512,17 @@ function createCompleteFixtureStructuredOutput(): CreateStructuredOutput {
             assignments: [
               { elementId: "page_root", preset: "page" },
               { elementId: "section_main", preset: "section" },
+              { elementId: "section_workflow", preset: "section" },
+              { elementId: "section_detail", preset: "section" },
               { elementId: "title_main", preset: "heading" },
               { elementId: "subtitle_main", preset: "body" },
             ],
             notes: ["Fixture style plan uses a light operational admin theme."],
           },
         };
+      }
+      if (schema === visualReviewModelOutputSchema) {
+        return { issues: [], notes: [] };
       }
       if (schema === reflectionRepairModelOutputSchema) {
         return {
@@ -535,6 +536,9 @@ function createCompleteFixtureStructuredOutput(): CreateStructuredOutput {
       if (schema === questionGenerationOutputSchema) {
         return { reason: "fixture complete intent has no questions", questions: [] };
       }
+      if (schema === visualReviewModelOutputSchema) {
+        return { issues: [], notes: ["Fixture visual review passed."] };
+      }
       throw new Error("Unsupported fixture schema.");
     },
   });
@@ -546,45 +550,9 @@ function fixtureVisualAssetPlan() {
     visualMode: "rich" as const,
     minimumGeneratedAssets: 3 as const,
     assets: [
-      {
-        id: "fixture_background",
-        kind: "background_image" as const,
-        role: "hero" as const,
-        targetElementId: "section_main",
-        purpose: "Create visual depth for the fixture page",
-        promptBrief: "Low-contrast material orchestration workspace background with safe text area",
-        width: 1440,
-        height: 720,
-        aspectRatio: "wide" as const,
-        priority: "required" as const,
-        foregroundTone: "light" as const,
-      },
-      {
-        id: "fixture_visual_one",
-        kind: "content_image" as const,
-        role: "section" as const,
-        parentId: "section_main",
-        order: 2,
-        purpose: "Show the material orchestration workflow",
-        promptBrief: "Material orchestration workflow scene with clear hierarchy",
-        width: 1200,
-        height: 675,
-        aspectRatio: "wide" as const,
-        priority: "required" as const,
-      },
-      {
-        id: "fixture_visual_two",
-        kind: "content_image" as const,
-        role: "illustration" as const,
-        parentId: "section_main",
-        order: 3,
-        purpose: "Support material orchestration details",
-        promptBrief: "Material orchestration detail illustration with safe cropping",
-        width: 800,
-        height: 800,
-        aspectRatio: "square" as const,
-        priority: "required" as const,
-      },
+      { id: "fixture_background", slotId: "fixture_slot_background", purpose: "Create visual depth for the fixture page", promptBrief: "Low-contrast material orchestration workspace background with safe text area", priority: "required" as const },
+      { id: "fixture_visual_one", slotId: "fixture_slot_workflow", purpose: "Show the material orchestration workflow", promptBrief: "Material orchestration workflow scene with clear hierarchy", priority: "required" as const },
+      { id: "fixture_visual_two", slotId: "fixture_slot_detail", purpose: "Support material orchestration details", promptBrief: "Material orchestration detail illustration with safe cropping", priority: "required" as const },
     ],
     notes: ["Deterministic complete fixture image plan."],
   };
@@ -596,6 +564,25 @@ function createCompleteFixtureImageGeneration(): CreateImageGeneration {
     provider: "fixture",
     model: "fixture-image",
   });
+}
+function fixtureLayoutPlan() {
+  return {
+    strategy: "dashboard_grid" as const,
+    rootId: "page_root",
+    sectionIds: ["section_main", "section_workflow", "section_detail"],
+    rhythm: "standard" as const,
+    hierarchy: { titleElementId: "section_main", primaryVisualSlotId: "fixture_slot_background" },
+    imageSlots: fixtureImageSlots(),
+    notes: ["Fixture layout plan for a material orchestration dashboard."],
+  };
+}
+
+function fixtureImageSlots() {
+  return [
+    { id: "fixture_slot_background", parentId: "section_main", role: "hero" as const, placement: "background" as const, display: { aspectRatio: "16:9" as const, width: "fill" as const, maxHeight: 480, objectFit: "cover" as const, focalPoint: "center" as const }, generation: { width: 1536, height: 864, safeArea: "left" as const } },
+    { id: "fixture_slot_workflow", parentId: "section_workflow", role: "section" as const, placement: "inline" as const, display: { aspectRatio: "3:2" as const, width: "fill" as const, maxHeight: 320, objectFit: "cover" as const, focalPoint: "center" as const }, generation: { width: 1200, height: 800, safeArea: "none" as const } },
+    { id: "fixture_slot_detail", parentId: "section_detail", role: "card" as const, placement: "inline" as const, display: { aspectRatio: "1:1" as const, width: "half" as const, maxHeight: 220, objectFit: "contain" as const, focalPoint: "center" as const }, generation: { width: 1024, height: 1024, safeArea: "none" as const } },
+  ];
 }
 function fixtureStructurePlan() {
   return {
@@ -622,6 +609,22 @@ function fixtureStructurePlan() {
         type: "section",
         name: "Main Section",
         purpose: "Material orchestration workspace",
+      },
+      {
+        id: "section_workflow",
+        parentId: "page_root",
+        order: 1,
+        type: "section",
+        name: "Workflow Section",
+        purpose: "Show the material orchestration workflow",
+      },
+      {
+        id: "section_detail",
+        parentId: "page_root",
+        order: 2,
+        type: "section",
+        name: "Detail Section",
+        purpose: "Support material orchestration details",
       },
     ],
   };

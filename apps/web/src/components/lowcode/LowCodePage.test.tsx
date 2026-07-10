@@ -68,6 +68,57 @@ describe("LowCodePage design builder", () => {
     expect((container.querySelector('[data-node-id="section1"] section') as HTMLElement | null)?.style.backgroundImage).toContain("data:image/svg+xml;base64");
     expect(container.querySelector('[data-node-id="customer_table"]')).toBeNull();
   });
+  it("renders image slot sizing and focal point metadata on the canvas", () => {
+    const document = structuredClone(fallbackDesignDocument);
+    const header = document.elements.find((element) => element.id === "header_section");
+    const heroImage = document.elements.find((element) => element.id === "hero_image");
+
+    expect(header).toBeDefined();
+    expect(heroImage).toBeDefined();
+    header!.props = {
+      ...header!.props,
+      imageSlotId: "slot_background_test",
+      imageSlot: {
+        id: "slot_background_test",
+        parentId: "header_section",
+        role: "hero",
+        placement: "background",
+        display: { aspectRatio: "16:9", width: "fill", minHeight: 360, maxHeight: 420, objectFit: "contain", focalPoint: "right" },
+        generation: { width: 1536, height: 864, safeArea: "left" }
+      }
+    };
+    heroImage!.props = {
+      ...heroImage!.props,
+      imageSlotId: "slot_inline_test",
+      imageSlot: {
+        id: "slot_inline_test",
+        parentId: "hero_image",
+        role: "card",
+        placement: "inline",
+        display: { aspectRatio: "1:1", width: "half", minHeight: 160, maxHeight: 200, objectFit: "contain", focalPoint: "top" },
+        generation: { width: 800, height: 800, safeArea: "none" }
+      }
+    };
+
+    const { container } = render(<LowCodePage initialDocument={designDocumentSchema.parse(document)} loadStoredDocument={false} />);
+
+    const headerNode = container.querySelector('[data-node-id="header_section"] [data-image-slot="true"]') as HTMLElement | null;
+    const imageSlot = container.querySelector('[data-node-id="hero_image"] [data-image-slot="slot_inline_test"]') as HTMLElement | null;
+    const image = imageSlot?.querySelector("img") as HTMLImageElement | null;
+
+    expect(headerNode).toHaveAttribute("data-image-slot", "true");
+    expect(headerNode).toHaveAttribute("data-image-slot-id", "slot_background_test");
+    expect(headerNode).toHaveAttribute("data-image-slot-role", "hero");
+    expect(headerNode).toHaveAttribute("data-image-slot-safe-area", "left");
+    const overlay = container.querySelector('[data-node-id="header_section"] [data-image-slot-overlay="slot_background_test"]') as HTMLElement | null;
+
+    expect(headerNode).toHaveStyle({ minHeight: "360px", maxHeight: "420px", backgroundSize: "contain", backgroundPosition: "right center", backgroundRepeat: "no-repeat" });
+    expect(overlay).toHaveStyle({ background: "linear-gradient(90deg, rgba(255,255,255,0.78) 0%, rgba(255,255,255,0.48) 42%, rgba(255,255,255,0) 72%)" });
+    expect(imageSlot).toHaveAttribute("data-image-slot-role", "card");
+    expect(imageSlot).toHaveAttribute("data-image-slot-placement", "inline");
+    expect(imageSlot).toHaveStyle({ aspectRatio: "1 / 1", width: "50%", maxWidth: "100%", flexBasis: "50%", minHeight: "160px", maxHeight: "200px" });
+    expect(image).toHaveStyle({ objectFit: "contain", objectPosition: "center top" });
+  });
   it("adds a material from the palette and selects it", () => {
     const { container } = render(<LowCodePage />);
 

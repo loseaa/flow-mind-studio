@@ -6,6 +6,7 @@ export type DocumentAssemblyOutput = {
   sourcePlans: {
     structurePlanning: unknown;
     layoutPlanning: unknown;
+    visualSlotReview: unknown;
     elementPlanning: unknown;
     interactionPlanning: unknown;
     stylePlanning: unknown;
@@ -14,6 +15,7 @@ export type DocumentAssemblyOutput = {
   sourceArtifacts: {
     structurePlanning: ArtifactRef;
     layoutPlanning: ArtifactRef;
+    visualSlotReview: ArtifactRef;
     elementPlanning: ArtifactRef;
     interactionPlanning: ArtifactRef;
     stylePlanning: ArtifactRef;
