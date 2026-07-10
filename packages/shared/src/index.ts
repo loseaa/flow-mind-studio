@@ -428,6 +428,57 @@ export const designFontWeightValues = ["regular", "medium", "semibold", "bold"] 
 export const designLineHeightValues = ["tight", "normal", "relaxed"] as const;
 export const designTextAlignValues = ["left", "center", "right"] as const;
 
+const designImageSlotHeightRanges = {
+  hero: { min: 360, max: 560 },
+  section: { min: 240, max: 420 },
+  card: { min: 160, max: 280 },
+  gallery: { min: 180, max: 360 }
+} as const;
+
+export const designImageSlotSchema = z
+  .object({
+    id: z.string().trim().min(1),
+    parentId: z.string().trim().min(1),
+    role: z.enum(["hero", "section", "card", "gallery"]),
+    placement: z.enum(["background", "inline"]),
+    display: z
+      .object({
+        aspectRatio: z.enum(["16:9", "4:3", "3:2", "1:1", "3:4"]),
+        width: z.enum(["fill", "half", "third"]),
+        minHeight: z.number().int().positive().optional(),
+        maxHeight: z.number().int().positive(),
+        objectFit: z.enum(["cover", "contain"]),
+        focalPoint: z.enum(["center", "top", "left", "right"])
+      })
+      .strict(),
+    generation: z
+      .object({
+        width: z.number().int().positive().max(4096),
+        height: z.number().int().positive().max(4096),
+        safeArea: z.enum(["left", "right", "center", "none"])
+      })
+      .strict()
+  })
+  .strict()
+  .superRefine((slot, context) => {
+    const range = designImageSlotHeightRanges[slot.role];
+    if (slot.display.maxHeight < range.min || slot.display.maxHeight > range.max) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `${slot.role} image slot maxHeight must be between ${range.min} and ${range.max}`,
+        path: ["display", "maxHeight"]
+      });
+    }
+
+    if (slot.display.minHeight !== undefined && slot.display.minHeight > slot.display.maxHeight) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Image slot minHeight must not exceed maxHeight",
+        path: ["display", "minHeight"]
+      });
+    }
+  });
+export type DesignImageSlot = z.infer<typeof designImageSlotSchema>;
 export type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
 
 export const jsonValueSchema: z.ZodType<JsonValue> = z.lazy(() =>

@@ -1,0 +1,153 @@
+{
+  "threadId": "ecommerce-image-planning-verify",
+  "status": "completed",
+  "currentNode": "final_output",
+  "completedNodes": [
+    "intent_recognition",
+    "completeness_check",
+    "intent_compaction",
+    "json_planning",
+    "layout_planning",
+    "element_planning",
+    "interaction_planning",
+    "style_planning",
+    "image_planning",
+    "document_assembly",
+    "image_generation",
+    "schema_validation",
+    "final_output"
+  ],
+  "artifacts": {
+    "intent_recognition": {
+      "node": "intent_recognition",
+      "path": "E:\\FlowMindStudio\\artifacts\\runs\\ecommerce-image-planning-verify\\intent_recognition.v1.json",
+      "version": 1,
+      "checksum": "2a1e807ce53fa5f73f30eecac3335c8c33924eb4e4e6e12db1205ea36647a39f",
+      "createdAt": "2026-07-02T01:08:56.073Z",
+      "dependsOn": []
+    },
+    "completeness_check": {
+      "node": "completeness_check",
+      "path": "E:\\FlowMindStudio\\artifacts\\runs\\ecommerce-image-planning-verify\\completeness_check.v1.json",
+      "version": 1,
+      "checksum": "32274ff2322ae3dfc559f38607b83b38de0c3118e9ef36e1fdaec8b99e57e74c",
+      "createdAt": "2026-07-02T01:08:56.139Z",
+      "dependsOn": []
+    },
+    "intent_compaction": {
+      "node": "intent_compaction",
+      "path": "E:\\FlowMindStudio\\artifacts\\runs\\ecommerce-image-planning-verify\\intent_compaction.v1.json",
+      "version": 1,
+      "checksum": "c204f56006f1b92408e948985ceaf48464b1d4d736100bf78801c80946060c37",
+      "createdAt": "2026-07-02T01:08:56.243Z",
+      "dependsOn": [
+        "E:\\FlowMindStudio\\artifacts\\runs\\ecommerce-image-planning-verify\\completeness_check.v1.json"
+      ]
+    },
+    "json_planning": {
+      "node": "json_planning",
+      "path": "E:\\FlowMindStudio\\artifacts\\runs\\ecommerce-image-planning-verify\\json_planning.v1.json",
+      "version": 1,
+      "checksum": "bca48f327c3cc338c3b39773c0fd868aa2755c6653acd973675b393134117092",
+      "createdAt": "2026-07-02T01:08:56.341Z",
+      "dependsOn": [
+        "E:\\FlowMindStudio\\artifacts\\runs\\ecommerce-image-planning-verify\\intent_compaction.v1.json"
+      ]
+    },
+    "layout_planning": {
+      "node": "layout_planning",
+      "path": "E:\\FlowMindStudio\\artifacts\\runs\\ecommerce-image-planning-verify\\layout_planning.v1.json",
+      "version": 1,
+      "checksum": "e1480facdfcc8c0cf13c9b7cf2b7cd81bf763bae15ce5d58bbfd7166bc44e546",
+      "createdAt": "2026-07-02T01:08:56.394Z",
+      "dependsOn": [
+        "E:\\FlowMindStudio\\artifacts\\runs\\ecommerce-image-planning-verify\\json_planning.v1.json"
+      ]
+    },
+    "element_planning": {
+      "node": "element_planning",
+      "path": "E:\\FlowMindStudio\\artifacts\\runs\\ecommerce-image-planning-verify\\element_planning.v1.json",
+      "version": 1,
+      "checksum": "c994cb79a8d5d8c32a09a56188f1c9708204c1e5a100e3f700c318d5f88abfa8",
+      "createdAt": "2026-07-02T01:08:56.440Z",
+      "dependsOn": [
+        "E:\\FlowMindStudio\\artifacts\\runs\\ecommerce-image-planning-verify\\layout_planning.v1.json"
+      ]
+    },
+    "interaction_planning": {
+      "node": "interaction_planning",
+      "path": "E:\\FlowMindStudio\\artifacts\\runs\\ecommerce-image-planning-verify\\interaction_planning.v1.json",
+      "version": 1,
+      "checksum": "ff00bd7e340ea45eb73c052bd492690fde1cbb41112951f4f005597cd43fb40b",
+      "createdAt": "2026-07-02T01:08:56.489Z",
+      "dependsOn": [
+        "E:\\FlowMindStudio\\artifacts\\runs\\ecommerce-image-planning-verify\\element_planning.v1.json"
+      ]
+    },
+    "style_planning": {
+      "node": "style_planning",
+      "path": "E:\\FlowMindStudio\\artifacts\\runs\\ecommerce-image-planning-verify\\style_planning.v1.json",
+      "version": 1,
+      "checksum": "cf2dfb4dc63a2561a1190f2880b120e421436b07775fbdbc6be0e07ce544910d",
+      "createdAt": "2026-07-02T01:08:56.526Z",
+      "dependsOn": [
+        "E:\\FlowMindStudio\\artifacts\\runs\\ecommerce-image-planning-verify\\interaction_planning.v1.json"
+      ]
+    },
+    "image_planning": {
+      "node": "image_planning",
+      "path": "E:\\FlowMindStudio\\artifacts\\runs\\ecommerce-image-planning-verify\\image_planning.v1.json",
+      "version": 1,
+      "checksum": "f667ebfe4bc17356fd26da46d7f3835bda5f4ac00a91b0f47efb678d619ab473",
+      "createdAt": "2026-07-02T01:08:56.572Z",
+      "dependsOn": [
+        "E:\\FlowMindStudio\\artifacts\\runs\\ecommerce-image-planning-verify\\style_planning.v1.json"
+      ]
+    },
+    "document_assembly": {
+      "node": "document_assembly",
+      "path": "E:\\FlowMindStudio\\artifacts\\runs\\ecommerce-image-planning-verify\\document_assembly.v1.json",
+      "version": 1,
+      "checksum": "b09aa4deddfa8dbaf88e60bf501a9c76cfd59403ef0d1db34fa3445f5cc93532",
+      "createdAt": "2026-07-02T01:08:56.673Z",
+      "dependsOn": [
+        "E:\\FlowMindStudio\\artifacts\\runs\\ecommerce-image-planning-verify\\json_planning.v1.json",
+        "E:\\FlowMindStudio\\artifacts\\runs\\ecommerce-image-planning-verify\\layout_planning.v1.json",
+        "E:\\FlowMindStudio\\artifacts\\runs\\ecommerce-image-planning-verify\\element_planning.v1.json",
+        "E:\\FlowMindStudio\\artifacts\\runs\\ecommerce-image-planning-verify\\interaction_planning.v1.json",
+        "E:\\FlowMindStudio\\artifacts\\runs\\ecommerce-image-planning-verify\\style_planning.v1.json",
+        "E:\\FlowMindStudio\\artifacts\\runs\\ecommerce-image-planning-verify\\image_planning.v1.json"
+      ]
+    },
+    "image_generation": {
+      "node": "image_generation",
+      "path": "E:\\FlowMindStudio\\artifacts\\runs\\ecommerce-image-planning-verify\\image_generation.v1.json",
+      "version": 1,
+      "checksum": "b4a2076e12d4bb63ed2e6c4d6539b7f01cdd3de94e1c98e0501c14f3cf1c5650",
+      "createdAt": "2026-07-02T01:08:56.730Z",
+      "dependsOn": [
+        "E:\\FlowMindStudio\\artifacts\\runs\\ecommerce-image-planning-verify\\document_assembly.v1.json"
+      ]
+    },
+    "schema_validation": {
+      "node": "schema_validation",
+      "path": "E:\\FlowMindStudio\\artifacts\\runs\\ecommerce-image-planning-verify\\schema_validation.v1.json",
+      "version": 1,
+      "checksum": "cc88a62ae8a9c41733a3c474b24b1e9d50b875685a609ba6c0b0ca52a99d8e90",
+      "createdAt": "2026-07-02T01:08:56.775Z",
+      "dependsOn": [
+        "E:\\FlowMindStudio\\artifacts\\runs\\ecommerce-image-planning-verify\\image_generation.v1.json"
+      ]
+    },
+    "final_output": {
+      "node": "final_output",
+      "path": "E:\\FlowMindStudio\\artifacts\\runs\\ecommerce-image-planning-verify\\final_output.v1.json",
+      "version": 1,
+      "checksum": "51f75c14676cadf9b857c2a0ad4b4b3b8455cf19123aa95f932b62a66df8a9e1",
+      "createdAt": "2026-07-02T01:08:56.855Z",
+      "dependsOn": [
+        "E:\\FlowMindStudio\\artifacts\\runs\\ecommerce-image-planning-verify\\schema_validation.v1.json"
+      ]
+    }
+  }
+}

@@ -1,0 +1,28 @@
+{
+    "name":  "@flowmind/design-agent",
+    "version":  "0.1.0",
+    "private":  true,
+    "type":  "module",
+    "main":  "dist/index.js",
+    "types":  "dist/index.d.ts",
+    "scripts":  {
+                    "agent":  "node --no-warnings --loader ts-node/esm src/cli.ts",
+                    "build":  "tsc -p tsconfig.json",
+                    "typecheck":  "tsc -p tsconfig.json --noEmit",
+                    "test":  "vitest run",
+                    "lint":  "tsc -p tsconfig.json --noEmit"
+                },
+    "dependencies":  {
+                         "@flowmind/shared":  "workspace:*",
+                         "@langchain/core":  "^0.3.40",
+                         "@langchain/langgraph":  "^0.2.74",
+                         "@langchain/openai":  "^0.6.17",
+                         "inquirer":  "^9.2.15",
+                         "ora":  "^5.4.1",
+                         "picocolors":  "^1.1.1"
+                     },
+    "devDependencies":  {
+                            "ts-node":  "^10.9.2",
+                            "vitest":  "^2.1.8"
+                        }
+}

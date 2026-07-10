@@ -1,0 +1,582 @@
+{
+  "threadId": "ecommerce-image-planning-verify",
+  "node": "image_generation",
+  "version": 1,
+  "status": "success",
+  "inputRefs": [
+    {
+      "node": "document_assembly",
+      "path": "E:\\FlowMindStudio\\artifacts\\runs\\ecommerce-image-planning-verify\\document_assembly.v1.json",
+      "version": 1,
+      "checksum": "b09aa4deddfa8dbaf88e60bf501a9c76cfd59403ef0d1db34fa3445f5cc93532"
+    }
+  ],
+  "output": {
+    "document": {
+      "schemaVersion": "fm-design/v1",
+      "id": "fixture_material_orchestration_dashboard",
+      "name": "Material Orchestration Dashboard",
+      "canvas": {
+        "viewport": "desktop",
+        "width": 1440,
+        "background": "muted"
+      },
+      "tree": {
+        "id": "page_root",
+        "children": [
+          {
+            "id": "section_main",
+            "children": [
+              {
+                "id": "title_main",
+                "children": []
+              },
+              {
+                "id": "subtitle_main",
+                "children": []
+              },
+              {
+                "id": "fixture_visual_one",
+                "children": []
+              },
+              {
+                "id": "fixture_visual_two",
+                "children": []
+              }
+            ]
+          }
+        ]
+      },
+      "elements": [
+        {
+          "id": "page_root",
+          "name": "Page",
+          "layout": {
+            "display": "flex",
+            "direction": "vertical",
+            "gap": "lg",
+            "padding": "lg",
+            "width": "fill"
+          },
+          "props": {
+            "purpose": "Application root"
+          },
+          "type": "page",
+          "style": {
+            "base": {
+              "backgroundColor": "muted",
+              "radius": "none",
+              "border": {
+                "width": "none",
+                "style": "none",
+                "color": "border"
+              },
+              "text": {
+                "color": "textPrimary",
+                "fontFamily": "sans",
+                "fontSize": "md",
+                "fontWeight": "regular",
+                "lineHeight": "normal",
+                "align": "left"
+              }
+            },
+            "container": {
+              "shadow": "none",
+              "overflow": "visible",
+              "surface": "flat"
+            }
+          }
+        },
+        {
+          "id": "section_main",
+          "name": "Main Section",
+          "layout": {
+            "display": "flex",
+            "direction": "vertical",
+            "gap": "md",
+            "padding": "md",
+            "width": "fill"
+          },
+          "props": {
+            "purpose": "Create visual depth for the fixture page",
+            "visualAssetId": "fixture_background",
+            "visualAssetKind": "background_image",
+            "visualAssetRole": "hero",
+            "promptBrief": "Low-contrast material orchestration workspace background with safe text area",
+            "requestedWidth": 1440,
+            "requestedHeight": 720,
+            "foregroundTone": "light",
+            "generationPriority": "required",
+            "generatedImagePrompt": "Generate production-ready imagery for a planned UI visual asset.\nFollow the exact pixel dimensions, aspect ratio, asset role, target region, and visual style supplied below.\nKeep important subjects inside a safe crop area and reserve negative space where UI text overlaps the asset.\nDo not include watermarks, logos, unreadable text, UI chrome, or decorative text overlays.\n\nDesign document: Material Orchestration Dashboard\nPage purpose and audience: [{\"key\":\"page_context\",\"value\":{\"fixture\":true,\"key\":\"page_context\"}},{\"key\":\"content_structure\",\"value\":{\"fixture\":true,\"key\":\"content_structure\"}},{\"key\":\"data_requirements\",\"value\":{\"fixture\":true,\"key\":\"data_requirements\"}},{\"key\":\"interaction_flow\",\"value\":{\"fixture\":true,\"key\":\"interaction_flow\"}},{\"key\":\"presentation_rules\",\"value\":{\"fixture\":true,\"key\":\"presentation_rules\"}}]\nVisual theme and tone: {\"theme\":\"enterprise_light\",\"tone\":\"operational\"}\nAsset id: fixture_background\nAsset kind and role: background_image / hero\nTarget UI element: section_main\nPurpose: Create visual depth for the fixture page\nComposition brief: Low-contrast material orchestration workspace background with safe text area\nRequired pixel size: 1440x720px\nAspect ratio token: wide\nNearby UI text context: Material Orchestration Dashboard | Fixture draft generated for full-flow CLI debugging.\nBackground requirement: keep contrast restrained, preserve a safe text area, and support light foreground content.\nDo not include watermarks, logos, unreadable text, UI chrome, or accidental text overlays.",
+            "generatedImageSize": "1440x720"
+          },
+          "type": "section",
+          "style": {
+            "base": {
+              "backgroundColor": "muted",
+              "backgroundImage": "https://cdn.example.com/design-agent-fixture/fixture_background.png",
+              "radius": "md",
+              "border": {
+                "width": "none",
+                "style": "none",
+                "color": "border"
+              },
+              "text": {
+                "color": "textPrimary",
+                "fontFamily": "sans",
+                "fontSize": "md",
+                "fontWeight": "regular",
+                "lineHeight": "normal",
+                "align": "left"
+              }
+            },
+            "container": {
+              "shadow": "none",
+              "overflow": "visible",
+              "surface": "flat"
+            }
+          }
+        },
+        {
+          "id": "title_main",
+          "name": "Title",
+          "layout": {
+            "width": "fill"
+          },
+          "props": {
+            "role": "heading",
+            "purpose": "Identify the material orchestration workspace",
+            "text": "Material Orchestration Dashboard"
+          },
+          "type": "text",
+          "style": {
+            "base": {
+              "backgroundColor": "transparent",
+              "radius": "md",
+              "border": {
+                "width": "none",
+                "style": "none",
+                "color": "border"
+              },
+              "text": {
+                "color": "white",
+                "fontFamily": "sans",
+                "fontSize": "2xl",
+                "fontWeight": "bold",
+                "lineHeight": "tight",
+                "align": "left"
+              }
+            },
+            "text": {
+              "role": "heading",
+              "decoration": "none",
+              "transform": "none"
+            }
+          }
+        },
+        {
+          "id": "subtitle_main",
+          "name": "Description",
+          "layout": {
+            "width": "fill"
+          },
+          "props": {
+            "purpose": "Describe the fixture run",
+            "text": "Fixture draft generated for full-flow CLI debugging."
+          },
+          "type": "text",
+          "style": {
+            "base": {
+              "backgroundColor": "transparent",
+              "radius": "md",
+              "border": {
+                "width": "none",
+                "style": "none",
+                "color": "border"
+              },
+              "text": {
+                "color": "white",
+                "fontFamily": "sans",
+                "fontSize": "md",
+                "fontWeight": "regular",
+                "lineHeight": "normal",
+                "align": "left"
+              }
+            },
+            "text": {
+              "role": "body",
+              "decoration": "none",
+              "transform": "none"
+            }
+          }
+        },
+        {
+          "id": "fixture_visual_one",
+          "name": "Show the material orchestration workflow",
+          "layout": {
+            "width": "fill",
+            "height": "fixed",
+            "fixedHeight": 675
+          },
+          "props": {
+            "alt": "Show the material orchestration workflow",
+            "visualAssetId": "fixture_visual_one",
+            "visualAssetKind": "content_image",
+            "visualAssetRole": "section",
+            "purpose": "Show the material orchestration workflow",
+            "promptBrief": "Material orchestration workflow scene with clear hierarchy",
+            "requestedWidth": 1200,
+            "requestedHeight": 675,
+            "generationPriority": "required",
+            "src": "https://cdn.example.com/design-agent-fixture/fixture_visual_one.png",
+            "generatedImagePrompt": "Generate production-ready imagery for a planned UI visual asset.\nFollow the exact pixel dimensions, aspect ratio, asset role, target region, and visual style supplied below.\nKeep important subjects inside a safe crop area and reserve negative space where UI text overlaps the asset.\nDo not include watermarks, logos, unreadable text, UI chrome, or decorative text overlays.\n\nDesign document: Material Orchestration Dashboard\nPage purpose and audience: [{\"key\":\"page_context\",\"value\":{\"fixture\":true,\"key\":\"page_context\"}},{\"key\":\"content_structure\",\"value\":{\"fixture\":true,\"key\":\"content_structure\"}},{\"key\":\"data_requirements\",\"value\":{\"fixture\":true,\"key\":\"data_requirements\"}},{\"key\":\"interaction_flow\",\"value\":{\"fixture\":true,\"key\":\"interaction_flow\"}},{\"key\":\"presentation_rules\",\"value\":{\"fixture\":true,\"key\":\"presentation_rules\"}}]\nVisual theme and tone: {\"theme\":\"enterprise_light\",\"tone\":\"operational\"}\nAsset id: fixture_visual_one\nAsset kind and role: content_image / section\nTarget UI element: fixture_visual_one\nPurpose: Show the material orchestration workflow\nComposition brief: Material orchestration workflow scene with clear hierarchy\nRequired pixel size: 1200x675px\nAspect ratio token: wide\nNearby UI text context: Material Orchestration Dashboard | Fixture draft generated for full-flow CLI debugging.\nContent image requirement: keep the primary subject inside the safe crop area and match the surrounding UI hierarchy.\nDo not include watermarks, logos, unreadable text, UI chrome, or accidental text overlays.",
+            "generatedImageSize": "1200x675"
+          },
+          "type": "image",
+          "style": {
+            "base": {
+              "backgroundColor": "muted",
+              "radius": "md",
+              "border": {
+                "width": "none",
+                "style": "none",
+                "color": "border"
+              },
+              "text": {
+                "color": "textPrimary",
+                "fontFamily": "sans",
+                "fontSize": "md",
+                "fontWeight": "regular",
+                "lineHeight": "normal",
+                "align": "left"
+              }
+            },
+            "image": {
+              "aspectRatio": "wide",
+              "objectFit": "cover"
+            }
+          }
+        },
+        {
+          "id": "fixture_visual_two",
+          "name": "Support material orchestration details",
+          "layout": {
+            "width": "fill",
+            "height": "fixed",
+            "fixedHeight": 800
+          },
+          "props": {
+            "alt": "Support material orchestration details",
+            "visualAssetId": "fixture_visual_two",
+            "visualAssetKind": "content_image",
+            "visualAssetRole": "illustration",
+            "purpose": "Support material orchestration details",
+            "promptBrief": "Material orchestration detail illustration with safe cropping",
+            "requestedWidth": 800,
+            "requestedHeight": 800,
+            "generationPriority": "required",
+            "src": "https://cdn.example.com/design-agent-fixture/fixture_visual_two.png",
+            "generatedImagePrompt": "Generate production-ready imagery for a planned UI visual asset.\nFollow the exact pixel dimensions, aspect ratio, asset role, target region, and visual style supplied below.\nKeep important subjects inside a safe crop area and reserve negative space where UI text overlaps the asset.\nDo not include watermarks, logos, unreadable text, UI chrome, or decorative text overlays.\n\nDesign document: Material Orchestration Dashboard\nPage purpose and audience: [{\"key\":\"page_context\",\"value\":{\"fixture\":true,\"key\":\"page_context\"}},{\"key\":\"content_structure\",\"value\":{\"fixture\":true,\"key\":\"content_structure\"}},{\"key\":\"data_requirements\",\"value\":{\"fixture\":true,\"key\":\"data_requirements\"}},{\"key\":\"interaction_flow\",\"value\":{\"fixture\":true,\"key\":\"interaction_flow\"}},{\"key\":\"presentation_rules\",\"value\":{\"fixture\":true,\"key\":\"presentation_rules\"}}]\nVisual theme and tone: {\"theme\":\"enterprise_light\",\"tone\":\"operational\"}\nAsset id: fixture_visual_two\nAsset kind and role: content_image / illustration\nTarget UI element: fixture_visual_two\nPurpose: Support material orchestration details\nComposition brief: Material orchestration detail illustration with safe cropping\nRequired pixel size: 800x800px\nAspect ratio token: square\nNearby UI text context: Material Orchestration Dashboard | Fixture draft generated for full-flow CLI debugging.\nContent image requirement: keep the primary subject inside the safe crop area and match the surrounding UI hierarchy.\nDo not include watermarks, logos, unreadable text, UI chrome, or accidental text overlays.",
+            "generatedImageSize": "800x800"
+          },
+          "type": "image",
+          "style": {
+            "base": {
+              "backgroundColor": "muted",
+              "radius": "md",
+              "border": {
+                "width": "none",
+                "style": "none",
+                "color": "border"
+              },
+              "text": {
+                "color": "textPrimary",
+                "fontFamily": "sans",
+                "fontSize": "md",
+                "fontWeight": "regular",
+                "lineHeight": "normal",
+                "align": "left"
+              }
+            },
+            "image": {
+              "aspectRatio": "square",
+              "objectFit": "cover"
+            }
+          }
+        }
+      ],
+      "variables": {
+        "structurePurposes": {
+          "page_root": "Application root",
+          "section_main": "Material orchestration workspace"
+        },
+        "interactions": [],
+        "designTheme": {
+          "theme": "enterprise_light",
+          "tone": "operational"
+        },
+        "visualAssets": {
+          "imagePolicy": "required",
+          "visualMode": "rich",
+          "minimumGeneratedAssets": 3,
+          "assets": [
+            {
+              "id": "fixture_background",
+              "role": "hero",
+              "purpose": "Create visual depth for the fixture page",
+              "promptBrief": "Low-contrast material orchestration workspace background with safe text area",
+              "width": 1440,
+              "height": 720,
+              "aspectRatio": "wide",
+              "priority": "required",
+              "kind": "background_image",
+              "targetElementId": "section_main",
+              "foregroundTone": "light"
+            },
+            {
+              "id": "fixture_visual_one",
+              "role": "section",
+              "purpose": "Show the material orchestration workflow",
+              "promptBrief": "Material orchestration workflow scene with clear hierarchy",
+              "width": 1200,
+              "height": 675,
+              "aspectRatio": "wide",
+              "priority": "required",
+              "kind": "content_image",
+              "parentId": "section_main",
+              "order": 2
+            },
+            {
+              "id": "fixture_visual_two",
+              "role": "illustration",
+              "purpose": "Support material orchestration details",
+              "promptBrief": "Material orchestration detail illustration with safe cropping",
+              "width": 800,
+              "height": 800,
+              "aspectRatio": "square",
+              "priority": "required",
+              "kind": "content_image",
+              "parentId": "section_main",
+              "order": 3
+            }
+          ],
+          "notes": [
+            "Deterministic complete fixture image plan."
+          ]
+        },
+        "agentPlanning": {
+          "structurePlan": {
+            "document": {
+              "id": "fixture_material_orchestration_dashboard",
+              "name": "Material Orchestration Dashboard",
+              "viewport": "desktop",
+              "width": 1440,
+              "background": "muted"
+            },
+            "nodes": [
+              {
+                "id": "page_root",
+                "parentId": null,
+                "order": 0,
+                "type": "page",
+                "name": "Page",
+                "purpose": "Application root"
+              },
+              {
+                "id": "section_main",
+                "parentId": "page_root",
+                "order": 0,
+                "type": "section",
+                "name": "Main Section",
+                "purpose": "Material orchestration workspace"
+              }
+            ]
+          },
+          "layoutPlan": {
+            "strategy": "dashboard_grid",
+            "rootId": "page_root",
+            "sectionIds": [
+              "section_main"
+            ],
+            "notes": [
+              "Fixture layout plan for a material orchestration dashboard."
+            ]
+          },
+          "elementPlan": {
+            "elements": [
+              {
+                "id": "title_main",
+                "parentId": "section_main",
+                "order": 0,
+                "type": "text",
+                "name": "Title",
+                "purpose": "Identify the material orchestration workspace",
+                "content": "Material Orchestration Dashboard",
+                "attributes": [
+                  {
+                    "key": "role",
+                    "value": "heading"
+                  }
+                ]
+              },
+              {
+                "id": "subtitle_main",
+                "parentId": "section_main",
+                "order": 1,
+                "type": "text",
+                "name": "Description",
+                "purpose": "Describe the fixture run",
+                "content": "Fixture draft generated for full-flow CLI debugging.",
+                "attributes": []
+              }
+            ],
+            "notes": [
+              "Fixture semantic element plan."
+            ]
+          },
+          "interactionPlan": {
+            "interactions": [],
+            "notes": [
+              "Fixture interaction plan."
+            ]
+          },
+          "stylePlan": {
+            "theme": "enterprise_light",
+            "tone": "operational",
+            "assignments": [
+              {
+                "elementId": "page_root",
+                "preset": "page"
+              },
+              {
+                "elementId": "section_main",
+                "preset": "section"
+              },
+              {
+                "elementId": "title_main",
+                "preset": "heading"
+              },
+              {
+                "elementId": "subtitle_main",
+                "preset": "body"
+              }
+            ],
+            "notes": [
+              "Fixture style plan uses a light operational admin theme."
+            ]
+          },
+          "visualAssetPlan": {
+            "imagePolicy": "required",
+            "visualMode": "rich",
+            "minimumGeneratedAssets": 3,
+            "assets": [
+              {
+                "id": "fixture_background",
+                "role": "hero",
+                "purpose": "Create visual depth for the fixture page",
+                "promptBrief": "Low-contrast material orchestration workspace background with safe text area",
+                "width": 1440,
+                "height": 720,
+                "aspectRatio": "wide",
+                "priority": "required",
+                "kind": "background_image",
+                "targetElementId": "section_main",
+                "foregroundTone": "light"
+              },
+              {
+                "id": "fixture_visual_one",
+                "role": "section",
+                "purpose": "Show the material orchestration workflow",
+                "promptBrief": "Material orchestration workflow scene with clear hierarchy",
+                "width": 1200,
+                "height": 675,
+                "aspectRatio": "wide",
+                "priority": "required",
+                "kind": "content_image",
+                "parentId": "section_main",
+                "order": 2
+              },
+              {
+                "id": "fixture_visual_two",
+                "role": "illustration",
+                "purpose": "Support material orchestration details",
+                "promptBrief": "Material orchestration detail illustration with safe cropping",
+                "width": 800,
+                "height": 800,
+                "aspectRatio": "square",
+                "priority": "required",
+                "kind": "content_image",
+                "parentId": "section_main",
+                "order": 3
+              }
+            ],
+            "notes": [
+              "Deterministic complete fixture image plan."
+            ]
+          }
+        }
+      }
+    },
+    "images": [
+      {
+        "assetId": "fixture_background",
+        "elementId": "section_main",
+        "targetElementId": "section_main",
+        "kind": "background_image",
+        "role": "hero",
+        "priority": "required",
+        "purpose": "Create visual depth for the fixture page",
+        "prompt": "Generate production-ready imagery for a planned UI visual asset.\nFollow the exact pixel dimensions, aspect ratio, asset role, target region, and visual style supplied below.\nKeep important subjects inside a safe crop area and reserve negative space where UI text overlaps the asset.\nDo not include watermarks, logos, unreadable text, UI chrome, or decorative text overlays.\n\nDesign document: Material Orchestration Dashboard\nPage purpose and audience: [{\"key\":\"page_context\",\"value\":{\"fixture\":true,\"key\":\"page_context\"}},{\"key\":\"content_structure\",\"value\":{\"fixture\":true,\"key\":\"content_structure\"}},{\"key\":\"data_requirements\",\"value\":{\"fixture\":true,\"key\":\"data_requirements\"}},{\"key\":\"interaction_flow\",\"value\":{\"fixture\":true,\"key\":\"interaction_flow\"}},{\"key\":\"presentation_rules\",\"value\":{\"fixture\":true,\"key\":\"presentation_rules\"}}]\nVisual theme and tone: {\"theme\":\"enterprise_light\",\"tone\":\"operational\"}\nAsset id: fixture_background\nAsset kind and role: background_image / hero\nTarget UI element: section_main\nPurpose: Create visual depth for the fixture page\nComposition brief: Low-contrast material orchestration workspace background with safe text area\nRequired pixel size: 1440x720px\nAspect ratio token: wide\nNearby UI text context: Material Orchestration Dashboard | Fixture draft generated for full-flow CLI debugging.\nBackground requirement: keep contrast restrained, preserve a safe text area, and support light foreground content.\nDo not include watermarks, logos, unreadable text, UI chrome, or accidental text overlays.",
+        "width": 1440,
+        "height": 720,
+        "aspectRatio": "wide",
+        "attempts": 1,
+        "status": "generated",
+        "url": "https://cdn.example.com/design-agent-fixture/fixture_background.png",
+        "provider": "fixture",
+        "model": "fixture-image"
+      },
+      {
+        "assetId": "fixture_visual_one",
+        "elementId": "fixture_visual_one",
+        "targetElementId": "fixture_visual_one",
+        "kind": "content_image",
+        "role": "section",
+        "priority": "required",
+        "purpose": "Show the material orchestration workflow",
+        "prompt": "Generate production-ready imagery for a planned UI visual asset.\nFollow the exact pixel dimensions, aspect ratio, asset role, target region, and visual style supplied below.\nKeep important subjects inside a safe crop area and reserve negative space where UI text overlaps the asset.\nDo not include watermarks, logos, unreadable text, UI chrome, or decorative text overlays.\n\nDesign document: Material Orchestration Dashboard\nPage purpose and audience: [{\"key\":\"page_context\",\"value\":{\"fixture\":true,\"key\":\"page_context\"}},{\"key\":\"content_structure\",\"value\":{\"fixture\":true,\"key\":\"content_structure\"}},{\"key\":\"data_requirements\",\"value\":{\"fixture\":true,\"key\":\"data_requirements\"}},{\"key\":\"interaction_flow\",\"value\":{\"fixture\":true,\"key\":\"interaction_flow\"}},{\"key\":\"presentation_rules\",\"value\":{\"fixture\":true,\"key\":\"presentation_rules\"}}]\nVisual theme and tone: {\"theme\":\"enterprise_light\",\"tone\":\"operational\"}\nAsset id: fixture_visual_one\nAsset kind and role: content_image / section\nTarget UI element: fixture_visual_one\nPurpose: Show the material orchestration workflow\nComposition brief: Material orchestration workflow scene with clear hierarchy\nRequired pixel size: 1200x675px\nAspect ratio token: wide\nNearby UI text context: Material Orchestration Dashboard | Fixture draft generated for full-flow CLI debugging.\nContent image requirement: keep the primary subject inside the safe crop area and match the surrounding UI hierarchy.\nDo not include watermarks, logos, unreadable text, UI chrome, or accidental text overlays.",
+        "width": 1200,
+        "height": 675,
+        "aspectRatio": "wide",
+        "attempts": 1,
+        "status": "generated",
+        "url": "https://cdn.example.com/design-agent-fixture/fixture_visual_one.png",
+        "provider": "fixture",
+        "model": "fixture-image"
+      },
+      {
+        "assetId": "fixture_visual_two",
+        "elementId": "fixture_visual_two",
+        "targetElementId": "fixture_visual_two",
+        "kind": "content_image",
+        "role": "illustration",
+        "priority": "required",
+        "purpose": "Support material orchestration details",
+        "prompt": "Generate production-ready imagery for a planned UI visual asset.\nFollow the exact pixel dimensions, aspect ratio, asset role, target region, and visual style supplied below.\nKeep important subjects inside a safe crop area and reserve negative space where UI text overlaps the asset.\nDo not include watermarks, logos, unreadable text, UI chrome, or decorative text overlays.\n\nDesign document: Material Orchestration Dashboard\nPage purpose and audience: [{\"key\":\"page_context\",\"value\":{\"fixture\":true,\"key\":\"page_context\"}},{\"key\":\"content_structure\",\"value\":{\"fixture\":true,\"key\":\"content_structure\"}},{\"key\":\"data_requirements\",\"value\":{\"fixture\":true,\"key\":\"data_requirements\"}},{\"key\":\"interaction_flow\",\"value\":{\"fixture\":true,\"key\":\"interaction_flow\"}},{\"key\":\"presentation_rules\",\"value\":{\"fixture\":true,\"key\":\"presentation_rules\"}}]\nVisual theme and tone: {\"theme\":\"enterprise_light\",\"tone\":\"operational\"}\nAsset id: fixture_visual_two\nAsset kind and role: content_image / illustration\nTarget UI element: fixture_visual_two\nPurpose: Support material orchestration details\nComposition brief: Material orchestration detail illustration with safe cropping\nRequired pixel size: 800x800px\nAspect ratio token: square\nNearby UI text context: Material Orchestration Dashboard | Fixture draft generated for full-flow CLI debugging.\nContent image requirement: keep the primary subject inside the safe crop area and match the surrounding UI hierarchy.\nDo not include watermarks, logos, unreadable text, UI chrome, or accidental text overlays.",
+        "width": 800,
+        "height": 800,
+        "aspectRatio": "square",
+        "attempts": 1,
+        "status": "generated",
+        "url": "https://cdn.example.com/design-agent-fixture/fixture_visual_two.png",
+        "provider": "fixture",
+        "model": "fixture-image"
+      }
+    ],
+    "generatedCount": 3,
+    "minimumGeneratedAssets": 3,
+    "imagePolicy": "required"
+  },
+  "errors": [],
+  "createdAt": "2026-07-02T01:08:56.730Z"
+}

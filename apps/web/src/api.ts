@@ -26,6 +26,16 @@ export async function apiPost<T>(path: string, body: unknown, fallback: T): Prom
   }
 }
 
+
+export async function apiPostStrict<T>(path: string, body: unknown = {}): Promise<T> {
+  const response = await fetch(`${API_BASE_URL}/api${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body)
+  });
+  if (!response.ok) throw new Error(await readError(response));
+  return (await response.json()) as T;
+}
 export async function apiPatch<T>(path: string, body: unknown): Promise<T> {
   const response = await fetch(`${API_BASE_URL}/api${path}`, {
     method: "PATCH",

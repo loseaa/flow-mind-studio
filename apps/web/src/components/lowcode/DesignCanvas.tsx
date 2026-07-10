@@ -3,7 +3,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { MouseEvent as ReactMouseEvent, ReactNode, WheelEvent as ReactWheelEvent } from "react";
 import interact from "interactjs";
 import type { CSSProperties } from "react";
-import type { DesignBaseStyle, DesignDocument, DesignElement, DesignLayout, DesignTreeNode, DesignVariables } from "@flowmind/shared";
+import { designImageSlotSchema, type DesignBaseStyle, type DesignDocument, type DesignElement, type DesignImageSlot, type DesignLayout, type DesignTreeNode, type DesignVariables } from "@flowmind/shared";
 import { Button, Input } from "@flowmind/ui";
 import { customerRows, fieldLabels, isContainerElement } from "./lowcodeData";
 import { elementMap } from "./designDocumentOps";
@@ -372,7 +372,7 @@ function CanvasNodeFrame({
 }) {
   const container = isContainerElement(element.type);
   const className = [
-    "group/design relative transition",
+    "group/design relative z-[1] transition",
     element.type !== "page" ? "design-sortable-node" : "",
     container ? "design-node-dropzone" : "",
     selected ? "z-10 ring-2 ring-[#0f766e] ring-offset-2 ring-offset-white" : "hover:ring-1 hover:ring-[#9db0c4]",
@@ -446,13 +446,13 @@ function renderElementContent(
   variables: DesignVariables
 ) {
   if (element.type === "page") {
-    return <div className={layoutClass(element, "min-h-[760px] bg-white p-8")} style={containerVisualStyle(element)}>{children}</div>;
+    return <div className={layoutClass(element, "relative min-h-[760px] bg-white p-8")} {...imageSlotDataAttributes(element)} style={containerVisualStyle(element)}>{renderContainerChildren(element, children, emptyContainer)}</div>;
   }
   if (element.type === "section") {
-    return <section className={layoutClass(element, "rounded-lg border border-[#d9e1e8] bg-white p-5")} style={containerVisualStyle(element)}>{emptyContainer ? <EmptyContainerHint /> : children}</section>;
+    return <section className={layoutClass(element, "relative rounded-lg border border-[#d9e1e8] bg-white p-5")} {...imageSlotDataAttributes(element)} style={containerVisualStyle(element)}>{renderContainerChildren(element, children, emptyContainer)}</section>;
   }
   if (element.type === "stack") {
-    return <div className={layoutClass(element, "rounded-lg border border-dashed border-[#cbd5df] bg-[#f8fafb] p-4")} style={containerVisualStyle(element)}>{emptyContainer ? <EmptyContainerHint /> : children}</div>;
+    return <div className={layoutClass(element, "relative rounded-lg border border-dashed border-[#cbd5df] bg-[#f8fafb] p-4")} {...imageSlotDataAttributes(element)} style={containerVisualStyle(element)}>{renderContainerChildren(element, children, emptyContainer)}</div>;
   }
   if (element.type === "text") return <TextPreview element={element} selected={selected} onSelect={onSelect} onUpdateProps={onUpdateProps} variables={variables} />;
   if (element.type === "image") return <ImagePreview element={element} variables={variables} />;
@@ -468,6 +468,16 @@ function renderElementContent(
   return null;
 }
 
+function renderContainerChildren(element: DesignElement, children: ReactNode, emptyContainer: boolean) {
+  const slot = readImageSlot(element);
+  const hasBackground = Boolean(slot && slot.placement === "background" && element.style.base.backgroundImage?.trim());
+  return (
+    <>
+      {hasBackground && slot ? <div aria-hidden data-image-slot-overlay={slot.id} className="pointer-events-none absolute inset-0 z-0 rounded-[inherit]" style={backgroundOverlayStyle(slot)} /> : null}
+      {emptyContainer ? <EmptyContainerHint /> : children}
+    </>
+  );
+}
 function TextPreview({
   element,
   onSelect,
@@ -686,13 +696,23 @@ function ButtonPreview({ element, variables }: { element: DesignElement; variabl
 
 function ImagePreview({ element, variables }: { element: DesignElement; variables: DesignVariables }) {
   if (element.type !== "image") return null;
+  const slot = readImageSlot(element);
   const aspectRatio = element.style.image.aspectRatio === "square" ? "aspect-square" : element.style.image.aspectRatio === "portrait" ? "aspect-[4/5]" : "aspect-[16/7]";
   const src = typeof element.props?.src === "string" ? element.props.src : "";
   const alt = resolveVariableText(String(element.props?.alt ?? element.name), variables);
   const fixedSize = element.layout?.width === "fixed" || element.layout?.height === "fixed";
+  const fallbackSizeClass = fixedSize ? "h-full w-full" : `${aspectRatio} min-h-[120px]`;
+  const slotStyle = slot ? imageSlotStyle(slot) : undefined;
   return (
-    <div className={`${fixedSize ? "h-full w-full" : `${aspectRatio} min-h-[120px]`} flex items-center justify-center overflow-hidden rounded-lg border border-[#d9e1e8] bg-[linear-gradient(135deg,#e8f4f2,#eef2f5_45%,#f8fafb)]`} style={baseVisualStyle(element.style.base)}>
-      {src ? <img src={src} alt={alt} className="h-full w-full" style={{ objectFit: element.style.image.objectFit }} /> : <div className="rounded-md bg-white/80 px-3 py-2 text-xs font-semibold text-[#5b6472]">{alt}</div>}
+    <div
+      data-image-slot={slot?.id}
+      data-image-slot-placement={slot?.placement}
+      data-image-slot-role={slot?.role}
+      data-image-slot-safe-area={slot?.generation.safeArea}
+      className={`${slot ? "" : fallbackSizeClass} flex items-center justify-center overflow-hidden rounded-lg border border-[#d9e1e8] bg-[linear-gradient(135deg,#e8f4f2,#eef2f5_45%,#f8fafb)]`}
+      style={{ ...baseVisualStyle(element.style.base), ...slotStyle }}
+    >
+      {src ? <img src={src} alt={alt} className="block h-full w-full min-w-0" style={{ objectFit: slot?.display.objectFit ?? element.style.image.objectFit, objectPosition: slot ? focalPointValue(slot.display.focalPoint) : undefined }} /> : <div className="flex h-full min-h-[inherit] w-full items-center justify-center rounded-md bg-white/80 px-3 py-2 text-center text-xs font-semibold text-[#5b6472]">{alt}</div>}
     </div>
   );
 }
@@ -786,13 +806,76 @@ function baseVisualStyle(style: DesignBaseStyle): CSSProperties {
 
 function containerVisualStyle(element: DesignElement): CSSProperties {
   const container = "container" in element.style ? element.style.container : undefined;
+  const slot = readImageSlot(element);
+  const slotStyle = slot ? backgroundImageSlotStyle(slot) : undefined;
   return {
     ...baseVisualStyle(element.style.base),
+    ...slotStyle,
     boxShadow: shadowValue(container?.shadow),
     overflow: container?.overflow === "visible" ? undefined : container?.overflow
   };
 }
 
+function readImageSlot(element: DesignElement): DesignImageSlot | undefined {
+  const parsed = designImageSlotSchema.safeParse(element.props?.imageSlot);
+  return parsed.success ? parsed.data : undefined;
+}
+
+
+function imageSlotDataAttributes(element: DesignElement) {
+  const slot = readImageSlot(element);
+  if (!slot || slot.placement !== "background") return {};
+  return {
+    "data-image-slot": "true",
+    "data-image-slot-id": slot.id,
+    "data-image-slot-placement": slot.placement,
+    "data-image-slot-role": slot.role,
+    "data-image-slot-safe-area": slot.generation.safeArea
+  };
+}
+
+function imageSlotStyle(slot: DesignImageSlot): CSSProperties {
+  const width = slot.display.width === "fill" ? "100%" : slot.display.width === "half" ? "50%" : "33.333%";
+  return {
+    aspectRatio: slot.display.aspectRatio.replace(":", " / "),
+    minHeight: slot.display.minHeight,
+    maxHeight: slot.display.maxHeight,
+    width,
+    maxWidth: "100%",
+    minWidth: 0,
+    flexBasis: width,
+    flexShrink: 1
+  };
+}
+
+function backgroundImageSlotStyle(slot: DesignImageSlot): CSSProperties {
+  return {
+    minHeight: slot.display.minHeight,
+    maxHeight: slot.display.maxHeight,
+    backgroundSize: slot.display.objectFit,
+    backgroundPosition: focalPointValue(slot.display.focalPoint),
+    backgroundRepeat: "no-repeat"
+  };
+}
+
+function backgroundOverlayStyle(slot: DesignImageSlot): CSSProperties {
+  if (slot.generation.safeArea === "left") {
+    return { background: "linear-gradient(90deg, rgba(255,255,255,0.78) 0%, rgba(255,255,255,0.48) 42%, rgba(255,255,255,0) 72%)" };
+  }
+  if (slot.generation.safeArea === "right") {
+    return { background: "linear-gradient(270deg, rgba(255,255,255,0.78) 0%, rgba(255,255,255,0.48) 42%, rgba(255,255,255,0) 72%)" };
+  }
+  if (slot.generation.safeArea === "center") {
+    return { background: "radial-gradient(circle at center, rgba(255,255,255,0.68) 0%, rgba(255,255,255,0.42) 44%, rgba(255,255,255,0) 76%)" };
+  }
+  return { background: "linear-gradient(180deg, rgba(255,255,255,0.48), rgba(255,255,255,0.18))" };
+}
+function focalPointValue(value: DesignImageSlot["display"]["focalPoint"]) {
+  if (value === "top") return "center top";
+  if (value === "left") return "left center";
+  if (value === "right") return "right center";
+  return "center center";
+}
 function cssUrl(value: string) {
   return `url(${JSON.stringify(value)})`;
 }

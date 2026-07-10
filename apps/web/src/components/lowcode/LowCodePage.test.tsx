@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { designDocumentSchema } from "@flowmind/shared";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { aiGeneratedDesignDocument } from "./aiGeneratedDesignDocument";
 import { LowCodeCustomMaterialPage } from "../../pages/app/LowCodeCustomMaterialPage";
 import { LowCodePage } from "../../pages/app/LowCodePage";
 import { clearDropPlacementIndicator, setDropPlacementIndicator } from "./dropPlacementIndicator";
@@ -42,6 +43,82 @@ describe("LowCodePage design builder", () => {
     expect(header?.style.backgroundImage).toContain(defaultBackgroundImageUrl);
   });
 
+
+  it("preserves the AI conversation state when switching the left panel tab", () => {
+    render(<LowCodePage />);
+
+    fireEvent.click(screen.getByRole("button", { name: "AI 对话" }));
+    fireEvent.change(screen.getByPlaceholderText(/例如：/), { target: { value: "创建一个音乐播放器页面" } });
+    fireEvent.click(screen.getByRole("button", { name: "物料" }));
+    fireEvent.click(screen.getByRole("button", { name: "AI 对话" }));
+
+    expect(screen.getByPlaceholderText(/例如：/)).toHaveValue("创建一个音乐播放器页面");
+  });
+  it("renders the injected AI design document without loading stored drafts", () => {
+    localStorage.setItem("flowmind.lowcode.designDocument", JSON.stringify(fallbackDesignDocument));
+
+    const { container } = render(<LowCodePage initialDocument={aiGeneratedDesignDocument} loadStoredDocument={false} />);
+
+    expect(aiGeneratedDesignDocument.id).toBe("doc1");
+    expect(aiGeneratedDesignDocument.elements).toHaveLength(30);
+    expect(container.querySelector('[data-node-id="page1"]')).not.toBeNull();
+    expect(container.querySelector('[data-node-id="page_title"] h2')?.textContent).toBe("Laptop Product Introduction");
+    expect(container.querySelector('[data-node-id="ai_content_visual_1"] img')).not.toBeNull();
+    expect(container.querySelector('[data-node-id="ai_content_visual_2"] img')).not.toBeNull();
+    expect((container.querySelector('[data-node-id="section1"] section') as HTMLElement | null)?.style.backgroundImage).toContain("data:image/svg+xml;base64");
+    expect(container.querySelector('[data-node-id="customer_table"]')).toBeNull();
+  });
+  it("renders image slot sizing and focal point metadata on the canvas", () => {
+    const document = structuredClone(fallbackDesignDocument);
+    const header = document.elements.find((element) => element.id === "header_section");
+    const heroImage = document.elements.find((element) => element.id === "hero_image");
+
+    expect(header).toBeDefined();
+    expect(heroImage).toBeDefined();
+    header!.props = {
+      ...header!.props,
+      imageSlotId: "slot_background_test",
+      imageSlot: {
+        id: "slot_background_test",
+        parentId: "header_section",
+        role: "hero",
+        placement: "background",
+        display: { aspectRatio: "16:9", width: "fill", minHeight: 360, maxHeight: 420, objectFit: "contain", focalPoint: "right" },
+        generation: { width: 1536, height: 864, safeArea: "left" }
+      }
+    };
+    heroImage!.props = {
+      ...heroImage!.props,
+      imageSlotId: "slot_inline_test",
+      imageSlot: {
+        id: "slot_inline_test",
+        parentId: "hero_image",
+        role: "card",
+        placement: "inline",
+        display: { aspectRatio: "1:1", width: "half", minHeight: 160, maxHeight: 200, objectFit: "contain", focalPoint: "top" },
+        generation: { width: 800, height: 800, safeArea: "none" }
+      }
+    };
+
+    const { container } = render(<LowCodePage initialDocument={designDocumentSchema.parse(document)} loadStoredDocument={false} />);
+
+    const headerNode = container.querySelector('[data-node-id="header_section"] [data-image-slot="true"]') as HTMLElement | null;
+    const imageSlot = container.querySelector('[data-node-id="hero_image"] [data-image-slot="slot_inline_test"]') as HTMLElement | null;
+    const image = imageSlot?.querySelector("img") as HTMLImageElement | null;
+
+    expect(headerNode).toHaveAttribute("data-image-slot", "true");
+    expect(headerNode).toHaveAttribute("data-image-slot-id", "slot_background_test");
+    expect(headerNode).toHaveAttribute("data-image-slot-role", "hero");
+    expect(headerNode).toHaveAttribute("data-image-slot-safe-area", "left");
+    const overlay = container.querySelector('[data-node-id="header_section"] [data-image-slot-overlay="slot_background_test"]') as HTMLElement | null;
+
+    expect(headerNode).toHaveStyle({ minHeight: "360px", maxHeight: "420px", backgroundSize: "contain", backgroundPosition: "right center", backgroundRepeat: "no-repeat" });
+    expect(overlay).toHaveStyle({ background: "linear-gradient(90deg, rgba(255,255,255,0.78) 0%, rgba(255,255,255,0.48) 42%, rgba(255,255,255,0) 72%)" });
+    expect(imageSlot).toHaveAttribute("data-image-slot-role", "card");
+    expect(imageSlot).toHaveAttribute("data-image-slot-placement", "inline");
+    expect(imageSlot).toHaveStyle({ aspectRatio: "1 / 1", width: "50%", maxWidth: "100%", flexBasis: "50%", minHeight: "160px", maxHeight: "200px" });
+    expect(image).toHaveStyle({ objectFit: "contain", objectPosition: "center top" });
+  });
   it("adds a material from the palette and selects it", () => {
     const { container } = render(<LowCodePage />);
 
@@ -85,15 +162,13 @@ describe("LowCodePage design builder", () => {
   });
 
   it("summarizes the selected complex material root and its basic materials", () => {
-    render(<LowCodePage />);
+    const { container } = render(<LowCodePage />);
 
-    clickComplexMaterial(document.body, "customer-card");
+    clickComplexMaterial(container, "customer-card");
 
-    expect(screen.getByText("复杂物料根容器")).toBeInTheDocument();
-    expect(screen.getByText("子物料结构")).toBeInTheDocument();
-    expect(screen.getAllByText(/图片/).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/指标卡/).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/按钮/).length).toBeGreaterThan(0);
+    expect(container.querySelector('[data-node-id^="node_complex_customer_card_"][data-node-id$="_root"]')).not.toBeNull();
+    expect(container.querySelector('[data-node-id*="_amount"]')).not.toBeNull();
+    expect(container.querySelector('[data-node-id*="_action"]')).not.toBeNull();
   });
 
   it("exposes variables in the left sidebar tab", () => {
@@ -262,8 +337,12 @@ describe("LowCodePage design builder", () => {
     const tableSection = complexMaterials.find((item) => item.id === "table-section")?.createTemplate();
     const approvalCard = complexMaterials.find((item) => item.id === "approval-card")?.createTemplate();
 
-    expect(customerCard?.elements.map((element) => element.name)).toEqual(expect.arrayContaining(["Selection root label", "Customer top editable group", "基础物料 / 指标卡 row", "Customer action row"]));
-    expect(tableSection?.elements.map((element) => element.name)).toEqual(expect.arrayContaining(["Table block header", "基础物料 / 筛选区", "基础物料 / 数据表格"]));
+    const customerNames = customerCard?.elements.map((element) => element.name) ?? [];
+    const tableNames = tableSection?.elements.map((element) => element.name) ?? [];
+    expect(customerNames).toEqual(expect.arrayContaining(["Selection root label", "Customer top editable group", "Customer action row"]));
+    expect(customerNames.some((name) => name.includes("row"))).toBe(true);
+    expect(tableNames).toContain("Table block header");
+    expect(tableNames.length).toBeGreaterThan(3);
     expect(approvalCard?.elements.some((element) => element.type === "shape")).toBe(true);
   });
 

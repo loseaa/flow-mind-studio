@@ -4,6 +4,7 @@ import { designDocumentSchema } from "@flowmind/shared";
 import { apiUpload } from "../../api";
 import { DesignCanvas } from "../../components/lowcode/DesignCanvas";
 import { LowCodeToolbar } from "../../components/lowcode/LowCodeToolbar";
+import { LowCodeAgentChat } from "../../components/lowcode/LowCodeAgentChat";
 import { MaterialPalette } from "../../components/lowcode/MaterialPalette";
 import { PropertyInspector } from "../../components/lowcode/PropertyInspector";
 import {
@@ -23,11 +24,22 @@ import { elementMap, insertElement, insertElementTree, moveNode, removeNode, rep
 
 const STORAGE_KEY = "flowmind.lowcode.designDocument";
 
-export function LowCodePage() {
-  const [document, setDocument] = useState<DesignDocument>(fallbackDesignDocument);
+export type LowCodePageProps = {
+  initialDocument?: DesignDocument;
+  loadStoredDocument?: boolean;
+  storageKey?: string;
+};
+
+export function LowCodePage({
+  initialDocument = fallbackDesignDocument,
+  loadStoredDocument = true,
+  storageKey = STORAGE_KEY
+}: LowCodePageProps = {}) {
+  const [document, setDocument] = useState<DesignDocument>(initialDocument);
   const [customComplexRecords, setCustomComplexRecords] = useState<CustomComplexMaterialRecord[]>([]);
-  const [selectedId, setSelectedId] = useState(fallbackDesignDocument.tree.id);
+  const [selectedId, setSelectedId] = useState(initialDocument.tree.id);
   const [saveState, setSaveState] = useState<"draft" | "saved" | "published">("draft");
+  const [leftPanelTab, setLeftPanelTab] = useState<"materials" | "ai">("materials");
   const elements = useMemo(() => elementMap(document), [document]);
   const availableComplexMaterials = useMemo(() => [
     ...complexMaterials,
@@ -37,7 +49,11 @@ export function LowCodePage() {
   const parentElement = elements.get(findParentId(document.tree, selectedElement.id) ?? "");
 
   useEffect(() => {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    setDocument(initialDocument);
+    setSelectedId(initialDocument.tree.id);
+    setSaveState("draft");
+
+    const raw = loadStoredDocument ? localStorage.getItem(storageKey) : null;
     if (raw) {
       const parsed = designDocumentSchema.safeParse(JSON.parse(raw) as unknown);
       if (parsed.success) {
@@ -47,7 +63,7 @@ export function LowCodePage() {
       }
     }
     setCustomComplexRecords(readCustomComplexMaterialRecords(localStorage.getItem(CUSTOM_COMPLEX_MATERIALS_STORAGE_KEY)));
-  }, []);
+  }, [initialDocument, loadStoredDocument, storageKey]);
 
   function commit(next: DesignDocument | ((current: DesignDocument) => DesignDocument)) {
     setDocument((current) => typeof next === "function" ? next(current) : next);
@@ -92,7 +108,7 @@ export function LowCodePage() {
       setSaveState("draft");
       return;
     }
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed.data));
+    localStorage.setItem(storageKey, JSON.stringify(parsed.data));
     setSaveState("saved");
   }
 
@@ -121,19 +137,51 @@ export function LowCodePage() {
     }));
   }
 
+  function applyAgentDocument(nextDocument: DesignDocument) {
+    commit(nextDocument);
+    setSelectedId(nextDocument.tree.id);
+  }
+
   return (
     <div className="lowcode-page flex h-[calc(100vh-72px)] min-h-0 flex-col bg-[#f6f8fa]">
       <LowCodeToolbar document={document} saveState={saveState} onPublish={publishPreview} onSave={saveDraft} />
       <div className="grid min-h-0 flex-1 grid-cols-[286px_1fr_330px] overflow-hidden max-xl:grid-cols-[260px_1fr] max-lg:grid-cols-1">
-        <MaterialPalette
-          complexMaterials={availableComplexMaterials}
-          onAdd={(type, parentId, index) => addElement(type, parentId, index)}
-          onAddComplex={(id, parentId, index) => addComplexMaterial(id, parentId, index)}
-          onDeleteCustomComplex={deleteCustomComplexMaterial}
-          onUploadImage={uploadImageMaterial}
-          variables={document.variables}
-          onUpdateVariables={updateVariables}
-        />
+        <div className="flex min-h-0 flex-col bg-white max-lg:hidden">
+          <div className="grid grid-cols-2 gap-1 border-r border-[#d9e1e8] bg-[#eef2f5] p-1.5">
+            <button
+              type="button"
+              aria-pressed={leftPanelTab === "materials"}
+              className={`h-8 rounded text-xs font-bold transition ${leftPanelTab === "materials" ? "bg-white text-[#101828] shadow-sm" : "text-[#5b6472] hover:bg-white/70"}`}
+              onClick={() => setLeftPanelTab("materials")}
+            >
+              {"\u7269\u6599"}
+            </button>
+            <button
+              type="button"
+              aria-pressed={leftPanelTab === "ai"}
+              className={`h-8 rounded text-xs font-bold transition ${leftPanelTab === "ai" ? "bg-white text-[#101828] shadow-sm" : "text-[#5b6472] hover:bg-white/70"}`}
+              onClick={() => setLeftPanelTab("ai")}
+            >
+              {"AI \u5bf9\u8bdd"}
+            </button>
+          </div>
+          <div className="min-h-0 flex-1">
+            <div className={leftPanelTab === "materials" ? "h-full" : "hidden h-full"} aria-hidden={leftPanelTab !== "materials"}>
+              <MaterialPalette
+                complexMaterials={availableComplexMaterials}
+                onAdd={(type, parentId, index) => addElement(type, parentId, index)}
+                onAddComplex={(id, parentId, index) => addComplexMaterial(id, parentId, index)}
+                onDeleteCustomComplex={deleteCustomComplexMaterial}
+                onUploadImage={uploadImageMaterial}
+                variables={document.variables}
+                onUpdateVariables={updateVariables}
+              />
+            </div>
+            <div className={leftPanelTab === "ai" ? "h-full" : "hidden h-full"} aria-hidden={leftPanelTab !== "ai"}>
+              <LowCodeAgentChat onApplyDocument={applyAgentDocument} />
+            </div>
+          </div>
+        </div>
         <DesignCanvas
           document={document}
           selectedId={selectedElement.id}

@@ -1,0 +1,235 @@
+{
+  "threadId": "ecommerce-image-planning-verify",
+  "node": "style_planning",
+  "version": 1,
+  "status": "success",
+  "inputRefs": [
+    {
+      "node": "interaction_planning",
+      "path": "E:\\FlowMindStudio\\artifacts\\runs\\ecommerce-image-planning-verify\\interaction_planning.v1.json",
+      "version": 1,
+      "checksum": "ff00bd7e340ea45eb73c052bd492690fde1cbb41112951f4f005597cd43fb40b"
+    }
+  ],
+  "output": {
+    "document": {
+      "schemaVersion": "fm-design/v1",
+      "id": "fixture_material_orchestration_dashboard",
+      "name": "Material Orchestration Dashboard",
+      "canvas": {
+        "viewport": "desktop",
+        "width": 1440,
+        "background": "muted"
+      },
+      "tree": {
+        "id": "page_root",
+        "children": [
+          {
+            "id": "section_main",
+            "children": [
+              {
+                "id": "title_main",
+                "children": []
+              },
+              {
+                "id": "subtitle_main",
+                "children": []
+              }
+            ]
+          }
+        ]
+      },
+      "elements": [
+        {
+          "id": "page_root",
+          "name": "Page",
+          "layout": {
+            "display": "flex",
+            "direction": "vertical",
+            "gap": "lg",
+            "padding": "lg",
+            "width": "fill"
+          },
+          "props": {
+            "purpose": "Application root"
+          },
+          "type": "page",
+          "style": {
+            "base": {
+              "backgroundColor": "muted",
+              "radius": "none",
+              "border": {
+                "width": "none",
+                "style": "none",
+                "color": "border"
+              },
+              "text": {
+                "color": "textPrimary",
+                "fontFamily": "sans",
+                "fontSize": "md",
+                "fontWeight": "regular",
+                "lineHeight": "normal",
+                "align": "left"
+              }
+            },
+            "container": {
+              "shadow": "none",
+              "overflow": "visible",
+              "surface": "flat"
+            }
+          }
+        },
+        {
+          "id": "section_main",
+          "name": "Main Section",
+          "layout": {
+            "display": "flex",
+            "direction": "vertical",
+            "gap": "md",
+            "padding": "md",
+            "width": "fill"
+          },
+          "props": {
+            "purpose": "Material orchestration workspace"
+          },
+          "type": "section",
+          "style": {
+            "base": {
+              "backgroundColor": "white",
+              "radius": "md",
+              "border": {
+                "width": "none",
+                "style": "none",
+                "color": "border"
+              },
+              "text": {
+                "color": "textPrimary",
+                "fontFamily": "sans",
+                "fontSize": "md",
+                "fontWeight": "regular",
+                "lineHeight": "normal",
+                "align": "left"
+              }
+            },
+            "container": {
+              "shadow": "none",
+              "overflow": "visible",
+              "surface": "flat"
+            }
+          }
+        },
+        {
+          "id": "title_main",
+          "name": "Title",
+          "layout": {
+            "width": "fill"
+          },
+          "props": {
+            "role": "heading",
+            "purpose": "Identify the material orchestration workspace",
+            "text": "Material Orchestration Dashboard"
+          },
+          "type": "text",
+          "style": {
+            "base": {
+              "backgroundColor": "transparent",
+              "radius": "md",
+              "border": {
+                "width": "none",
+                "style": "none",
+                "color": "border"
+              },
+              "text": {
+                "color": "textPrimary",
+                "fontFamily": "sans",
+                "fontSize": "2xl",
+                "fontWeight": "bold",
+                "lineHeight": "tight",
+                "align": "left"
+              }
+            },
+            "text": {
+              "role": "heading",
+              "decoration": "none",
+              "transform": "none"
+            }
+          }
+        },
+        {
+          "id": "subtitle_main",
+          "name": "Description",
+          "layout": {
+            "width": "fill"
+          },
+          "props": {
+            "purpose": "Describe the fixture run",
+            "text": "Fixture draft generated for full-flow CLI debugging."
+          },
+          "type": "text",
+          "style": {
+            "base": {
+              "backgroundColor": "transparent",
+              "radius": "md",
+              "border": {
+                "width": "none",
+                "style": "none",
+                "color": "border"
+              },
+              "text": {
+                "color": "textPrimary",
+                "fontFamily": "sans",
+                "fontSize": "md",
+                "fontWeight": "regular",
+                "lineHeight": "normal",
+                "align": "left"
+              }
+            },
+            "text": {
+              "role": "body",
+              "decoration": "none",
+              "transform": "none"
+            }
+          }
+        }
+      ],
+      "variables": {
+        "structurePurposes": {
+          "page_root": "Application root",
+          "section_main": "Material orchestration workspace"
+        },
+        "interactions": [],
+        "designTheme": {
+          "theme": "enterprise_light",
+          "tone": "operational"
+        }
+      }
+    },
+    "stylePlan": {
+      "theme": "enterprise_light",
+      "tone": "operational",
+      "assignments": [
+        {
+          "elementId": "page_root",
+          "preset": "page"
+        },
+        {
+          "elementId": "section_main",
+          "preset": "section"
+        },
+        {
+          "elementId": "title_main",
+          "preset": "heading"
+        },
+        {
+          "elementId": "subtitle_main",
+          "preset": "body"
+        }
+      ],
+      "notes": [
+        "Fixture style plan uses a light operational admin theme."
+      ]
+    }
+  },
+  "errors": [],
+  "createdAt": "2026-07-02T01:08:56.526Z"
+}
