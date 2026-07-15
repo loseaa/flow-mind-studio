@@ -21,10 +21,13 @@ import {
   apiGet,
   apiPatch,
   fallbackKnowledgeBases,
+  apiPostStrict,
   streamChatMessage,
+  streamToolConfirmation,
 } from "../../api";
 import { ChatComposer } from "../../components/chat/ChatComposer";
 import { ChatMessageList } from "../../components/chat/ChatMessageList";
+import type { PartAction } from "../../components/chat/parts/PartRendererRegistry";
 import { ChatWelcome } from "../../components/chat/ChatWelcome";
 import { QuickPromptGrid } from "../../components/chat/QuickPromptGrid";
 import { quickPrompts } from "../../components/chat/chatData";
@@ -308,7 +311,18 @@ export function ChatPage() {
             : message,
         ),
       );
+      return;
     }
+    if(event.type.startsWith("tool.")){
+      const payload=event.payload as Record<string,unknown>;const invocationId=String(payload.invocationId??"");if(!invocationId)return;
+      setMessages(current=>upsertToolPart(current,localAssistantId,invocationId,event.type.replace("tool.","") as ToolPart["props"]["status"],payload));
+    }
+  }
+
+  async function dispatchPartAction(action:PartAction){
+    const invocationId=action.part.props.invocationId;
+    if(action.type==="mcp.reject"){try{await apiPostStrict(`/chat/tool-invocations/${invocationId}/reject`);setMessages(current=>upsertToolPart(current,action.messageId,invocationId,"rejected",{}));}catch(e){setError(e instanceof Error?e.message:"拒绝失败")}return;}
+    const source=messages.find(message=>message.id===action.messageId);if(!source)return;const resultId=`local_tool_result_${Date.now()}`;const resultMessage:ChatMessage={id:resultId,conversationId:source.conversationId,role:"assistant",content:"",parts:[],citations:[],createdAt:new Date().toISOString()};setMessages(current=>[...current,resultMessage]);setIsSending(true);try{await streamToolConfirmation(invocationId,event=>applyStreamEvent(event,"",resultId));}catch(e){setError(e instanceof Error?e.message:"工具执行失败")}finally{setIsSending(false)}
   }
 
   const isEmptyState = messages.length === 0;
@@ -391,6 +405,7 @@ export function ChatPage() {
                           conversation={selectedConversation}
                           messages={messages}
                           isStreaming={isSending}
+                          onPartAction={(action)=>void dispatchPartAction(action)}
                           onEditUserMessage={setInput}
                           onQuoteUserMessage={(content) =>
                             setInput(`基于这条消息继续追问：\n\n> ${content.replace(/\n/g, "\n> ")}\n\n`)
@@ -462,6 +477,9 @@ function replacePart(parts: ChatMessage["parts"], nextPart: ChatMessage["parts"]
   if (index === -1) return [...parts, nextPart];
   return parts.map((part, currentIndex) => (currentIndex === index ? nextPart : part));
 }
+
+type ToolPart=Extract<ChatMessage["parts"][number],{type:"tool_call"}>;
+function upsertToolPart(messages:ChatMessage[],fallbackMessageId:string,invocationId:string,status:ToolPart["props"]["status"],payload:Record<string,unknown>):ChatMessage[]{let found=false;const updated=messages.map(message=>{const parts=message.parts.map(part=>{if(part.type!=="tool_call"||part.props.invocationId!==invocationId)return part;found=true;return{...part,props:{...part.props,status,toolName:String(payload.toolName??part.props.toolName),riskLevel:(payload.riskLevel??part.props.riskLevel) as ToolPart["props"]["riskLevel"],input:(payload.input??part.props.input) as Record<string,unknown>,...(payload.output!==undefined?{output:payload.output}:{}),...(typeof payload.message==="string"?{message:payload.message}:{})}}});return parts===message.parts?message:{...message,parts};});if(found)return updated;const target=updated.find(message=>message.id===fallbackMessageId);if(!target)return updated;const part:ToolPart={id:`part_tool_${invocationId}`,type:"tool_call",props:{invocationId,toolName:String(payload.toolName??"MCP Tool"),riskLevel:(payload.riskLevel??"medium") as ToolPart["props"]["riskLevel"],status,input:(payload.input??{}) as Record<string,unknown>,...(payload.output!==undefined?{output:payload.output}:{}),...(typeof payload.message==="string"?{message:payload.message}:{})}};return updated.map(message=>message.id===fallbackMessageId?{...message,parts:[...message.parts,part]}:message);}
 
 function ConversationSidebar({
   conversations,

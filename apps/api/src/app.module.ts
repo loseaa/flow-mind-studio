@@ -9,6 +9,9 @@ import { LowCodeModule } from "./modules/low-code/low-code.module";
 import { McpModule } from "./modules/mcp/mcp.module";
 import { OrganizationsModule } from "./modules/organizations/organizations.module";
 import { TasksModule } from "./modules/tasks/tasks.module";
+import { DatabaseModule } from "./database/database.module";
+import { HealthModule } from "./modules/health/health.module";
+import { DataSourceModule } from "./modules/data-sources/data-source.module";
 
 const dbBackedModules = process.env.FLOWMIND_SKIP_DB_MODULES === "true"
   ? []
@@ -17,11 +20,14 @@ const dbBackedModules = process.env.FLOWMIND_SKIP_DB_MODULES === "true"
 @Module({
   imports: [
     ConfigModule.forRoot({ envFilePath: [".env", "../../.env"], isGlobal: true }),
+    DatabaseModule,
+    HealthModule,
     AuthModule,
     OrganizationsModule,
     DashboardModule,
     McpModule,
     DataModelsModule,
+    DataSourceModule,
     LowCodeModule,
     ...dbBackedModules
   ]

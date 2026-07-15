@@ -19,11 +19,7 @@ export async function visualReviewNode(state: DesignAgentState, options: GraphNo
 
   const schemaArtifact = await options.artifactStore.readArtifact<SchemaValidationArtifactOutput>(sourceArtifact);
   const document = designDocumentSchema.parse(schemaArtifact.output.document);
-  const modelOutput = options.createStructuredOutput
-    ? visualReviewModelOutputSchema.parse(
-        await options.createStructuredOutput(visualReviewModelOutputSchema).invoke(buildVisualReviewInput(document, state)),
-      )
-    : { issues: [] as VisualReviewIssue[], notes: [] as string[] };
+  const modelOutput = await createModelReview(document, state, options);
   const review = reviewVisualQualityWithRules(document, modelOutput.issues);
   const output: VisualReviewOutput = {
     document,
@@ -41,6 +37,22 @@ export async function visualReviewNode(state: DesignAgentState, options: GraphNo
     output,
     errors: review.passed ? [] : review.issues.map((issue) => `${issue.code}: ${issue.suggestion}`),
   });
+}
+
+async function createModelReview(
+  document: unknown,
+  state: DesignAgentState,
+  options: GraphNodeOptions,
+): Promise<{ issues: VisualReviewIssue[]; notes: string[] }> {
+  if (!options.createStructuredOutput) return { issues: [], notes: [] };
+  try {
+    return visualReviewModelOutputSchema.parse(
+      await options.createStructuredOutput(visualReviewModelOutputSchema, { node: "visual_review" }).invoke(buildVisualReviewInput(document, state)),
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return { issues: [], notes: [`Model visual review unavailable; deterministic rules were used. ${message.slice(0, 300)}`] };
+  }
 }
 
 export function buildVisualReviewInput(document: unknown, state: DesignAgentState) {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { pageStructurePlanSchema } from "./schema.js";
+import { jsonPlanningModelOutputSchema, pageStructurePlanSchema } from "./schema.js";
 
 const validPlan = {
   document: {
@@ -89,5 +89,26 @@ describe("pageStructurePlanSchema", () => {
     }
 
     expect(() => pageStructurePlanSchema.parse({ ...validPlan, nodes })).toThrow();
+  });
+});
+
+describe("jsonPlanningModelOutputSchema", () => {
+  it("accepts structurePlan nodes without document metadata", () => {
+    expect(jsonPlanningModelOutputSchema.parse({ structurePlan: { nodes: validPlan.nodes } })).toEqual({
+      structurePlan: {
+        document: {
+          id: "page_root",
+          name: "Page",
+          viewport: "desktop",
+          width: 1440,
+          background: "muted",
+        },
+        nodes: validPlan.nodes,
+      },
+    });
+  });
+
+  it("accepts a top-level nodes array", () => {
+    expect(jsonPlanningModelOutputSchema.parse({ nodes: validPlan.nodes }).structurePlan.nodes).toEqual(validPlan.nodes);
   });
 });

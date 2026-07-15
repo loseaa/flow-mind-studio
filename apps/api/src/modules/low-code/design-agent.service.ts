@@ -2,7 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdir, readFile } from "node:fs/promises";
+import { mkdir, readFile, readdir } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
 import type { DesignDocument } from "@flowmind/shared";
 
@@ -125,6 +125,17 @@ export type DesignAgentMessageResponse = {
   stderr?: string;
 };
 
+export type LatestDesignAgentResult = {
+  runId: string;
+  status: RunManifest["status"];
+  currentNode: string;
+  completedNodes: string[];
+  document?: DesignDocument;
+  sourceNode?: string;
+  artifacts: Array<{ node: string; version: number; path: string }>;
+  updatedAt?: string;
+};
+
 @Injectable()
 export class DesignAgentService {
   private readonly workspaceRoot = findWorkspaceRoot(process.cwd());
@@ -196,6 +207,90 @@ export class DesignAgentService {
       stderr: execution.stderr.trim() || undefined,
     };
   }
+
+  async latestResult(): Promise<LatestDesignAgentResult | null> {
+    const candidateDirs = await listRunDirectories(this.runsRoot);
+    const candidates = await Promise.all(candidateDirs.map(async (runId) => {
+      const manifestPath = join(this.runsRoot, runId, "manifest.json");
+      try {
+        const manifest = await readJson<RunManifest>(manifestPath);
+        const latestRenderable = await findLatestRenderableArtifact(manifest);
+        if (!latestRenderable) return null;
+        return {
+          runId,
+          manifest,
+          document: latestRenderable.document,
+          sourceNode: latestRenderable.node,
+          updatedAt: latestRenderable.createdAt,
+        };
+      } catch {
+        return null;
+      }
+    }));
+
+    const latest = candidates
+      .filter((item): item is NonNullable<typeof item> => item !== null)
+      .sort((left, right) => compareRunCandidates(right, left))[0];
+
+    if (!latest) return null;
+
+    return {
+      runId: latest.runId,
+      status: latest.manifest.status,
+      currentNode: latest.manifest.currentNode,
+      completedNodes: latest.manifest.completedNodes,
+      document: latest.document,
+      sourceNode: latest.sourceNode,
+      updatedAt: latest.updatedAt,
+      artifacts: Object.entries(latest.manifest.artifacts).map(([node, artifact]) => ({ node, version: artifact.version, path: artifact.path })),
+    };
+  }
+}
+
+async function listRunDirectories(runsRoot: string) {
+  try {
+    const entries = await readdir(runsRoot, { withFileTypes: true });
+    return entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name);
+  } catch {
+    return [];
+  }
+}
+
+function compareRunCandidates(
+  left: { runId: string; updatedAt?: string },
+  right: { runId: string; updatedAt?: string },
+) {
+  const leftTime = left.updatedAt ? Date.parse(left.updatedAt) : Number.NaN;
+  const rightTime = right.updatedAt ? Date.parse(right.updatedAt) : Number.NaN;
+  if (Number.isFinite(leftTime) && Number.isFinite(rightTime) && leftTime !== rightTime) {
+    return leftTime - rightTime;
+  }
+  if (Number.isFinite(leftTime) && !Number.isFinite(rightTime)) return 1;
+  if (!Number.isFinite(leftTime) && Number.isFinite(rightTime)) return -1;
+  return left.runId.localeCompare(right.runId);
+}
+
+async function findLatestRenderableArtifact(manifest: RunManifest) {
+  const renderableNodes = ["final_output", "document_repair", "schema_validation", "image_generation", "document_assembly", "visual_review"] as const;
+  const candidates = await Promise.all(renderableNodes.map(async (node) => {
+    const ref = manifest.artifacts[node];
+    if (!ref) return null;
+    const output = await readArtifactOutput<{ document?: DesignDocument }>(ref);
+    if (!output?.document) return null;
+    return {
+      node,
+      createdAt: ref.createdAt,
+      document: output.document,
+    };
+  }));
+
+  return candidates
+    .filter((item): item is NonNullable<typeof item> => item !== null)
+    .sort((left, right) => compareRunCandidates(
+      { runId: left.node, updatedAt: left.createdAt },
+      { runId: right.node, updatedAt: right.createdAt },
+    ))
+    .at(-1) ?? null;
 }
 
 function buildAgentArgs(input: { command: AgentCommand; message: string; runDir: string }) {
@@ -213,7 +308,8 @@ async function runAgentCli(args: string[], cwd: string, onProgress?: (event: Des
       env: {
         ...process.env,
         COREPACK_HOME: process.env.COREPACK_HOME ?? join(workspaceRoot, ".corepack"),
-        INIT_CWD: workspaceRoot
+        INIT_CWD: workspaceRoot,
+        TS_NODE_TRANSPILE_ONLY: process.env.TS_NODE_TRANSPILE_ONLY ?? "true"
       },
       windowsHide: true
     });

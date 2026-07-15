@@ -4,6 +4,7 @@ import type { ArtifactRef } from "../../state.js";
 export type DocumentAssemblyOutput = {
   document: DesignDocument;
   sourcePlans: {
+    contentPlanning?: unknown;
     structurePlanning: unknown;
     layoutPlanning: unknown;
     visualSlotReview: unknown;
@@ -13,6 +14,7 @@ export type DocumentAssemblyOutput = {
     imagePlanning: unknown;
   };
   sourceArtifacts: {
+    contentPlanning?: ArtifactRef;
     structurePlanning: ArtifactRef;
     layoutPlanning: ArtifactRef;
     visualSlotReview: ArtifactRef;

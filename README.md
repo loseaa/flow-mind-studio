@@ -20,6 +20,12 @@ docker compose up -d postgres redis
 pnpm dev
 ```
 
+For local development, Docker only needs to run PostgreSQL and Redis. Check them with
+`docker compose ps`, then verify the API and dependencies at `GET /api/health`.
+
+Run `pnpm --filter @flowmind/api mock:mcp` to start three local test MCP endpoints on port 4100:
+`/crm/mcp`, `/tickets/mcp`, and `/analytics/mcp`.
+
 The frontend runs on `http://localhost:5173` and the API runs on `http://localhost:4000`.
 
 ## Git and CI/CD

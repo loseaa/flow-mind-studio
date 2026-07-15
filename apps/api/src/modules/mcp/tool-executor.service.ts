@@ -1,0 +1,40 @@
+import { randomUUID } from "node:crypto";
+import { Injectable, OnModuleDestroy, OnModuleInit } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import Ajv from "ajv";
+import { McpClientService } from "./mcp-client.service";
+import { McpRepository } from "./mcp.repository";
+import { ToolRegistryService } from "./tool-registry.service";
+
+@Injectable()
+export class ToolExecutorService implements OnModuleInit, OnModuleDestroy {
+  private readonly ajv = new Ajv({ allErrors: true, strict: false, useDefaults: true });
+  private readonly maxOutputBytes: number;
+  private expirationTimer?: NodeJS.Timeout;
+  constructor(readonly repo: McpRepository, private readonly registry: ToolRegistryService, private readonly client: McpClientService, config: ConfigService) { this.maxOutputBytes=Number(config.get<string>("MCP_MAX_RESPONSE_BYTES")??1048576); }
+  async onModuleInit(){await this.expireContinuations();this.expirationTimer=setInterval(()=>void this.expireContinuations(),60_000);this.expirationTimer.unref();}
+  onModuleDestroy(){if(this.expirationTimer)clearInterval(this.expirationTimer);}
+  async propose(input: { organizationId: string; modelName: string; arguments: Record<string,unknown>; conversationId: string; requestMessageId: string; idempotencyKey: string }) {
+    const tool = await this.registry.resolve(input.organizationId, input.modelName); if (!tool) throw new Error("MCP tool is unavailable");
+    const validate=this.ajv.compile(tool.inputSchema); if(!validate(input.arguments)) throw new Error(`MCP_TOOL_INPUT_INVALID: ${this.ajv.errorsText(validate.errors,{separator:"; "})}`);
+    const db = this.repo.dbService(); const id = `mcp_inv_${randomUUID()}`; const status = tool.requiresConfirmation ? "pending_confirmation" : "proposed";
+    const row = await db.query<any>(`INSERT INTO mcp_invocations (id,organization_id,server_id,tool_id,source,conversation_id,request_message_id,requested_by,status,risk_level,requires_confirmation,tool_name_snapshot,schema_hash_snapshot,input,input_preview,idempotency_key) VALUES ($1,$2,$3,$4,'chat',$5,$6,'user_1',$7,$8,$9,$10,$11,$12,$12,$13) ON CONFLICT (organization_id,idempotency_key) DO UPDATE SET updated_at=now() RETURNING *`, [id,input.organizationId,tool.serverId,tool.id,input.conversationId,input.requestMessageId,status,tool.riskLevel,tool.requiresConfirmation,tool.remoteName,tool.schemaHash,JSON.stringify(input.arguments),input.idempotencyKey]);
+    await this.event(row.rows[0].id, "proposed", "agent", null, { modelName: input.modelName }); return { invocation: row.rows[0], tool };
+  }
+  async execute(invocationId: string, organizationId: string) {
+    const db=this.repo.dbService(); const found=await db.query<any>("SELECT * FROM mcp_invocations WHERE id=$1 AND organization_id=$2",[invocationId,organizationId]); const inv=found.rows[0]; if(!inv) throw new Error("Invocation not found"); if(inv.status==='succeeded') return inv; if(!['proposed','pending_confirmation'].includes(inv.status)) throw new Error(`Invocation cannot run from ${inv.status}`);
+    const tool=await this.repo.getTool(inv.tool_id,organizationId); if(!tool || !tool.enabled || tool.availability!=='available') throw new Error("MCP tool is unavailable"); if(tool.schemaHash!==inv.schema_hash_snapshot) throw new Error("MCP tool schema changed; create a new invocation");
+    await db.query("UPDATE mcp_invocations SET status='running',started_at=now(),attempt_count=attempt_count+1,updated_at=now() WHERE id=$1",[invocationId]); await this.event(invocationId,"started","system",null,{});
+    const validate=this.ajv.compile(tool.inputSchema); if(!validate(inv.input)){await db.query("UPDATE mcp_invocations SET status='failed',error_code='MCP_TOOL_INPUT_INVALID',error_message=$2,completed_at=now(),updated_at=now() WHERE id=$1",[invocationId,this.ajv.errorsText(validate.errors)]);throw new Error("MCP tool input no longer matches its schema");}
+    try { const output=await this.client.callTool(normalizeServer(tool.server as any),tool.remoteName,inv.input); const limited=limitOutput(output,this.maxOutputBytes); await db.query("UPDATE mcp_invocations SET status='succeeded',output=$2,output_preview=$2,completed_at=now(),updated_at=now() WHERE id=$1",[invocationId,JSON.stringify(limited)]); await this.event(invocationId,"completed","system",null,{}); return { ...inv,status:'succeeded',output:limited }; }
+    catch(error){ const message=error instanceof Error?error.message:String(error); await db.query("UPDATE mcp_invocations SET status='failed',error_code='MCP_CALL_FAILED',error_message=$2,completed_at=now(),updated_at=now() WHERE id=$1",[invocationId,message.slice(0,1000)]); await this.event(invocationId,"failed","system",null,{message:message.slice(0,300)}); throw error; }
+  }
+  async reject(id:string,org:string){ await this.repo.dbService().query("UPDATE mcp_invocations SET status='rejected',completed_at=now(),updated_at=now() WHERE id=$1 AND organization_id=$2 AND status='pending_confirmation'",[id,org]); await this.event(id,"rejected","user","user_1",{}); }
+  async saveContinuation(input:{invocationId:string;conversationId:string;model:string;messages:unknown;remainingToolCalls?:unknown[]}) { await this.repo.dbService().query(`INSERT INTO chat_tool_continuations (id,invocation_id,conversation_id,model,messages,remaining_tool_calls,expires_at) VALUES ($1,$2,$3,$4,$5,$6,now()+interval '30 minutes') ON CONFLICT (invocation_id) DO NOTHING`,[`cont_${input.invocationId}`,input.invocationId,input.conversationId,input.model,JSON.stringify(input.messages),JSON.stringify(input.remainingToolCalls??[])]); }
+  async attachAssistantMessage(invocationId:string,messageId:string){await this.repo.dbService().query("UPDATE mcp_invocations SET assistant_message_id=$2,updated_at=now() WHERE id=$1",[invocationId,messageId]);}
+  async getInvocation(id:string,org:string){return (await this.repo.dbService().query<any>("SELECT * FROM mcp_invocations WHERE id=$1 AND organization_id=$2",[id,org])).rows[0]??null;}
+  async expireContinuations(){const db=this.repo.dbService();const expired=await db.query<{invocation_id:string}>(`UPDATE chat_tool_continuations SET status='expired',updated_at=now() WHERE status='waiting' AND expires_at<=now() RETURNING invocation_id`);for(const row of expired.rows){const invocation=await db.query<{assistant_message_id:string|null}>("UPDATE mcp_invocations SET status='expired',completed_at=now(),updated_at=now() WHERE id=$1 AND status='pending_confirmation' RETURNING assistant_message_id",[row.invocation_id]);const messageId=invocation.rows[0]?.assistant_message_id;if(messageId)await db.query(`UPDATE chat_messages SET parts=(SELECT COALESCE(jsonb_agg(CASE WHEN item->>'type'='tool_call' AND item#>>'{props,invocationId}'=$2 THEN jsonb_set(item,'{props,status}','"expired"'::jsonb) ELSE item END),'[]'::jsonb) FROM jsonb_array_elements(parts) item) WHERE id=$1`,[messageId,row.invocation_id]);await this.event(row.invocation_id,"expired","system",null,{});}}
+  private event(id:string,type:string,actor:string,actorId:string|null,payload:unknown){ return this.repo.dbService().query("INSERT INTO mcp_invocation_events (invocation_id,event_type,actor_type,actor_id,payload) VALUES ($1,$2,$3,$4,$5)",[id,type,actor,actorId,JSON.stringify(payload)]); }
+}
+function limitOutput(value:unknown,maxBytes:number){ const text=JSON.stringify(value); return Buffer.byteLength(text)<=maxBytes?value:{truncated:true,preview:Buffer.from(text).subarray(0,maxBytes).toString("utf8")}; }
+function normalizeServer(row:any){ return { id:row.id,organizationId:row.organization_id,name:row.name,description:row.description,transport:row.transport,endpoint:row.endpoint,authType:row.auth_type,encryptedCredentials:row.encrypted_credentials,enabled:row.enabled,healthStatus:row.health_status,protocolVersion:row.protocol_version,serverCapabilities:row.server_capabilities,lastSyncedAt:row.last_synced_at,lastCheckedAt:row.last_checked_at,lastErrorCode:row.last_error_code,lastErrorMessage:row.last_error_message,createdBy:row.created_by,createdAt:row.created_at,updatedAt:row.updated_at }; }

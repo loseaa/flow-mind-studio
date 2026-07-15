@@ -8,7 +8,11 @@ export type StructuredOutputModel<TSchema = unknown, TOutput = unknown> = {
   withStructuredOutput(schema: TSchema, config?: unknown): StructuredOutputRunnable<TOutput>;
 };
 
-export type CreateStructuredOutput = (schema: unknown) => StructuredOutputRunnable<unknown>;
+export type StructuredOutputContext = {
+  node?: string;
+};
+
+export type CreateStructuredOutput = (schema: unknown, context?: StructuredOutputContext) => StructuredOutputRunnable<unknown>;
 
 export type ImageGenerationRequest = {
   assetId: string;

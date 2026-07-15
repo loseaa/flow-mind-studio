@@ -9,7 +9,7 @@ import { imagePlanningNode } from "./node.js";
 import { imagePlanningModelOutputSchema } from "./schema.js";
 
 describe("imagePlanningNode", () => {
-  it("uses the visual slot review document for slot targets while keeping style and visual input refs", async () => {
+  it("preserves the complete style document while using reviewed image slots", async () => {
     const { state, store, styleRef, visualRef } = await fixture("normal");
     const schemas: unknown[] = [];
 
@@ -37,19 +37,23 @@ describe("imagePlanningNode", () => {
       targetElementId: "slot_feature",
       kind: "content_image",
     });
-    expect(artifact.output.document.elements).toHaveLength(document().elements.length);
+    expect(artifact.output.document.elements).toHaveLength(styleDocument().elements.length);
+    expect(artifact.output.document.elements).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: "hero_title", type: "text" }),
+      expect.objectContaining({ id: "hero_action", type: "button" }),
+    ]));
   });
 
-  it("fails clearly when visual slot review does not provide a valid document", async () => {
-    const { state, store } = await fixture("missing-visual-document");
-    const brokenVisualRef = await store.writeArtifact({
-      node: "visual_slot_review",
+  it("fails clearly when style planning does not provide a valid document", async () => {
+    const { state, store } = await fixture("missing-style-document");
+    const brokenStyleRef = await store.writeArtifact({
+      node: "style_planning",
       status: "success",
       inputRefs: [],
-      output: { layoutPlan: { imageSlots: slots() } },
+      output: { stylePlan: { theme: "editorial", tone: "expressive" } },
       errors: [],
     });
-    state.latestArtifactRefs = { ...state.latestArtifactRefs, visual_slot_review: brokenVisualRef };
+    state.latestArtifactRefs = { ...state.latestArtifactRefs, style_planning: brokenStyleRef };
 
     await expect(
       imagePlanningNode(state, {
@@ -58,7 +62,7 @@ describe("imagePlanningNode", () => {
           return { invoke: () => draft() };
         },
       }),
-    ).rejects.toThrow(/visual_slot_review\.output\.document/i);
+    ).rejects.toThrow(/style_planning\.output\.document/i);
   });
 
   it("retries unknown slots and rejects duplicate slot use", async () => {
@@ -83,19 +87,22 @@ describe("imagePlanningNode", () => {
     expect((await store.readArtifact<any>(result.latestArtifactRefs!.image_planning)).status).toBe("success");
   });
 
-  it("fails after retry when the model keeps reusing a slot", async () => {
+  it("uses reviewed slots after retry when the model keeps reusing a slot", async () => {
     const { state, store } = await fixture("duplicate2");
     const value = draft();
     value.visualAssetPlan.assets[1].slotId = value.visualAssetPlan.assets[0].slotId;
 
-    await expect(
-      imagePlanningNode(state, {
-        artifactStore: store,
-        createStructuredOutput() {
-          return { invoke: () => value };
-        },
-      }),
-    ).rejects.toThrow(/Duplicate image slot/i);
+    const result = await imagePlanningNode(state, {
+      artifactStore: store,
+      createStructuredOutput() {
+        return { invoke: () => value };
+      },
+    });
+
+    const artifact = await store.readArtifact<any>(result.latestArtifactRefs!.image_planning);
+    expect(artifact.status).toBe("success");
+    expect(artifact.errors).toEqual([expect.stringContaining("Retry failed")]);
+    expect(artifact.output.visualAssetPlan.assets.map((asset: any) => asset.slotId)).toEqual(slots().map((slot) => slot.id));
   });
 
   it("offline fallback uses reviewed slots", async () => {
@@ -201,14 +208,52 @@ function document(): DesignDocument {
 }
 
 function styleDocument(): DesignDocument {
+  const reviewed = document();
   return {
-    schemaVersion: "fm-design/v1",
-    id: "doc",
-    name: "Doc",
-    canvas: { viewport: "desktop", width: 1440, background: "muted" },
-    tree: { id: "page", children: [{ id: "hero", children: [] }] },
-    elements: [container("page", "page"), container("hero", "section")],
-    variables: {},
+    ...reviewed,
+    tree: {
+      id: "page",
+      children: [{
+        id: "hero",
+        children: [
+          { id: "slot_feature", children: [] },
+          { id: "slot_card", children: [] },
+          { id: "hero_title", children: [] },
+          { id: "hero_action", children: [] },
+        ],
+      }],
+    },
+    elements: [
+      ...reviewed.elements,
+      textElement("hero_title"),
+      buttonElement("hero_action"),
+    ],
+  };
+}
+
+function textElement(id: string) {
+  return {
+    id,
+    name: id,
+    type: "text" as const,
+    props: { text: "A complete product story" },
+    style: {
+      base: base(),
+      text: { role: "heading" as const, decoration: "none" as const, transform: "none" as const },
+    },
+  };
+}
+
+function buttonElement(id: string) {
+  return {
+    id,
+    name: id,
+    type: "button" as const,
+    props: { label: "Buy now" },
+    style: {
+      base: base(),
+      button: { size: "md" as const, emphasis: "primary" as const },
+    },
   };
 }
 

@@ -11,7 +11,7 @@ import type {
 import { imageGenerationPrompt } from "./prompt.js";
 import type { ImageGenerationItem, ImageGenerationOutput } from "./schema.js";
 
-const MAX_CONCURRENCY = 2;
+const DEFAULT_MAX_CONCURRENCY = 2;
 const MAX_ATTEMPTS = 2;
 const PRIORITY_ORDER = { required: 0, recommended: 1, optional: 2 } as const;
 
@@ -49,7 +49,7 @@ export async function imageGenerationNode(
     .map(({ asset }) => asset);
   const images = await mapWithConcurrency(
     scheduledAssets,
-    MAX_CONCURRENCY,
+    readMaxConcurrency(),
     (asset) => generateAsset(state, document, asset, options.createImageGeneration!),
   );
   const documentWithImages = structuredClone(document) as DesignDocument;
@@ -176,6 +176,13 @@ function resolveTargetSlot(target: DesignElement, asset: VisualAsset): DesignIma
 function ratioFor(ratio: DesignImageSlot["display"]["aspectRatio"]): ImageGenerationRequest["aspectRatio"] {
   return ratio === "1:1" ? "square" : ratio === "3:4" ? "portrait" : "wide";
 }
+
+function readMaxConcurrency() {
+  const configured = Number(process.env.DESIGN_AGENT_IMAGE_MAX_CONCURRENCY);
+  if (!Number.isFinite(configured) || configured <= 0) return DEFAULT_MAX_CONCURRENCY;
+  return Math.max(1, Math.floor(configured));
+}
+
 async function generateAsset(
   state: DesignAgentState,
   document: DesignDocument,

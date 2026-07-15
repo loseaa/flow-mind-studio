@@ -11,7 +11,18 @@ export function repairStylePlan(document: DesignDocument, input: StylePlan): Sty
   const repairs: string[] = [];
   const assignments = plan.assignments.flatMap((assignment) => {
     const element = elementsById.get(assignment.elementId);
-    if (!element || isCompatiblePreset(element, assignment.preset)) return [assignment];
+    if (!element) {
+      repairs.push(`Removed style assignment for missing element ${assignment.elementId}.`);
+      return [];
+    }
+    if (isCompatiblePreset(element, assignment.preset)) {
+      const expected = defaultStylePreset(element);
+      if ((element.type === "text" || element.type === "button") && expected && expected !== assignment.preset) {
+        repairs.push(`Replaced semantically weak preset ${assignment.preset} with ${expected} for ${element.id}.`);
+        return [{ ...assignment, preset: expected }];
+      }
+      return [assignment];
+    }
 
     const replacement = defaultStylePreset(element);
     if (!replacement) {
@@ -21,6 +32,15 @@ export function repairStylePlan(document: DesignDocument, input: StylePlan): Sty
     repairs.push(`Replaced incompatible preset ${assignment.preset} with ${replacement} for ${element.id} (${element.type}).`);
     return [{ ...assignment, preset: replacement }];
   });
+
+  const assignedIds = new Set(assignments.map((assignment) => assignment.elementId));
+  for (const element of document.elements) {
+    if (assignedIds.has(element.id)) continue;
+    const preset = defaultStylePreset(element);
+    if (!preset) continue;
+    assignments.push({ elementId: element.id, preset });
+    repairs.push(`Added missing preset ${preset} for ${element.id} (${element.type}).`);
+  }
 
   const repairNotes = repairs.slice(0, 10);
   return stylePlanSchema.parse({
@@ -74,6 +94,7 @@ function applyPreset(element: DesignElement, preset: StylePreset): DesignElement
         container: {
           ...element.style.container,
           shadow: preset === "panel" ? "sm" : "none",
+          overflow: element.id === "table_content" ? "auto" : element.style.container.overflow,
           surface: preset === "page" ? "flat" : preset === "panel" ? "panel" : "flat",
         },
       },
@@ -175,14 +196,33 @@ function defaultStylePreset(element: DesignElement): StylePreset | undefined {
   if (element.type === "page") return "page";
   if (element.type === "section") return "section";
   if (element.type === "stack") return "panel";
-  if (element.type === "text") return "body";
+  if (element.type === "text") {
+    const hint = `${element.id} ${element.name} ${String(element.props.purpose ?? "")}`.toLowerCase();
+    if (/(page|hero|header|main)[_\s-]?(title|headline)/.test(hint)) return "heading";
+    if (/(^|[_\s-])(title|heading)([_\s-]|$)/.test(hint)) return "subheading";
+    if (/eyebrow|caption|description|helper|note/.test(hint)) return "muted";
+    return "body";
+  }
   if (element.type === "image") return "media";
-  if (element.type === "button") return "secondary_action";
+  if (element.type === "button") {
+    return inferButtonPreset(element);
+  }
   if (element.type === "input" || element.type === "filter" || element.type === "form") return "control";
   if (element.type === "badge") return "status";
   if (element.type === "stat") return "metric";
   if (element.type === "table") return "data_table";
   return undefined;
+}
+
+function inferButtonPreset(element: DesignElement): StylePreset {
+  const identity = `${element.id} ${element.name} ${String(element.props.label ?? "")} ${String(element.props.purpose ?? "")}`.toLowerCase();
+  if (/secondary|cancel|back|close|learn|contact|more|details|explore|view|browse|咨询|联系|了解|更多|查看/.test(identity)) {
+    return "secondary_action";
+  }
+  if (/primary|submit|create|save|confirm|buy|start|shop|cart|checkout|order|add|purchase|立即|马上|开始|购买|选购|下单|结算|加入购物车|购物车/.test(identity)) {
+    return "primary_action";
+  }
+  return "secondary_action";
 }
 
 function incompatible(element: DesignElement, preset: StylePreset): never {

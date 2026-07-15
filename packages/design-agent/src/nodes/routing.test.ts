@@ -33,7 +33,7 @@ describe("routing", () => {
       ...createInitialState("thread_visual_route_stop"),
       validationErrors: ["IMAGE_SLOT_METADATA_MISSING: Restore deterministic image slot metadata."],
       repairAttempts: 2,
-    })).toBe("final_output");
+    })).toBe("failed");
   });
 
   it("routes reflection repair to document repair while attempts remain", () => {

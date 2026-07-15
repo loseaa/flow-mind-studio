@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { interactionPlanSchema } from "./schema.js";
+import { interactionPlanningModelOutputSchema, interactionPlanSchema } from "./schema.js";
 
 const validPlan = {
   interactions: [{
@@ -33,5 +33,32 @@ describe("interactionPlanSchema", () => {
       id: `interaction_${index}`,
     }));
     expect(() => interactionPlanSchema.parse({ ...validPlan, interactions })).toThrow();
+  });
+});
+
+describe("interactionPlanningModelOutputSchema", () => {
+  it("normalizes trigger, business action, null target, and missing payload", () => {
+    expect(interactionPlanningModelOutputSchema.parse({
+      interactionPlan: {
+        id: "start_trial",
+        sourceElementId: "refresh_button",
+        targetElementId: null,
+        trigger: "click",
+        action: "startTrial",
+        description: "Start trial",
+      },
+    })).toEqual({
+      interactionPlan: {
+        interactions: [{
+          id: "start_trial",
+          sourceElementId: "refresh_button",
+          event: "click",
+          action: "submit",
+          description: "Start trial",
+          payload: [],
+        }],
+        notes: [],
+      },
+    });
   });
 });

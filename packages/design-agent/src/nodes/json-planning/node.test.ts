@@ -42,25 +42,67 @@ describe("jsonPlanningNode", () => {
     });
   });
 
-it("persists a failed artifact and stops when both model attempts fail", async () => {
+  it("uses the deterministic structure when both model attempts fail", async () => {
     const runDir = await mkdtemp(join(tmpdir(), "flowmind-design-agent-json-planning-failed-"));
     const store = createArtifactStore({ runDir, threadId: "thread_json_planning_2" });
     const state = createInitialState("thread_json_planning_2");
 
-    await expect(jsonPlanningNode(state, {
+    const result = await jsonPlanningNode(state, {
       artifactStore: store,
       createStructuredOutput() {
         return { invoke() { throw new Error("Failed to parse model structure plan"); } };
       },
-    })).rejects.toThrow(/json_planning failed after retry/i);
+    });
 
     const manifest = await store.readManifest();
-    expect(manifest.status).toBe("failed");
+    expect(manifest.status).toBe("running");
     expect(manifest.currentNode).toBe("json_planning");
-    await expect(store.readArtifact(manifest.artifacts.json_planning)).resolves.toMatchObject({
-      status: "failed",
-      output: { structurePlan: null, document: null },
+    expect(result.currentNode).toBe("json_planning");
+    await expect(store.readArtifact(manifest.artifacts.json_planning!)).resolves.toMatchObject({
+      status: "success",
+      output: {
+        structurePlan: { document: { id: "design_generated_page" } },
+        document: { id: "design_generated_page", schemaVersion: "fm-design/v1" },
+      },
       errors: [expect.stringContaining("Retry failed")],
+    });
+  });
+
+  it("normalizes top-level model nodes and supplies document metadata", async () => {
+    const runDir = await mkdtemp(join(tmpdir(), "flowmind-design-agent-json-planning-normalized-"));
+    const store = createArtifactStore({ runDir, threadId: "thread_json_planning_normalized" });
+    const state = createInitialState("thread_json_planning_normalized");
+
+    const result = await jsonPlanningNode(state, {
+      artifactStore: store,
+      createStructuredOutput() {
+        return {
+          invoke: () => ({
+            nodes: [
+              { id: "phone_page", parentId: null, order: 0, type: "page", name: "手机新品页", purpose: "产品推广" },
+              { id: "hero", parentId: "phone_page", order: 0, type: "section", name: "首屏", purpose: "展示产品" },
+            ],
+          }),
+        };
+      },
+    });
+
+    const jsonRef = result.latestArtifactRefs?.json_planning;
+    expect(jsonRef).toBeDefined();
+    await expect(store.readArtifact(jsonRef!)).resolves.toMatchObject({
+      output: {
+        structurePlan: {
+          document: {
+            id: "phone_page",
+            name: "手机新品页",
+            viewport: "desktop",
+            width: 1440,
+            background: "muted",
+          },
+        },
+        document: { id: "phone_page", name: "手机新品页" },
+      },
+      errors: [],
     });
   });
 

@@ -157,6 +157,10 @@ export function reviewVisualQualityWithRules(document: DesignDocument, modelIssu
     issues.push({ code: "MISSING_PRIMARY_VISUAL", elementId: document.tree.id, severity: "high", suggestion: "The page should include at least one primary visual region." });
   }
 
+  if (isProductMarketingDocument(document)) {
+    reviewProductContentQuality(document, elementsById, issues);
+  }
+
   const mergedIssues = dedupeIssues([...issues, ...modelIssues]);
   const score = Math.max(0, 100 - mergedIssues.reduce((total, issue) => total + severityPenalty(issue.severity), 0));
   return {
@@ -165,6 +169,92 @@ export function reviewVisualQualityWithRules(document: DesignDocument, modelIssu
     issues: mergedIssues,
     repairActions: dedupeActions(repairActions),
   };
+}
+
+function reviewProductContentQuality(
+  document: DesignDocument,
+  elementsById: Map<string, DesignElement>,
+  issues: VisualReviewIssue[],
+) {
+  const textCount = document.elements.filter((element) => element.type === "text").length;
+  const actionCount = document.elements.filter((element) => element.type === "button").length;
+  const statCount = document.elements.filter((element) => element.type === "stat").length;
+  const imageCount = document.elements.filter((element) => element.type === "image").length;
+
+  if (treeDepth(document.tree) < 4) {
+    issues.push({ code: "PRODUCT_HIERARCHY_TOO_SHALLOW", elementId: document.tree.id, severity: "high", suggestion: "Product pages need nested section, composition, and content groups rather than a flat section list." });
+  }
+  if (textCount < 15) {
+    issues.push({ code: "PRODUCT_COPY_TOO_SPARSE", elementId: document.tree.id, severity: "high", suggestion: "Add complete hero, feature, specification, proof, and conversion copy; product pages require at least 15 text elements." });
+  }
+  if (actionCount < 2) {
+    issues.push({ code: "PRODUCT_ACTIONS_TOO_SPARSE", elementId: "hero_section", severity: "high", suggestion: "Provide at least two clear product actions across the hero and closing conversion flow." });
+  }
+  if (statCount < 3) {
+    issues.push({ code: "PRODUCT_PROOF_TOO_SPARSE", elementId: "proof_section", severity: "high", suggestion: "Support product claims with at least three metrics or specifications." });
+  }
+  if (imageCount > 5 || (imageCount > 0 && textCount / imageCount < 3)) {
+    issues.push({ code: "PRODUCT_IMAGE_DOMINATED", elementId: document.tree.id, severity: "high", suggestion: "Reduce image repetition and pair every visual with meaningful copy; keep at least a 3:1 text-to-image ratio." });
+  }
+
+  for (const child of document.tree.children ?? []) {
+    const element = elementsById.get(child.id);
+    if (element?.type !== "section") continue;
+    if (!containsType(document, child.id, elementsById, "text")) {
+      issues.push({ code: "PRODUCT_SECTION_HAS_NO_COPY", elementId: child.id, severity: "high", suggestion: "Every product section except a deliberate gallery needs a heading and supporting copy." });
+    }
+  }
+
+  for (const groupId of resolveProductContentGroups(document)) {
+    const node = findTreeNode(document.tree, groupId);
+    if (!node || collectTreeIds(node).length <= 1) {
+      issues.push({ code: "PRODUCT_CONTENT_GROUP_EMPTY", elementId: groupId, severity: "high", suggestion: "Populate every planned product content group before final output." });
+    }
+  }
+}
+
+function isProductMarketingDocument(document: DesignDocument) {
+  return hasMatchingElement(document, [/\bhero\b/, /\bheadline\b/])
+    && hasMatchingElement(document, [/\bfeatures?\b/, /\bfeature grid\b/, /\bcapabilit(y|ies)\b/])
+    && hasMatchingElement(document, [/\bcta\b/, /call to action/, /\bpurchase\b/]);
+}
+
+function resolveProductContentGroups(document: DesignDocument) {
+  return Array.from(new Set([
+    pickKnownProductContainerId(document, ["hero_copy", "stk-hero-copy"], [/hero[-_\s].*copy/, /\bhero copy\b/]),
+    pickKnownProductContainerId(document, ["hero_actions", "stk-hero-actions"], [/hero[-_\s].*actions?/, /\bhero actions?\b/]),
+    pickKnownProductContainerId(document, ["proof_metrics", "stk-proof-metrics"], [/proof[-_\s].*metrics?/, /\bproof metrics\b/]),
+    pickKnownProductContainerId(document, ["features_grid", "stk-features-grid"], [/features?[-_\s].*grid/, /\bfeature grid\b/]),
+    pickKnownProductContainerId(document, ["story_copy", "stk-story-copy", "stk-rules-content"], [/story[-_\s].*(copy|content)/, /rules[-_\s].*content/, /\bstory copy\b/, /\brules content\b/]),
+    pickKnownProductContainerId(document, ["specifications_grid", "stk-specs-list"], [/(specs?|specifications?)[-_\s].*(grid|list)/]),
+    pickKnownProductContainerId(document, ["social_grid", "stk-testimonials"], [/social[-_\s].*grid/, /\btestimonials?\b/, /\breviews?\b/]),
+    pickKnownProductContainerId(document, ["cta_copy", "stk-cta-content"], [/cta[-_\s].*(copy|content|headline|body)/, /\bfinal cta\b/]),
+    pickKnownProductContainerId(document, ["cta_actions", "stk-cta-actions"], [/cta[-_\s].*actions?/, /final[-_\s].*actions?/]),
+  ].filter((id): id is string => Boolean(id))));
+}
+
+function pickKnownProductContainerId(document: DesignDocument, exactIds: string[], patterns: RegExp[]) {
+  for (const id of exactIds) {
+    if (document.elements.some((element) => element.id === id && isContainerElement(element))) return id;
+  }
+  return document.elements.find((element) => isContainerElement(element) && matchesElement(element, patterns))?.id;
+}
+
+function hasMatchingElement(document: DesignDocument, patterns: RegExp[]) {
+  return document.elements.some((element) => matchesElement(element, patterns));
+}
+
+function matchesElement(element: DesignElement, patterns: RegExp[]) {
+  const haystack = `${element.id} ${element.name}`.toLowerCase();
+  return patterns.some((pattern) => pattern.test(haystack));
+}
+
+function isContainerElement(element: DesignElement) {
+  return element.type === "page" || element.type === "section" || element.type === "stack";
+}
+
+function treeDepth(node: DesignDocument["tree"]): number {
+  return 1 + Math.max(0, ...(node.children ?? []).map(treeDepth));
 }
 
 function collectImageSlots(document: DesignDocument): Map<string, DesignImageSlot> {

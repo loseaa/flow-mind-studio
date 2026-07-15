@@ -1,13 +1,14 @@
 import { Body, Controller, Get, Param, Post, UploadedFile, UseInterceptors } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
-import { EvaluationService, RagTaskService } from "./rag.service";
+import { EvaluationService, RagTaskService, RetrievalService, type RetrievalMode } from "./rag.service";
 import type { UploadedDocument } from "./document-processing";
 
 @Controller("rag")
 export class RagController {
   constructor(
     private readonly evaluationService: EvaluationService,
-    private readonly tasks: RagTaskService
+    private readonly tasks: RagTaskService,
+    private readonly retrievalService: RetrievalService
   ) {}
 
   @Post("evaluation-datasets/import")
@@ -27,8 +28,8 @@ export class RagController {
   }
 
   @Post("evaluation-datasets/:id/runs")
-  startRun(@Param("id") id: string) {
-    return this.evaluationService.startRun(id, this.tasks);
+  startRun(@Param("id") id: string, @Body() body: { retrievalMode?: RetrievalMode }) {
+    return this.evaluationService.startRun(id, this.tasks, body.retrievalMode === "vector" ? "vector" : "hybrid");
   }
 
   @Get("evaluation-runs/:id")
@@ -44,5 +45,14 @@ export class RagController {
   @Get("metrics")
   metrics() {
     return this.evaluationService.getMetrics();
+  }
+
+  @Post("retrieval/debug")
+  debugRetrieval(@Body() body: { question?: string; knowledgeBaseIds?: string[]; mode?: RetrievalMode }) {
+    return this.retrievalService.debug(
+      body.question?.trim() ?? "",
+      [...new Set(body.knowledgeBaseIds ?? [])],
+      body.mode === "vector" ? "vector" : "hybrid"
+    );
   }
 }

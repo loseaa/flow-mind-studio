@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { designDocumentSchema } from "@flowmind/shared";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -67,6 +67,53 @@ describe("LowCodePage design builder", () => {
     expect(container.querySelector('[data-node-id="ai_content_visual_2"] img')).not.toBeNull();
     expect((container.querySelector('[data-node-id="section1"] section') as HTMLElement | null)?.style.backgroundImage).toContain("data:image/svg+xml;base64");
     expect(container.querySelector('[data-node-id="customer_table"]')).toBeNull();
+  });
+
+  it("uses the AI design document as the default lowcode preview when stored drafts are disabled", () => {
+    localStorage.setItem("flowmind.lowcode.designDocument", JSON.stringify(fallbackDesignDocument));
+
+    const { container } = render(<LowCodePage loadStoredDocument={false} />);
+
+    expect(container.querySelector('[data-node-id="page1"]')).not.toBeNull();
+    expect(container.querySelector('[data-node-id="page_title"] h2')?.textContent).toBe("Laptop Product Introduction");
+    expect(container.querySelector('[data-node-id="customer_table"]')).toBeNull();
+  });
+
+  it("loads the latest completed design-agent document when lowcode preview opens", async () => {
+    const originalFetch = globalThis.fetch;
+    const latestDocument = {
+      ...aiGeneratedDesignDocument,
+      name: "Latest agent preview",
+      elements: aiGeneratedDesignDocument.elements.map((element) => element.id === "page_title"
+        ? {
+            ...element,
+            props: {
+              ...element.props,
+              content: "Latest agent result",
+            },
+          }
+        : element),
+    };
+    globalThis.fetch = vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input) === "http://localhost:4000/api/low-code/design-agent/latest") {
+        return {
+          ok: true,
+          json: async () => ({ runId: "web-latest-preview", document: latestDocument }),
+        } as Response;
+      }
+      throw new Error(`Unexpected fetch: ${String(input)}`);
+    }) as typeof fetch;
+
+    try {
+      render(<LowCodePage loadStoredDocument={false} />);
+
+      await waitFor(() => {
+        expect(screen.getByText("Latest agent result")).toBeInTheDocument();
+      });
+      expect(globalThis.fetch).toHaveBeenCalledWith("http://localhost:4000/api/low-code/design-agent/latest");
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
   it("renders image slot sizing and focal point metadata on the canvas", () => {
     const document = structuredClone(fallbackDesignDocument);
@@ -180,11 +227,42 @@ describe("LowCodePage design builder", () => {
 
     expect(screen.getByRole("button", { name: "变量" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByText("全局变量")).toBeInTheDocument();
-    expect(screen.getByText("Path")).toBeInTheDocument();
-    expect(screen.getByText("Value")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "新增变量" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "打开数据与变量" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "打开数据与变量" }));
+
+    expect(screen.getByRole("button", { name: /数据与变量/ })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("navigation", { name: "变量分类" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "新建变量" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "高级 JSON" })).toBeInTheDocument();
-    expect(screen.queryByLabelText(/Variable default value:/)).not.toBeInTheDocument();
+  });
+
+  it("searches page variables in the data workspace", () => {
+    const document = structuredClone(fallbackDesignDocument);
+    document.variables = { alphaValue: "first", betaValue: "second", designTheme: { theme: "enterprise" } };
+
+    render(<LowCodePage initialDocument={document} loadStoredDocument={false} />);
+    fireEvent.click(screen.getByRole("button", { name: /数据与变量/ }));
+    fireEvent.change(screen.getByLabelText("搜索变量"), { target: { value: "beta" } });
+
+    expect(screen.getByText("Beta Value")).toBeInTheDocument();
+    expect(screen.queryByText("Alpha Value")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "系统数据 1" })).toBeInTheDocument();
+  });
+
+  it("locates a component from the variable diagnostics workspace", () => {
+    const document = structuredClone(fallbackDesignDocument);
+    document.variables = {};
+    const title = document.elements.find((element) => element.id === "title_text");
+    if (title) title.props = { ...title.props, text: "Customer: {{missing.name}}" };
+
+    const { container } = render(<LowCodePage initialDocument={document} loadStoredDocument={false} />);
+    fireEvent.click(screen.getByRole("button", { name: /数据与变量/ }));
+    fireEvent.click(screen.getByRole("button", { name: /引用问题 1/ }));
+    fireEvent.click(screen.getByRole("button", { name: "定位组件" }));
+
+    expect(screen.getByRole("button", { name: "设计" })).toHaveAttribute("aria-pressed", "true");
+    expect(container.querySelector('[data-node-id="title_text"]')?.className).toContain("ring-2");
   });
 
   it("does not show variable management in the right property inspector", () => {
@@ -724,6 +802,42 @@ describe("LowCodePage design builder", () => {
     expect(savedTitle?.props?.text).toBe("Customer: {{customer.name}}");
   });
 
+  it("creates a structured text binding from the property inspector", () => {
+    const document = structuredClone(fallbackDesignDocument);
+    document.variables = { customerName: "Acme" };
+    localStorage.setItem("flowmind.lowcode.designDocument", JSON.stringify(document));
+    const { container } = render(<LowCodePage />);
+    const heading = container.querySelector('[data-node-id="title_text"] h2') as HTMLElement;
+
+    fireEvent.click(heading);
+    const control = container.querySelector('[data-binding-control="Content"]') as HTMLElement;
+    fireEvent.click(within(control).getByRole("button", { name: "变量" }));
+    fireEvent.change(screen.getByLabelText("Content variable"), { target: { value: "customerName" } });
+
+    expect(screen.getByRole("heading", { name: "Acme" })).toBeInTheDocument();
+    clickSave(container);
+    const saved = JSON.parse(localStorage.getItem("flowmind.lowcode.designDocument") ?? "{}") as typeof fallbackDesignDocument;
+    expect(saved.elements.find((element) => element.id === "title_text")?.bindings?.text).toEqual({ kind: "variable", path: "customerName" });
+  });
+
+  it("renders structured button label and disabled bindings", () => {
+    const document = structuredClone(fallbackDesignDocument);
+    document.variables = { ctaLabel: "Bound action", loading: true };
+    const button = document.elements.find((element) => element.type === "button");
+    expect(button).toBeDefined();
+    if (!button) return;
+    button.bindings = {
+      label: { kind: "variable", path: "ctaLabel" },
+      disabled: { kind: "variable", path: "loading" }
+    };
+
+    render(<LowCodePage initialDocument={document} loadStoredDocument={false} />);
+
+    const previewButton = screen.getByRole("button", { name: "Bound action" });
+    expect(previewButton).toHaveAttribute("aria-disabled", "true");
+    expect(previewButton).not.toBeDisabled();
+  });
+
   it("updates the canvas when table variable values change", () => {
     const document = structuredClone(fallbackDesignDocument);
     document.variables = { customer: { name: "Acme" } };
@@ -733,8 +847,9 @@ describe("LowCodePage design builder", () => {
 
     render(<LowCodePage />);
 
-    fireEvent.click(screen.getByRole("button", { name: "变量" }));
-    fireEvent.change(screen.getByLabelText("Variable value: customer.name"), { target: { value: "Beta" } });
+    fireEvent.click(screen.getByRole("button", { name: /数据与变量/ }));
+    fireEvent.change(screen.getByLabelText("Variable tree value: customer.name"), { target: { value: "Beta" } });
+    fireEvent.click(screen.getByRole("button", { name: "设计" }));
 
     expect(screen.getByRole("heading", { name: "Customer: Beta" })).toBeInTheDocument();
   });
@@ -746,14 +861,61 @@ describe("LowCodePage design builder", () => {
 
     const { container } = render(<LowCodePage />);
 
-    fireEvent.click(screen.getByRole("button", { name: "变量" }));
-    fireEvent.click(screen.getByRole("button", { name: "新增变量" }));
-    fireEvent.change(screen.getByLabelText("Variable path: variable1"), { target: { value: "order.items.0.title" } });
-    fireEvent.change(screen.getByLabelText("Variable value: order.items.0.title"), { target: { value: "Starter" } });
+    fireEvent.click(screen.getByRole("button", { name: /数据与变量/ }));
+    fireEvent.click(screen.getByRole("button", { name: "高级 JSON" }));
+    fireEvent.change(screen.getByLabelText("Variables JSON draft"), { target: { value: '{"order":{"items":[{"title":"Starter"}]}}' } });
+    fireEvent.click(screen.getByRole("button", { name: "应用变更" }));
     clickSave(container);
 
     const savedDocument = JSON.parse(localStorage.getItem("flowmind.lowcode.designDocument") ?? "{}") as typeof fallbackDesignDocument;
     expect(savedDocument.variables).toEqual({ order: { items: [{ title: "Starter" }] } });
+  });
+
+  it("renames a variable on blur and updates template references atomically", () => {
+    const document = structuredClone(fallbackDesignDocument);
+    document.variables = { customer: { name: "Acme" } };
+    const title = document.elements.find((element) => element.id === "title_text");
+    if (title) title.props = { ...title.props, text: "Customer: {{customer.name}}" };
+
+    render(<LowCodePage initialDocument={document} loadStoredDocument={false} />);
+    fireEvent.click(screen.getByRole("button", { name: /数据与变量/ }));
+    fireEvent.click(screen.getByRole("button", { name: "name" }));
+    fireEvent.change(screen.getByLabelText("Key"), { target: { value: "customer.companyName" } });
+    fireEvent.click(screen.getByRole("button", { name: "修改" }));
+    fireEvent.click(screen.getByRole("button", { name: "确认修改" }));
+
+    expect(screen.getByText("customer.companyName")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "设计" }));
+    expect(screen.getByRole("heading", { name: "Customer: Acme" })).toBeInTheDocument();
+  });
+
+  it("blocks publishing when a template references a missing variable", () => {
+    const document = structuredClone(fallbackDesignDocument);
+    document.variables = {};
+    const title = document.elements.find((element) => element.id === "title_text");
+    if (title) title.props = { ...title.props, text: "Customer: {{customer.name}}" };
+
+    render(<LowCodePage initialDocument={document} loadStoredDocument={false} />);
+    fireEvent.click(screen.getByRole("button", { name: "发布预览" }));
+
+    expect(screen.getByRole("alert")).toHaveTextContent("发布失败：存在 1 个无效变量引用");
+    expect(screen.getByText("草稿")).toBeInTheDocument();
+  });
+
+  it("requires confirmation before deleting a referenced variable", () => {
+    const document = structuredClone(fallbackDesignDocument);
+    document.variables = { customer: { name: "Acme" } };
+    const title = document.elements.find((element) => element.id === "title_text");
+    if (title) title.props = { ...title.props, text: "Customer: {{customer.name}}" };
+    render(<LowCodePage initialDocument={document} loadStoredDocument={false} />);
+    fireEvent.click(screen.getByRole("button", { name: /数据与变量/ }));
+    fireEvent.click(screen.getByRole("button", { name: "name" }));
+    fireEvent.click(screen.getByRole("button", { name: "删除所选节点" }));
+
+    expect(screen.getByRole("dialog", { name: "删除变量 customer.name？" })).toBeInTheDocument();
+    expect(screen.getByText("受影响引用：1")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "取消" }));
+    expect(screen.getByLabelText("Variable tree value: customer.name")).toHaveValue("Acme");
   });
 
   it("keeps the last valid variables when JSON editing is invalid", () => {
@@ -765,12 +927,13 @@ describe("LowCodePage design builder", () => {
 
     render(<LowCodePage />);
 
-    fireEvent.click(screen.getByRole("button", { name: "变量" }));
+    fireEvent.click(screen.getByRole("button", { name: /数据与变量/ }));
     fireEvent.click(screen.getByRole("button", { name: "高级 JSON" }));
-    fireEvent.change(screen.getByLabelText("Variables JSON"), { target: { value: "{ invalid json" } });
+    fireEvent.change(screen.getByLabelText("Variables JSON draft"), { target: { value: "{ invalid json" } });
+    fireEvent.click(screen.getByRole("button", { name: "应用变更" }));
 
-    expect(screen.getByText("Invalid JSON object")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Customer: Acme" })).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toBeInTheDocument();
+    expect(screen.getByLabelText("Variable tree value: customerName")).toHaveValue("Acme");
   });
 
   it("syncs table rows after valid advanced JSON editing", () => {
@@ -780,12 +943,13 @@ describe("LowCodePage design builder", () => {
 
     render(<LowCodePage />);
 
-    fireEvent.click(screen.getByRole("button", { name: "变量" }));
+    fireEvent.click(screen.getByRole("button", { name: /数据与变量/ }));
     fireEvent.click(screen.getByRole("button", { name: "高级 JSON" }));
-    fireEvent.change(screen.getByLabelText("Variables JSON"), { target: { value: '{\n  "customer": {\n    "name": "Beta"\n  }\n}' } });
+    fireEvent.change(screen.getByLabelText("Variables JSON draft"), { target: { value: '{\n  "customer": {\n    "name": "Beta"\n  }\n}' } });
+    fireEvent.click(screen.getByRole("button", { name: "应用变更" }));
 
-    expect(screen.getByDisplayValue("customer.name")).toBeInTheDocument();
-    expect(screen.getByLabelText("Variable value: customer.name")).toHaveValue("Beta");
+    expect(screen.getByText("Customer")).toBeInTheDocument();
+    expect(screen.getByLabelText("Variable tree value: customer.name")).toHaveValue("Beta");
   });
 
   it("uses content as the only editable text-node body", () => {

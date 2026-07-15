@@ -37,12 +37,17 @@ describe("stylePlanningNode", () => {
     });
 
     expect(seenSchemas).toEqual([stylePlanningModelOutputSchema]);
-    const artifact = await store.readArtifact(result.latestArtifactRefs!.style_planning);
+    const artifact = await store.readArtifact<any>(result.latestArtifactRefs!.style_planning);
     expect(artifact).toMatchObject({
       node: "style_planning",
       status: "success",
       output: {
-        stylePlan,
+        stylePlan: {
+          theme: "enterprise_light",
+          tone: "quiet",
+          assignments: expect.arrayContaining(stylePlan.assignments),
+          notes: expect.arrayContaining(stylePlan.notes),
+        },
         document: {
           variables: {
             interactions: [expect.objectContaining({ id: "refresh_data" })],
@@ -62,7 +67,7 @@ describe("stylePlanningNode", () => {
     });
   });
 
-  it("retries an assignment that references a missing element", async () => {
+  it("removes an assignment that references a missing element and fills coverage", async () => {
     const { store, state } = await stateWithInteractions("thread_style_retry");
     const prompts: unknown[] = [];
 
@@ -72,19 +77,21 @@ describe("stylePlanningNode", () => {
         return {
           invoke(input) {
             prompts.push(input);
-            if (prompts.length === 1) {
-              return { stylePlan: { ...stylePlan, assignments: [{ elementId: "missing_element", preset: "heading" }] } };
-            }
-            return { stylePlan };
+            return { stylePlan: { ...stylePlan, assignments: [{ elementId: "missing_element", preset: "heading" }] } };
           },
         };
       },
     });
 
-    expect(prompts).toHaveLength(2);
-    expect(String(prompts[1])).toContain("previous style plan was rejected");
-    const artifact = await store.readArtifact(result.latestArtifactRefs!.style_planning);
+    expect(prompts).toHaveLength(1);
+    const artifact = await store.readArtifact<any>(result.latestArtifactRefs!.style_planning);
     expect(artifact.errors).toEqual([]);
+    expect(artifact.output.stylePlan.assignments).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ elementId: "missing_element" }),
+    ]));
+    expect(artifact.output.stylePlan.assignments).toEqual(expect.arrayContaining([
+      expect.objectContaining({ elementId: "page_title", preset: "heading" }),
+    ]));
   });
 
   it("repairs a type-incompatible preset without retrying the model", async () => {
@@ -114,7 +121,7 @@ describe("stylePlanningNode", () => {
       status: "success",
       output: {
         stylePlan: {
-          assignments: [{ elementId: "refresh_button", preset: "secondary_action" }],
+          assignments: expect.arrayContaining([{ elementId: "refresh_button", preset: "secondary_action" }]),
           notes: expect.arrayContaining([
             expect.stringContaining("Replaced incompatible preset control"),
           ]),
@@ -124,23 +131,23 @@ describe("stylePlanningNode", () => {
     });
   });
 
-  it("persists a failed artifact and stops after both model attempts fail", async () => {
+  it("uses deterministic styles after both model attempts fail", async () => {
     const { store, state } = await stateWithInteractions("thread_style_failed");
 
-    await expect(stylePlanningNode(state, {
+    const result = await stylePlanningNode(state, {
       artifactStore: store,
       createStructuredOutput() {
         return { invoke: () => { throw new Error("Invalid style output"); } };
       },
-    })).rejects.toThrow(/style_planning failed after retry/i);
+    });
 
     const manifest = await store.readManifest();
-    expect(manifest.status).toBe("failed");
-    await expect(store.readArtifact(manifest.artifacts.style_planning)).resolves.toMatchObject({
-      status: "failed",
+    expect(manifest.status).toBe("running");
+    await expect(store.readArtifact(result.latestArtifactRefs!.style_planning)).resolves.toMatchObject({
+      status: "success",
       errors: [expect.stringContaining("Retry failed")],
       output: {
-        stylePlan: null,
+        stylePlan: { theme: "neutral_workspace", tone: "operational" },
         document: { variables: { interactions: [expect.objectContaining({ id: "refresh_data" })] } },
       },
     });

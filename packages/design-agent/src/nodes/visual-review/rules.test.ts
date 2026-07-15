@@ -70,6 +70,52 @@ describe("reviewVisualQualityWithRules image slot repair", () => {
     expect(review.issues).not.toContainEqual(expect.objectContaining({ code: "MISSING_PRIMARY_VISUAL" }));
     expect(review.issues).not.toContainEqual(expect.objectContaining({ code: "IMAGE_SLOT_COVERAGE_TOO_LOW" }));
   });
+
+  it("does not treat action leaf nodes as empty product content groups", () => {
+    const document = designDocumentSchema.parse({
+      schemaVersion: "fm-design/v1",
+      id: "product_doc",
+      name: "Product Doc",
+      canvas: { viewport: "desktop", width: 1440, background: "muted" },
+      tree: {
+        id: "page",
+        children: [
+          {
+            id: "hero_section",
+            children: [{ id: "hero_copy", children: [{ id: "hero_title", children: [] }, { id: "hero_primary_action", children: [] }] }],
+          },
+          {
+            id: "features_section",
+            children: [{ id: "features_grid", children: [{ id: "feature_title", children: [] }] }],
+          },
+          {
+            id: "cta_section",
+            children: [{ id: "cta_copy", children: [{ id: "cta_title", children: [] }, { id: "cta_primary_action", children: [] }] }],
+          },
+        ],
+      },
+      elements: [
+        page(),
+        section("hero_section", {}),
+        stack("hero_copy", "Hero Copy"),
+        text("hero_title"),
+        button("hero_primary_action"),
+        section("features_section", {}),
+        stack("features_grid", "Feature Grid"),
+        text("feature_title"),
+        section("cta_section", {}),
+        stack("cta_copy", "CTA Copy"),
+        text("cta_title"),
+        button("cta_primary_action"),
+      ],
+      variables: {},
+    });
+
+    const review = reviewVisualQualityWithRules(document);
+
+    expect(review.issues).not.toContainEqual(expect.objectContaining({ code: "PRODUCT_CONTENT_GROUP_EMPTY", elementId: "hero_primary_action" }));
+    expect(review.issues).not.toContainEqual(expect.objectContaining({ code: "PRODUCT_CONTENT_GROUP_EMPTY", elementId: "cta_primary_action" }));
+  });
 });
 
 function documentWithSlots(extraElements: DesignElement[], plannedSlots: DesignImageSlot[] = [slots.hero, slots.feature, slots.card]): DesignDocument {
@@ -99,6 +145,10 @@ function page(): DesignElement {
 
 function section(id: string, props: Record<string, unknown>): DesignElement {
   return { id, name: id, type: "section", layout: { display: "flex", direction: "vertical", width: "fill", height: "hug" }, props, style: containerStyle() };
+}
+
+function stack(id: string, name = "Stack"): DesignElement {
+  return { id, name, type: "stack", layout: { display: "flex", direction: "vertical", width: "fill", height: "hug" }, props: {}, style: containerStyle() };
 }
 
 function image(id: string, props: Record<string, unknown>): DesignElement {

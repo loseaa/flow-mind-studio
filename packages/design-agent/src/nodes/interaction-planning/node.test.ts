@@ -80,25 +80,55 @@ describe("interactionPlanningNode", () => {
     expect(artifact.errors).toEqual([]);
   });
 
-  it("persists a failed artifact and stops after both model attempts fail", async () => {
+  it("uses the deterministic plan after both model attempts fail", async () => {
     const { store, state } = await stateWithElements("thread_interaction_failed");
 
-    await expect(interactionPlanningNode(state, {
+    const result = await interactionPlanningNode(state, {
       artifactStore: store,
       createStructuredOutput() {
         return { invoke: () => { throw new Error("Invalid interaction output"); } };
       },
-    })).rejects.toThrow(/interaction_planning failed after retry/i);
+    });
 
     const manifest = await store.readManifest();
-    expect(manifest.status).toBe("failed");
-    await expect(store.readArtifact(manifest.artifacts.interaction_planning)).resolves.toMatchObject({
-      status: "failed",
+    expect(manifest.status).toBe("running");
+    await expect(store.readArtifact(result.latestArtifactRefs!.interaction_planning)).resolves.toMatchObject({
+      status: "success",
       errors: [expect.stringContaining("Retry failed")],
       output: {
-        interactionPlan: null,
+        interactionPlan: { interactions: [] },
         document: { elements: expect.arrayContaining([expect.objectContaining({ id: "refresh_button" })]) },
       },
+    });
+  });
+
+  it("normalizes a single trigger-based business interaction", async () => {
+    const { store, state } = await stateWithElements("thread_interaction_normalized");
+
+    const result = await interactionPlanningNode(state, {
+      artifactStore: store,
+      createStructuredOutput() {
+        return { invoke: () => ({ interactionPlan: {
+          id: "start_trial",
+          sourceElementId: "refresh_button",
+          targetElementId: null,
+          trigger: "click",
+          action: "startTrial",
+          description: "Start a free trial",
+        } }) };
+      },
+    });
+
+    const artifact = await store.readArtifact(result.latestArtifactRefs!.interaction_planning);
+    expect(artifact).toMatchObject({
+      status: "success",
+      output: { interactionPlan: { interactions: [{
+        id: "start_trial",
+        event: "click",
+        action: "submit",
+        payload: [],
+      }] } },
+      errors: [],
     });
   });
 });

@@ -9,13 +9,19 @@ const MAX_QUESTIONS_PER_DIMENSION = 2;
 export async function questionGenerationNode(state: DesignAgentState, options: GraphNodeOptions): Promise<Partial<DesignAgentState>> {
   const dimensionsWithLimits = applyQuestionLimitAssumptions(state.dimensions);
   const completenessResult = evaluateCompleteness(dimensionsWithLimits);
-  const rawPlan = completenessResult.allComplete
+  const errors: string[] = [];
+  let rawPlan = completenessResult.allComplete
     ? questionGenerationOutputSchema.parse({ reason: "No clarification needed after applying question limits.", questions: [] })
-    : options.createStructuredOutput
-      ? parseQuestionGenerationOutput(
-          await options.createStructuredOutput(questionGenerationOutputSchema).invoke(buildQuestionGenerationInput({ ...state, dimensions: dimensionsWithLimits, completenessResult })),
-        )
-      : questionGenerationOutputSchema.parse(generateClarificationPlan(completenessResult));
+    : questionGenerationOutputSchema.parse(generateClarificationPlan(completenessResult));
+  if (!completenessResult.allComplete && options.createStructuredOutput) {
+    try {
+      rawPlan = parseQuestionGenerationOutput(
+        await options.createStructuredOutput(questionGenerationOutputSchema, { node: "question_generation" }).invoke(buildQuestionGenerationInput({ ...state, dimensions: dimensionsWithLimits, completenessResult })),
+      );
+    } catch (error) {
+      errors.push(formatError(error));
+    }
+  }
   const clarificationPlan = removeRepeatedQuestions(rawPlan, dimensionsWithLimits);
   const dimensions = recordQuestionsAsked(dimensionsWithLimits, clarificationPlan);
   const inputRefs = state.latestArtifactRefs.completeness_check ? [state.latestArtifactRefs.completeness_check] : [];
@@ -25,7 +31,7 @@ export async function questionGenerationNode(state: DesignAgentState, options: G
         status: "success",
         inputRefs,
         output: clarificationPlan,
-        errors: []
+        errors
       })
     : undefined;
 
@@ -45,6 +51,10 @@ export async function questionGenerationNode(state: DesignAgentState, options: G
       { type: "agent.clarification", payload: clarificationPlan }
     ]
   };
+}
+
+function formatError(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
 }
 
 export function buildQuestionGenerationInput(state: DesignAgentState): string {

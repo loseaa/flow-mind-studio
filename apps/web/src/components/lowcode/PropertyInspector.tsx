@@ -1,11 +1,13 @@
 import { useRef, useState, type ReactNode } from "react";
 import { AlignCenter, AlignLeft, AlignRight } from "lucide-react";
-import type { DesignDocument, DesignElement, DesignElementStyle, DesignLayout, DesignTreeNode, DesignVariables } from "@flowmind/shared";
+import type { DesignBinding, DesignDocument, DesignElement, DesignElementStyle, DesignLayout, DesignTreeNode, DesignVariables, JsonValue } from "@flowmind/shared";
 import { Input } from "@flowmind/ui";
 import { CustomScrollbar } from "../CustomScrollbar";
 import { availableFields, fieldLabels, isContainerElement } from "./lowcodeData";
 import { clearDropPlacementIndicator } from "./dropPlacementIndicator";
 import { VariableTextEditor } from "./VariableTextEditor";
+import { VariableBindingControl } from "./VariableBindingControl";
+import { bindingPropertyDefinition } from "./bindingRegistry";
 
 type LayoutOption<T extends string> = {
   value: T;
@@ -103,7 +105,7 @@ export function PropertyInspector({
 
           <div className="mt-4 space-y-4">
             <ComplexMaterialSummary document={document} selectedElement={selectedElement} />
-            <TypeSpecificFields selectedElement={selectedElement} onUpdateProps={onUpdateProps} onUpdateStyle={onUpdateStyle} variables={variables} />
+            <TypeSpecificFields selectedElement={selectedElement} onUpdate={onUpdate} onUpdateProps={onUpdateProps} onUpdateStyle={onUpdateStyle} variables={variables} />
             <FlexLayoutFields selectedElement={selectedElement} parentElement={parentElement} onUpdateLayout={onUpdateLayout} />
             <StyleFields selectedElement={selectedElement} onUpdateStyle={onUpdateStyle} onUploadBackgroundImage={onUploadBackgroundImage} />
             <PropertyGroup title="Basics">
@@ -302,21 +304,25 @@ function StyleFields({
 
 function TypeSpecificFields({
   selectedElement,
+  onUpdate,
   onUpdateProps,
   onUpdateStyle,
   variables
 }: {
   selectedElement: DesignElement;
+  onUpdate: (patch: Partial<DesignElement>) => void;
   onUpdateProps: (patch: Record<string, unknown>) => void;
   onUpdateStyle: (patch: Partial<DesignElementStyle>) => void;
   variables: DesignVariables;
 }) {
+  const updateBinding = (property: string, binding: DesignBinding | undefined) => onUpdate({ bindings: withUpdatedBinding(selectedElement.bindings, property, binding) });
   if (selectedElement.type === "text") {
+    const definition = bindingPropertyDefinition("text", "text")!;
     return (
       <>
         <PropertyGroup title="Text">
           <FieldLabel>Content</FieldLabel>
-          <VariableTextEditor ariaLabel="Content" value={String(selectedElement.props?.text ?? "")} variables={variables} onChange={(value) => onUpdateProps({ text: value })} />
+          <VariableBindingControl ariaLabel="Content" binding={selectedElement.bindings?.text} expectedType={definition.expectedType} literalValue={String(selectedElement.props?.text ?? "")} modes={definition.modes} variables={variables} onChangeLiteral={(value) => onUpdateProps({ text: value })} onChangeBinding={(binding) => updateBinding("text", binding)} />
         </PropertyGroup>
         <PropertyGroup title="Text style">
           <SegmentedControl label="Text role" value={selectedElement.style.text.role} options={toOptions(["heading", "subheading", "body", "caption"])} onChange={(role) => onUpdateStyle({ text: { role } } as Partial<DesignElementStyle>)} />
@@ -328,11 +334,15 @@ function TypeSpecificFields({
   }
 
   if (selectedElement.type === "button") {
+    const labelDefinition = bindingPropertyDefinition("button", "label")!;
+    const disabledDefinition = bindingPropertyDefinition("button", "disabled")!;
     return (
       <>
         <PropertyGroup title="Button">
           <FieldLabel>Label</FieldLabel>
-          <VariableTextEditor ariaLabel="Button label" value={String(selectedElement.props?.label ?? "")} variables={variables} onChange={(value) => onUpdateProps({ label: value })} />
+          <VariableBindingControl ariaLabel="Button label" binding={selectedElement.bindings?.label} expectedType={labelDefinition.expectedType} literalValue={String(selectedElement.props?.label ?? "")} modes={labelDefinition.modes} variables={variables} onChangeLiteral={(value) => onUpdateProps({ label: value })} onChangeBinding={(binding) => updateBinding("label", binding)} />
+          <FieldLabel className="mt-3">Disabled</FieldLabel>
+          <VariableBindingControl ariaLabel="Button disabled" binding={selectedElement.bindings?.disabled} expectedType={disabledDefinition.expectedType} literalValue={Boolean(selectedElement.props?.disabled)} modes={disabledDefinition.modes} variables={variables} onChangeLiteral={(value) => onUpdateProps({ disabled: value })} onChangeBinding={(binding) => updateBinding("disabled", binding)} />
           <SelectControl label="Action" value={String(selectedElement.props?.action ?? "platformApi")} options={["openForm", "platformApi", "ai", "mcp"]} onChange={(value) => onUpdateProps({ action: value })} />
         </PropertyGroup>
         <PropertyGroup title="Button style">
@@ -417,8 +427,13 @@ function TypeSpecificFields({
   }
 
   if (selectedElement.type === "table") {
+    const rowsDefinition = bindingPropertyDefinition("table", "rows")!;
     return (
       <>
+        <PropertyGroup title="Table data">
+          <FieldLabel>Rows</FieldLabel>
+          <VariableBindingControl ariaLabel="Table rows" binding={selectedElement.bindings?.rows} expectedType={rowsDefinition.expectedType} literalValue={(selectedElement.props?.rows ?? []) as JsonValue} modes={rowsDefinition.modes} variables={variables} onChangeLiteral={(rows) => onUpdateProps({ rows })} onChangeBinding={(binding) => updateBinding("rows", binding)} />
+        </PropertyGroup>
         <FieldMultiSelect title="Table columns" value={arrayProp(selectedElement.props?.columns)} onChange={(columns) => onUpdateProps({ columns })} />
         <PropertyGroup title="Table style">
           <SegmentedControl label="Table density" value={selectedElement.style.table.density} options={toOptions(["compact", "default", "comfortable"])} onChange={(density) => onUpdateStyle({ table: { density } } as Partial<DesignElementStyle>)} />
@@ -481,6 +496,13 @@ function TypeSpecificFields({
   }
 
   return null;
+}
+
+function withUpdatedBinding(bindings: DesignElement["bindings"], property: string, binding: DesignBinding | undefined) {
+  const next = { ...bindings };
+  if (binding) next[property] = binding;
+  else delete next[property];
+  return Object.keys(next).length ? next : undefined;
 }
 
 function ControlStyleFields({ style, onUpdateStyle }: { style: Extract<DesignElementStyle, { control: unknown }>; onUpdateStyle: (patch: Partial<DesignElementStyle>) => void }) {

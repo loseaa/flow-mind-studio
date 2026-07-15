@@ -1,5 +1,5 @@
 import { mkdir, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { DesignAgentService } from "./design-agent.service";
@@ -89,6 +89,83 @@ describe("DesignAgentService", () => {
       if (runDir) await rm(runDir, { recursive: true, force: true });
     }
   });
+
+  it("returns the latest renderable run document for lowcode preview", async () => {
+    const service = new DesignAgentService();
+    const runRoot = dirname(dirname(dirname(service.resolveGeneratedAssetPath("web-spec-latest-preview", "hero.png"))));
+    const olderRunDir = join(runRoot, "web-spec-latest-preview-old");
+    const newerRunDir = join(runRoot, "web-spec-latest-preview-new");
+    const failedRunDir = join(runRoot, "web-spec-latest-preview-failed");
+
+    try {
+      await mkdir(olderRunDir, { recursive: true });
+      await mkdir(newerRunDir, { recursive: true });
+      await mkdir(failedRunDir, { recursive: true });
+
+      const olderFinalPath = join(olderRunDir, "final_output.v1.json");
+      const newerFinalPath = join(newerRunDir, "final_output.v1.json");
+      const failedSchemaPath = join(failedRunDir, "schema_validation.v1.json");
+
+      await writeJson(olderFinalPath, artifact("final_output", {
+        document: {
+          ...fixtureDocument("Older preview"),
+        },
+      }));
+      await writeJson(newerFinalPath, artifact("final_output", {
+        document: {
+          ...fixtureDocument("Newest preview"),
+        },
+      }));
+      await writeJson(failedSchemaPath, artifact("schema_validation", {
+        document: {
+          ...fixtureDocument("Latest failed preview"),
+        },
+      }));
+
+      await writeJson(join(olderRunDir, "manifest.json"), {
+        threadId: "older-thread",
+        status: "completed",
+        currentNode: "completed",
+        completedNodes: ["final_output"],
+        artifacts: {
+          final_output: ref("final_output", olderFinalPath, "2026-07-11T10:00:00.000Z"),
+        },
+      });
+      await writeJson(join(newerRunDir, "manifest.json"), {
+        threadId: "newer-thread",
+        status: "completed",
+        currentNode: "completed",
+        completedNodes: ["final_output"],
+        artifacts: {
+          final_output: ref("final_output", newerFinalPath, "2026-07-11T11:00:00.000Z"),
+        },
+      });
+      await writeJson(join(failedRunDir, "manifest.json"), {
+        threadId: "failed-thread",
+        status: "failed",
+        currentNode: "quality_failure",
+        completedNodes: ["schema_validation", "visual_review"],
+        artifacts: {
+          schema_validation: ref("schema_validation", failedSchemaPath, "2026-07-11T12:00:00.000Z"),
+        },
+      });
+
+      const result = await service.latestResult();
+
+      expect(result).toMatchObject({
+        runId: "web-spec-latest-preview-failed",
+        status: "failed",
+        sourceNode: "schema_validation",
+        document: {
+          name: "Latest failed preview",
+        },
+      });
+    } finally {
+      await rm(olderRunDir, { recursive: true, force: true });
+      await rm(newerRunDir, { recursive: true, force: true });
+      await rm(failedRunDir, { recursive: true, force: true });
+    }
+  });
 });
 
 function artifact(node: string, output: unknown) {
@@ -104,17 +181,51 @@ function artifact(node: string, output: unknown) {
   };
 }
 
-function ref(node: string, path: string) {
+function ref(node: string, path: string, createdAt = "2026-07-01T00:00:00.000Z") {
   return {
     node,
     path,
     version: 1,
     checksum: "fixture",
-    createdAt: "2026-07-01T00:00:00.000Z",
+    createdAt,
     dependsOn: [],
   };
 }
 
 async function writeJson(path: string, value: unknown) {
   await writeFile(path, JSON.stringify(value), "utf8");
+}
+
+function fixtureDocument(name: string) {
+  return {
+    schemaVersion: "fm-design/v1",
+    id: "doc_fixture",
+    name,
+    canvas: { viewport: "desktop", width: 1440, background: "muted" },
+    tree: { id: "root", children: [] },
+    elements: [{
+      id: "root",
+      name,
+      type: "page",
+      props: {},
+      layout: { display: "flex", direction: "vertical", width: "fill" },
+      style: {
+        base: {
+          backgroundColor: "canvas",
+          radius: "none",
+          border: { width: "none", style: "none", color: "border" },
+          text: {
+            color: "textPrimary",
+            fontFamily: "sans",
+            fontSize: "md",
+            fontWeight: "regular",
+            lineHeight: "normal",
+            align: "left",
+          },
+        },
+        container: { shadow: "none", overflow: "visible", surface: "flat" },
+      },
+    }],
+    variables: {},
+  };
 }

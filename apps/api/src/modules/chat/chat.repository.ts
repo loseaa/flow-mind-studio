@@ -180,6 +180,14 @@ export class ChatRepository implements OnModuleDestroy {
     await this.pool.query("UPDATE chat_conversations SET updated_at = now() WHERE id = $1", [input.conversationId]);
     return toMessage(result.rows[0]);
   }
+
+  async updateMessageParts(messageId: string, parts: ChatPart[]): Promise<ChatMessage | null> {
+    const result = await this.pool.query<MessageRow>(
+      `UPDATE chat_messages SET parts=$2::jsonb WHERE id=$1 RETURNING id,conversation_id,role,content,parts,citations,created_at`,
+      [messageId, JSON.stringify(parts)]
+    );
+    return result.rows[0] ? toMessage(result.rows[0]) : null;
+  }
 }
 
 function toConversation(row: ConversationRow): ChatConversation {

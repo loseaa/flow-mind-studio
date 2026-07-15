@@ -33,14 +33,14 @@ describe("resolveVariableText", () => {
     expect(resolveVariableText("Customer: {{ missing }}", variables)).toBe("Customer: {{ missing }}");
   });
 
-  it("keeps an empty variable placeholder unchanged", () => {
-    expect(resolveVariableText("Value: {{emptyValue}}", variables)).toBe("Value: {{emptyValue}}");
+  it("renders an empty string variable as empty text", () => {
+    expect(resolveVariableText("Value: {{emptyValue}}", variables)).toBe("Value: ");
   });
 
-  it("keeps object, array, and null placeholders unchanged", () => {
+  it("keeps object and array placeholders while rendering null as empty text", () => {
     expect(resolveVariableText("Object: {{customer}}", variables)).toBe("Object: {{customer}}");
     expect(resolveVariableText("Array: {{metadata.tags}}", variables)).toBe("Array: {{metadata.tags}}");
-    expect(resolveVariableText("Null: {{nothing}}", variables)).toBe("Null: {{nothing}}");
+    expect(resolveVariableText("Null: {{nothing}}", variables)).toBe("Null: ");
   });
 
   it("resolves multiple variables in the same string", () => {

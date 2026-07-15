@@ -2,10 +2,11 @@ import { Body, Controller, Delete, Get, Param, Patch, Post, Res } from "@nestjs/
 import type { Response } from "express";
 import type { ChatStreamEvent } from "@flowmind/shared";
 import { ChatService } from "./chat.service";
+import { ToolExecutorService } from "../mcp/tool-executor.service";
 
 @Controller("chat")
 export class ChatController {
-  constructor(private readonly chatService: ChatService) {}
+  constructor(private readonly chatService: ChatService, private readonly toolExecutor: ToolExecutorService) {}
 
   @Get("conversations")
   conversations() {
@@ -52,4 +53,15 @@ export class ChatController {
     await this.chatService.streamMessage(id, body.content ?? "", emit);
     response.end();
   }
+
+  @Post("tool-invocations/:id/confirm/stream")
+  async confirmTool(@Param("id") id: string, @Res() response: Response) {
+    response.setHeader("Content-Type", "text/event-stream; charset=utf-8"); response.flushHeaders?.();
+    const emit=(event:ChatStreamEvent)=>response.write(`event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`);
+    try { await this.chatService.confirmTool(id,emit); }
+    catch(error){ response.write(`data: ${JSON.stringify({type:"tool.failed",payload:{invocationId:id,message:error instanceof Error?error.message:String(error)}})}\n\n`); } finally { response.end(); }
+  }
+
+  @Post("tool-invocations/:id/reject")
+  async rejectTool(@Param("id") id: string) { await this.chatService.rejectTool(id); return {ok:true}; }
 }

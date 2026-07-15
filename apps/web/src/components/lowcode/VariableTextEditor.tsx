@@ -3,6 +3,7 @@ import type { DesignVariables, JsonValue } from "@flowmind/shared";
 import { autocompletion, startCompletion, type Completion, type CompletionContext } from "@codemirror/autocomplete";
 import { EditorState } from "@codemirror/state";
 import { Decoration, EditorView, ViewPlugin, type DecorationSet } from "@codemirror/view";
+import { isUserVariableKey } from "./variableVisibility";
 
 export function VariableTextEditor({
   ariaLabel,
@@ -170,7 +171,7 @@ function buildVariablePaths(value: JsonValue, prefix = ""): string[] {
     return value.flatMap((item, index) => buildVariablePaths(item, prefix ? `${prefix}.${index}` : String(index)));
   }
   if (value && typeof value === "object") {
-    return Object.entries(value).flatMap(([key, nested]) => {
+    return Object.entries(value).filter(([key]) => Boolean(prefix) || isUserVariableKey(key)).flatMap(([key, nested]) => {
       const path = prefix ? `${prefix}.${key}` : key;
       return buildVariablePaths(nested, path);
     });

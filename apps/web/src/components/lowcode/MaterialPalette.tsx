@@ -1,11 +1,10 @@
 import { useRef, useState } from "react";
 import type { MutableRefObject, ReactNode } from "react";
 import { Upload } from "lucide-react";
-import type { DesignVariables } from "@flowmind/shared";
+import type { DesignDocument } from "@flowmind/shared";
 import { Input } from "@flowmind/ui";
 import { aiActions, complexMaterialCategoriesFor, materialCategories, type ComplexMaterialDefinition, type MaterialDefinition } from "./lowcodeData";
 import { CustomScrollbar } from "../CustomScrollbar";
-import { VariablesEditor } from "./VariablesJsonEditor";
 import { preventNativeMaterialSelection, useMaterialDragSources } from "./useMaterialDragSources";
 
 export function MaterialPalette({
@@ -13,17 +12,17 @@ export function MaterialPalette({
   onAdd,
   onAddComplex,
   onDeleteCustomComplex,
-  onUpdateVariables,
+  onOpenVariableWorkspace,
   onUploadImage,
-  variables
+  document
 }: {
+  document: DesignDocument;
   complexMaterials: ComplexMaterialDefinition[];
   onAdd: (materialId: MaterialDefinition["id"], parentId?: string, index?: number) => void;
   onAddComplex: (id: ComplexMaterialDefinition["id"], parentId?: string, index?: number) => void;
   onDeleteCustomComplex?: (id: ComplexMaterialDefinition["id"]) => void;
-  onUpdateVariables: (variables: DesignVariables) => void;
+  onOpenVariableWorkspace: () => void;
   onUploadImage: (file: File | undefined) => Promise<void> | void;
-  variables: DesignVariables;
 }) {
   const onAddRef = useRef(onAdd);
   const onAddComplexRef = useRef(onAddComplex);
@@ -84,7 +83,7 @@ export function MaterialPalette({
         ) : activeTab === "complex" ? (
           <ComplexMaterialsTab complexMaterials={complexMaterials} onAddComplexRef={onAddComplexRef} onDeleteCustomComplex={onDeleteCustomComplex} />
         ) : (
-          <VariablesTab variables={variables} onUpdateVariables={onUpdateVariables} />
+          <VariablesTab document={document} onOpenVariableWorkspace={onOpenVariableWorkspace} />
         )}
       </div>
     </CustomScrollbar>
@@ -267,21 +266,21 @@ function ComplexMaterialsTab({
 }
 
 function VariablesTab({
-  onUpdateVariables,
-  variables
+  document,
+  onOpenVariableWorkspace
 }: {
-  onUpdateVariables: (variables: DesignVariables) => void;
-  variables: DesignVariables;
+  document: DesignDocument;
+  onOpenVariableWorkspace: () => void;
 }) {
+  const count = Object.keys(document.variables).length;
   return (
     <div className="mt-4">
       <div>
         <div className="text-sm font-bold">全局变量</div>
-        <p className="mt-1 text-xs leading-5 text-[#5b6472]">编辑当前设计稿内的 JSON 变量对象，内容字段可用 {"{{customer.name}}"} 引用。</p>
+        <p className="mt-1 text-xs leading-5 text-[#5b6472]">当前设计稿有 {count} 个顶层变量。请在宽屏工作区中管理结构、引用和诊断。</p>
       </div>
-      <div className="mt-4">
-        <VariablesEditor value={variables} onChange={onUpdateVariables} />
-      </div>
+      <button className="mt-4 h-9 w-full rounded-md bg-[#0f766e] px-3 text-sm font-bold text-white hover:bg-[#0b625c]" type="button" onClick={onOpenVariableWorkspace}>打开数据与变量</button>
+      <div className="mt-3 rounded-lg border border-[#d9e1e8] bg-[#f8fafb] p-3 font-mono text-xs text-[#5b6472]">{"{{customer.name}}"}</div>
     </div>
   );
 }

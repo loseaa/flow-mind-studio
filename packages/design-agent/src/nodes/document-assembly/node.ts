@@ -7,6 +7,7 @@ import type { DocumentAssemblyOutput } from "./schema.js";
 
 type PlanningArtifactOutput = {
   document?: DesignDocument;
+  contentPlan?: unknown;
   structurePlan?: unknown;
   layoutPlan?: unknown;
   issues?: unknown;
@@ -21,6 +22,7 @@ export async function documentAssemblyNode(
   options: GraphNodeOptions,
 ): Promise<Partial<DesignAgentState>> {
   const { document } = await readDocumentFromLatestArtifact(state, options, "image_planning");
+  const content = await readOptionalPlanningArtifact(state, options, "content_planning");
   const structure = await readPlanningArtifact(state, options, "json_planning");
   const layout = await readPlanningArtifact(state, options, "layout_planning");
   const visualSlot = await readPlanningArtifact(state, options, "visual_slot_review");
@@ -37,6 +39,7 @@ export async function documentAssemblyNode(
     variables: {
       ...document.variables,
       agentPlanning: {
+        contentPlan: content?.output.contentPlan ?? null,
         structurePlan: structure.output.structurePlan ?? null,
         layoutPlan: layout.output.layoutPlan ?? null,
         visualSlotReview,
@@ -50,6 +53,7 @@ export async function documentAssemblyNode(
   const output: DocumentAssemblyOutput = {
     document: assembledDocument,
     sourcePlans: {
+      ...(content ? { contentPlanning: content.output.contentPlan ?? null } : {}),
       structurePlanning: structure.output.structurePlan ?? null,
       layoutPlanning: layout.output.layoutPlan ?? null,
       visualSlotReview,
@@ -59,6 +63,7 @@ export async function documentAssemblyNode(
       imagePlanning: image.output.visualAssetPlan ?? null,
     },
     sourceArtifacts: {
+      ...(content ? { contentPlanning: content.ref } : {}),
       structurePlanning: structure.ref,
       layoutPlanning: layout.ref,
       visualSlotReview: visualSlot.ref,
@@ -74,9 +79,16 @@ export async function documentAssemblyNode(
     options,
     node: "document_assembly",
     stage: "document_assembly",
-    inputRefs: [structure.ref, layout.ref, visualSlot.ref, element.ref, interaction.ref, style.ref, image.ref],
+    inputRefs: [content?.ref, structure.ref, layout.ref, visualSlot.ref, element.ref, interaction.ref, style.ref, image.ref].filter((ref): ref is ArtifactRef => Boolean(ref)),
     output,
   });
+}
+
+async function readOptionalPlanningArtifact(state: DesignAgentState, options: GraphNodeOptions, key: string) {
+  const ref = state.latestArtifactRefs[key];
+  if (!options.artifactStore || !ref) return undefined;
+  const artifact = await options.artifactStore.readArtifact<PlanningArtifactOutput>(ref);
+  return { ref: ref as ArtifactRef, output: artifact.output };
 }
 
 async function readPlanningArtifact(state: DesignAgentState, options: GraphNodeOptions, key: string) {

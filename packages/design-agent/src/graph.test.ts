@@ -4,10 +4,16 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { createArtifactStore } from "./artifacts/store.js";
 import type { IntentDimension } from "./state.js";
-import { createDesignAgentGraph } from "./graph.js";
+import { createDesignAgentGraph, designAgentRecursionLimit } from "./graph.js";
 import { createInitialState } from "./state.js";
+import { MAX_REPAIR_ATTEMPTS } from "./nodes/routing.js";
 
 describe("design agent graph", () => {
+  it("uses a recursion limit budget that covers the full repair loop", () => {
+    expect(designAgentRecursionLimit()).toBeGreaterThan(25);
+    expect(designAgentRecursionLimit()).toBeGreaterThanOrEqual(18 + (MAX_REPAIR_ATTEMPTS * 3));
+  });
+
   it("routes incomplete dimensions to question generation", async () => {
     const graph = createDesignAgentGraph();
 
@@ -181,7 +187,7 @@ describe("design agent graph", () => {
       output: { questions: [] },
     });
   }, 15000);
-  it("repairs an invalid document and continues to final output", async () => {
+  it("repairs invalid schema but does not publish a visually incomplete minimum document", async () => {
     const runDir = await mkdtemp(join(tmpdir(), "flowmind-design-agent-repair-loop-"));
     const store = createArtifactStore({ runDir, threadId: "thread_graph_4" });
     const invalidRepairRef = await store.writeArtifact({
@@ -211,34 +217,34 @@ describe("design agent graph", () => {
       value: { confirmed: true, key: dimension.key }
     }));
 
-    const result = await graph.invoke({
+    await expect(graph.invoke({
       ...state,
       dimensions,
       latestArtifactRefs: { document_repair: invalidRepairRef },
-    });
+    }, { recursionLimit: designAgentRecursionLimit() })).rejects.toThrow(/quality_failure failed/i);
 
-    expect(result.stage).toBe("completed");
-    expect(result.currentNode).toBe("completed");
-    expect(result.repairAttempts).toBeGreaterThanOrEqual(1);
-    expect(result.validationErrors).toEqual(expect.any(Array));
-    expect(result.latestArtifactRefs.reflection_repair).toBeDefined();
-    expect(result.latestArtifactRefs.document_repair).toBeDefined();
-    expect(result.latestArtifactRefs.final_output).toBeDefined();
-    await expect(store.readArtifact(result.latestArtifactRefs.reflection_repair)).resolves.toMatchObject({
+    const manifest = await store.readManifest();
+    expect(manifest.status).toBe("failed");
+    expect(manifest.currentNode).toBe("quality_failure");
+    expect(manifest.artifacts.reflection_repair).toBeDefined();
+    expect(manifest.artifacts.document_repair).toBeDefined();
+    expect(manifest.artifacts.final_output).toBeUndefined();
+    expect(manifest.artifacts.quality_failure).toBeDefined();
+    await expect(store.readArtifact(manifest.artifacts.reflection_repair!)).resolves.toMatchObject({
       node: "reflection_repair",
       status: "failed",
       output: {
         repairPlan: expect.any(Object),
       },
     });
-    await expect(store.readArtifact(result.latestArtifactRefs.document_repair)).resolves.toMatchObject({
+    await expect(store.readArtifact(manifest.artifacts.document_repair!)).resolves.toMatchObject({
       node: "document_repair",
       status: "success",
       output: {
         repaired: true,
       },
     });
-    await expect(store.readArtifact(result.latestArtifactRefs.image_generation)).resolves.toMatchObject({
+    await expect(store.readArtifact(manifest.artifacts.image_generation!)).resolves.toMatchObject({
       node: "image_generation",
       status: "success",
       output: {
@@ -248,7 +254,7 @@ describe("design agent graph", () => {
         images: expect.any(Array)
       }
     });
-    await expect(store.readArtifact(result.latestArtifactRefs.schema_validation)).resolves.toMatchObject({
+    await expect(store.readArtifact(manifest.artifacts.schema_validation!)).resolves.toMatchObject({
       node: "schema_validation",
       status: "success",
       output: { valid: true },

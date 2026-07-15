@@ -134,7 +134,7 @@ describe("design agent cli", () => {
     const output: string[] = [];
 
     const result = await runDesignAgentCli(
-      ["run", "--message", "complete material orchestration dashboard", "--out", runDir, "--fixture", "complete"],
+      ["run", "--message", "complete material orchestration workspace", "--out", runDir, "--fixture", "complete"],
       { write: (line) => output.push(line) },
       { envFilePath: false },
     );
@@ -381,6 +381,16 @@ describe("design agent cli", () => {
                   content: "Test Ecommerce Page",
                   attributes: [{ key: "role", value: "heading" }],
                 },
+                {
+                  id: "action_main",
+                  parentId: "section_main",
+                  order: 1,
+                  type: "button",
+                  name: "Primary Action",
+                  purpose: "Open the primary ecommerce flow",
+                  content: "Shop now",
+                  attributes: [],
+                },
               ],
               notes: [],
             },
@@ -402,6 +412,7 @@ describe("design agent cli", () => {
                 { elementId: "section_workflow", preset: "section" },
                 { elementId: "section_detail", preset: "section" },
                 { elementId: "title_main", preset: "heading" },
+                { elementId: "action_main", preset: "primary_action" },
               ],
               notes: [],
             },
@@ -489,7 +500,7 @@ describe("design agent cli", () => {
     expect(output.join("\n")).toContain("consumer");
   });
 
-  it("prints the persisted failed node when planning exhausts retries", async () => {
+  it("persists planning diagnostics and continues with the deterministic structure", async () => {
     const runDir = await mkdtemp(join(tmpdir(), "flowmind-design-agent-cli-failed-"));
     const output: string[] = [];
     const createStructuredOutput = (schema: unknown) => ({
@@ -504,12 +515,18 @@ describe("design agent cli", () => {
       ["run", "--message", "complete page", "--out", runDir],
       { write: (line) => output.push(line) },
       { createStructuredOutput, envFilePath: false },
-    )).rejects.toThrow(/json_planning failed after retry/i);
+    )).rejects.toThrow(/image_generation failed after retry/i);
 
     const text = output.join("\n");
     expect(text).toContain("Run failed");
-    expect(text).toContain("Failed node: json_planning");
-    expect(text).toContain("json_planning.v1.json");
+    expect(text).toContain("Failed node: image_generation");
+    const store = createArtifactStore({ runDir, threadId: basename(runDir) });
+    const manifest = await store.readManifest();
+    await expect(store.readArtifact(manifest.artifacts.json_planning)).resolves.toMatchObject({
+      status: "success",
+      output: { structurePlan: { document: { id: "design_generated_page" } } },
+      errors: [expect.stringContaining("Retry failed")],
+    });
   });});
 
 function completeIntentUpdates() {

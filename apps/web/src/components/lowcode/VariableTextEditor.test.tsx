@@ -10,7 +10,8 @@ const variables: DesignVariables = {
   customerName: "Acme",
   customer: { name: "Ada", empty: "" },
   order: { items: [{ title: "Starter" }], total: 128, paid: true },
-  metadata: { tags: ["vip"] }
+  metadata: { tags: ["vip"] },
+  agentPlanning: { internalPrompt: "hidden" }
 };
 
 describe("VariableTextEditor", () => {
@@ -40,6 +41,7 @@ describe("VariableTextEditor", () => {
     expect(options.some((option) => option.label === "customer")).toBe(false);
     expect(options.some((option) => option.label === "metadata.tags")).toBe(false);
     expect(options.some((option) => option.label === "customer.empty")).toBe(false);
+    expect(options.some((option) => option.label === "agentPlanning.internalPrompt")).toBe(false);
   });
 
   it("requests automatic completion only after two opening braces", () => {

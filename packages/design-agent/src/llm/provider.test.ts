@@ -63,7 +63,7 @@ describe("createStructuredOutputFactory", () => {
 
   it("prefers OpenAI variables over chat LLM variables for structured output", () => {
     FakeChatOpenAI.instances = [];
-    createStructuredOutputFactory(
+    const factory = createStructuredOutputFactory(
       {},
       {
         LLM_API_KEY: "llm-key",
@@ -75,6 +75,7 @@ describe("createStructuredOutputFactory", () => {
       },
       FakeChatOpenAI,
     );
+    factory?.({ type: "object" });
 
     expect(FakeChatOpenAI.instances).toEqual([
       {
@@ -99,6 +100,49 @@ describe("createStructuredOutputFactory", () => {
 
     expect(FakeChatOpenAI.invokeInputs).toEqual([
       "Return only one valid JSON object that satisfies the provided schema.\n\nAnalyze the confirmed intent dimensions.",
+    ]);
+  });
+
+  it("routes execution nodes to the configured stronger DeepSeek model", () => {
+    FakeChatOpenAI.instances = [];
+    FakeChatOpenAI.structuredOutputCalls = [];
+    const factory = createStructuredOutputFactory(
+      {},
+      {
+        DESIGN_AGENT_LLM_API_KEY: "default-key",
+        DESIGN_AGENT_LLM_BASE_URL: "https://api.deepseek.com",
+        DESIGN_AGENT_MODEL: "deepseek-v4-flash",
+        DESIGN_AGENT_EXECUTION_MODEL: "deepseek-v4-pro",
+        DESIGN_AGENT_EXECUTION_LLM_BASE_URL: "https://api.deepseek.com",
+        DESIGN_AGENT_EXECUTION_STRUCTURED_OUTPUT_METHOD: "jsonMode",
+      },
+      FakeChatOpenAI,
+    );
+
+    factory?.({ type: "intent" }, { node: "intent_recognition" });
+    factory?.({ type: "layout" }, { node: "layout_planning" });
+
+    expect(FakeChatOpenAI.instances).toEqual([
+      {
+        apiKey: "default-key",
+        model: "deepseek-v4-flash",
+        temperature: 0,
+        configuration: {
+          baseURL: "https://api.deepseek.com",
+        },
+      },
+      {
+        apiKey: "default-key",
+        model: "deepseek-v4-pro",
+        temperature: 0,
+        configuration: {
+          baseURL: "https://api.deepseek.com",
+        },
+      },
+    ]);
+    expect(FakeChatOpenAI.structuredOutputCalls).toEqual([
+      { schema: { type: "intent" }, config: { method: "function_calling" } },
+      { schema: { type: "layout" }, config: { method: "jsonMode" } },
     ]);
   });
 });

@@ -5,6 +5,7 @@ import type { ChatConversation, ChatMessage, ChatPart } from "@flowmind/shared";
 import { Streamdown } from "streamdown";
 import { createMathPlugin } from "@streamdown/math";
 import "katex/dist/katex.min.css";
+import { ChatPartList, type PartAction, type PartRenderContext } from "./parts/PartRendererRegistry";
 
 const streamdownPlugins = { math: createMathPlugin({ singleDollarTextMath: true }) };
 
@@ -15,6 +16,7 @@ export function ChatMessageList({
   onEditUserMessage,
   onQuoteUserMessage,
   onResendUserMessage,
+  onPartAction,
 }: {
   conversation: ChatConversation;
   messages: ChatMessage[];
@@ -22,6 +24,7 @@ export function ChatMessageList({
   onEditUserMessage?: (content: string) => void;
   onQuoteUserMessage?: (content: string) => void;
   onResendUserMessage?: (content: string) => void;
+  onPartAction?:(action:PartAction)=>void;
 }) {
   return (
     <section className="flex-1 space-y-7 pb-6">
@@ -51,7 +54,7 @@ export function ChatMessageList({
                 onResend={onResendUserMessage}
               />
             ) : (
-              <AssistantMessage message={message} isStreaming={isStreaming && isLast} />
+              <AssistantMessage message={message} isStreaming={isStreaming && isLast} onPartAction={onPartAction} />
             )}
           </div>
         );
@@ -180,9 +183,11 @@ async function copyText(text: string) {
 function AssistantMessage({
   message,
   isStreaming,
+  onPartAction,
 }: {
   message: ChatMessage;
   isStreaming?: boolean;
+  onPartAction?:(action:PartAction)=>void;
 }) {
   const hasRagAnswer = message.parts?.some((part) => part.type === "rag_answer") ?? false;
 
@@ -200,7 +205,7 @@ function AssistantMessage({
             {message.content}
           </Streamdown>
         ) : null}
-        {message.parts?.length ? <StructuredParts parts={message.parts} isStreaming={isStreaming} /> : null}
+        {message.parts?.length ? <StructuredParts parts={message.parts} messageId={message.id} isStreaming={isStreaming} onPartAction={onPartAction} /> : null}
         {message.citations.length > 0 && !hasRagAnswer ? (
           <div className="mt-3 flex flex-wrap gap-3 border-t border-[#eef2f5] pt-3">
             {message.citations.map((citation) => (
@@ -222,20 +227,8 @@ function AssistantMessage({
   );
 }
 
-function StructuredParts({ parts, isStreaming }: { parts: ChatPart[]; isStreaming?: boolean }) {
-  return (
-    <div className="mt-4 space-y-3">
-      {parts.map((part) => {
-        if (part.type === "rag_answer") return <RagAnswerPart key={part.id} part={part} isStreaming={isStreaming} />;
-        if (part.type === "card") return <CardPart key={part.id} part={part} />;
-        if (part.type === "table") return <TablePart key={part.id} part={part} />;
-        if (part.type === "text") return <TextPart key={part.id} part={part} />;
-        if (part.type === "placeholder") return <StructuredPartSkeleton key={part.id} />;
-        return null;
-      })}
-    </div>
-  );
-}
+function StructuredParts({parts,messageId,isStreaming,onPartAction}:{parts:ChatPart[];messageId:string;isStreaming?:boolean;onPartAction?:(action:PartAction)=>void}){const context:PartRenderContext={messageId,isStreaming,dispatch:action=>onPartAction?.(action)};return <ChatPartList parts={parts} context={context} fallback={renderBuiltInPart}/>}
+function renderBuiltInPart(part:ChatPart,context:PartRenderContext){if(part.type==="rag_answer")return <RagAnswerPart part={part} isStreaming={context.isStreaming}/>;if(part.type==="card")return <CardPart part={part}/>;if(part.type==="table")return <TablePart part={part}/>;if(part.type==="text")return <TextPart part={part}/>;if(part.type==="placeholder")return <StructuredPartSkeleton/>;return null}
 
 function RagAnswerPart({ part, isStreaming }: { part: Extract<ChatPart, { type: "rag_answer" }>; isStreaming?: boolean }) {
   const { answer, sources } = part.props;

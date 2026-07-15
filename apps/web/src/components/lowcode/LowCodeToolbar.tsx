@@ -1,15 +1,19 @@
-import { Eye, Monitor, Redo2, Undo2 } from "lucide-react";
+import { Database, Eye, LayoutPanelTop, Monitor, Redo2, Undo2 } from "lucide-react";
 import type { DesignDocument } from "@flowmind/shared";
 import { Button } from "@flowmind/ui";
 import { ToolbarIconButton } from "../app/ToolbarIconButton";
 
 export function LowCodeToolbar({
   document,
+  mode,
+  onModeChange,
   saveState,
   onPublish,
   onSave
 }: {
   document: DesignDocument;
+  mode: "design" | "data";
+  onModeChange: (mode: "design" | "data") => void;
   saveState: "draft" | "saved" | "published";
   onPublish: () => void;
   onSave: () => void;
@@ -23,14 +27,21 @@ export function LowCodeToolbar({
           {saveState === "published" ? "已发布" : saveState === "saved" ? "已保存" : "草稿"}
         </span>
       </div>
-      <div className="hidden items-center gap-1 md:flex">
-        <ToolbarIconButton label="撤销"><Undo2 size={16} /></ToolbarIconButton>
-        <ToolbarIconButton label="重做"><Redo2 size={16} /></ToolbarIconButton>
-        <span className="mx-2 h-5 w-px bg-[#d9e1e8]" />
-        <ToolbarIconButton label="桌面预览"><Monitor size={16} /></ToolbarIconButton>
-        <ToolbarIconButton label="预览"><Eye size={16} /></ToolbarIconButton>
+      <div className="flex items-center gap-1 rounded-md bg-[#eef2f5] p-0.5">
+        <button aria-pressed={mode === "design"} className={`flex h-7 items-center gap-1.5 rounded px-3 text-xs font-bold ${mode === "design" ? "bg-white text-[#101828] shadow-sm" : "text-[#5b6472]"}`} type="button" onClick={() => onModeChange("design")}>
+          <LayoutPanelTop size={14} />设计
+        </button>
+        <button aria-pressed={mode === "data"} className={`flex h-7 items-center gap-1.5 rounded px-3 text-xs font-bold ${mode === "data" ? "bg-white text-[#101828] shadow-sm" : "text-[#5b6472]"}`} type="button" onClick={() => onModeChange("data")}>
+          <Database size={14} />数据与变量
+        </button>
       </div>
       <div className="flex items-center gap-1.5">
+        <div className="mr-1 hidden items-center gap-0.5 xl:flex">
+          <ToolbarIconButton label="撤销"><Undo2 size={16} /></ToolbarIconButton>
+          <ToolbarIconButton label="重做"><Redo2 size={16} /></ToolbarIconButton>
+          <ToolbarIconButton label="桌面预览"><Monitor size={16} /></ToolbarIconButton>
+          <ToolbarIconButton label="预览"><Eye size={16} /></ToolbarIconButton>
+        </div>
         <Button variant="secondary" className="h-7 px-2 text-xs" onClick={onSave}>保存草稿</Button>
         <Button onClick={onPublish} className="h-7 bg-[#1e293b] px-2 text-xs">发布预览</Button>
       </div>

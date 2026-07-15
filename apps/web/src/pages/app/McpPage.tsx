@@ -1,144 +1,67 @@
-import { AlertTriangle, CheckCircle2, Plug, ShieldCheck } from "lucide-react";
+import { Activity, ArrowUpRight, Blocks, Check, CircleDot, Clock3, Plug, RefreshCw, ShieldCheck, Sparkles, Trash2, Wrench, X, Zap } from "lucide-react";
 import { useEffect, useState } from "react";
-import type { McpInvocation } from "@flowmind/shared";
-import { Badge, Button, Card } from "@flowmind/ui";
-import { apiGet, apiPost, fallbackInvocations, fallbackMcpServers } from "../../api";
+import { Badge, Button, Card, Input } from "@flowmind/ui";
+import { apiCreate, apiDelete, apiGet, apiPatch, apiPostStrict } from "../../api";
 import { PageShell, PageTitle } from "../../components/app/PageShell";
-import { RiskBadge } from "../../components/app/StatusBadge";
-import { StatCard } from "../../components/app/StatCard";
 
-export function McpPage() {
-  const [invocations, setInvocations] = useState<McpInvocation[]>(fallbackInvocations);
-  const [servers, setServers] = useState(fallbackMcpServers);
+type Risk="low"|"medium"|"high";
+type Tool={id:string;remoteName:string;description:string|null;riskLevel:Risk;requiresConfirmation:boolean;enabled:boolean;availability:string};
+type Server={id:string;name:string;description:string|null;endpoint:string;transport:string;enabled:boolean;healthStatus:string;hasCredentials:boolean;lastSyncedAt:string|null;lastErrorMessage:string|null;tools:Tool[]};
+type Invocation={id:string;tool_id:string;tool_name_snapshot:string;status:string;risk_level:string;input_preview:unknown;output_preview?:unknown;error_message?:string;created_at:string};
 
-  useEffect(() => {
-    void apiGet("/mcp/servers", fallbackMcpServers).then(setServers);
-    void apiGet("/mcp/invocations", fallbackInvocations).then(setInvocations);
-  }, []);
+const riskStyles:Record<Risk,string>={low:"bg-emerald-50 text-emerald-700 ring-emerald-200",medium:"bg-amber-50 text-amber-700 ring-amber-200",high:"bg-rose-50 text-rose-700 ring-rose-200"};
+const riskNames:Record<Risk,string>={low:"低风险",medium:"中风险",high:"高风险"};
 
-  async function confirm(id: string) {
-    const updated = await apiPost<McpInvocation>(`/mcp/invocations/${id}/confirm`, {}, invocations.find((item) => item.id === id)!);
-    setInvocations((current) => current.map((item) => (item.id === id ? updated : item)));
-  }
+export function McpPage(){
+  const [servers,setServers]=useState<Server[]>([]),[invocations,setInvocations]=useState<Invocation[]>([]),[showConnect,setShowConnect]=useState(false),[busy,setBusy]=useState<string|null>(null),[error,setError]=useState<string|null>(null);
+  const load=async()=>{setServers(await apiGet<Server[]>("/mcp/servers",[]));setInvocations(await apiGet<Invocation[]>("/mcp/invocations",[]));};
+  useEffect(()=>{void load()},[]);
+  const tools=servers.flatMap(server=>server.tools),online=servers.filter(server=>server.healthStatus==="online").length,pending=invocations.filter(item=>item.status==="pending_confirmation").length;
+  async function serverAction(id:string,kind:"test"|"sync"){setBusy(`${kind}:${id}`);setError(null);try{await apiPostStrict(`/mcp/servers/${id}/${kind}`);await load()}catch(e){setError(e instanceof Error?e.message:"操作失败")}finally{setBusy(null)}}
+  async function removeServer(id:string){if(!confirm("删除这个 MCP 服务？历史调用记录会保留。"))return;await apiDelete(`/mcp/servers/${id}`);await load()}
+  async function updateTool(id:string,patch:unknown){await apiPatch(`/mcp/tools/${id}`,patch);await load()}
 
-  return (
-    <PageShell>
-      <PageTitle
-        description="统一管理企业 MCP 服务、工具风险等级与智能体调用审批。"
-        action={
-          <Button className="h-10 bg-[#1e293b]">
-            <Plug size={16} />
-            连接服务
-          </Button>
-        }
-      >
-        MCP 控制台
-      </PageTitle>
+  return <PageShell>
+    <PageTitle description="让智能体安全连接业务系统，并在同一处管理能力、风险与执行轨迹。" action={<Button className="h-10 rounded-xl bg-[#163f3b] px-4 shadow-sm hover:bg-[#0f332f]" onClick={()=>setShowConnect(true)}><Plug size={16}/>连接服务</Button>}>MCP 控制台</PageTitle>
+    {error?<div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div>:null}
 
-      <McpStats pendingCount={invocations.filter((item) => item.status === "pending_confirmation").length} />
-
-      <section className="mt-5 grid gap-5 xl:grid-cols-[1fr_390px]">
-        <div className="space-y-3.5">
-          <McpFilters />
-          <div className="grid gap-4">
-            {servers.map((server) => <McpServerCard key={server.id} server={server} />)}
-          </div>
-        </div>
-
-        <InvocationApprovalPanel invocations={invocations} onConfirm={(id) => void confirm(id)} />
-      </section>
-    </PageShell>
-  );
-}
-
-function McpStats({ pendingCount }: { pendingCount: number }) {
-  return (
-    <section className="mt-7 grid gap-3.5 md:grid-cols-3">
-      <StatCard label="在线服务" value="8 / 9" detail="1 个授权即将过期" tone="orange" />
-      <StatCard label="工具权限" value="47" detail="低 31 · 中 11 · 高 5" tone="green" />
-      <StatCard label="待确认调用" value={String(pendingCount)} detail="高风险 2 个待审批" tone="red" />
-    </section>
-  );
-}
-
-function McpFilters() {
-  return (
-    <div className="flex h-[52px] items-center gap-3">
-      <Button variant="secondary">全部服务</Button>
-      <Button variant="secondary">风险等级</Button>
-      <Button variant="secondary">仅待确认</Button>
-    </div>
-  );
-}
-
-function McpServerCard({ server }: { server: (typeof fallbackMcpServers)[number] }) {
-  return (
-    <Card className="rounded-lg p-5">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <h2 className="text-lg font-bold">{server.name}</h2>
-            <Badge className="border-0 bg-[#e8f4f2] text-[#0f766e]">在线</Badge>
-          </div>
-          <p className="mt-2 font-mono text-xs text-[#5b6472]">{server.transport.toUpperCase()} · {server.endpoint}</p>
-        </div>
-        <ShieldCheck className="text-[#0f766e]" size={22} />
-      </div>
-      <div className="mt-4 grid gap-3 md:grid-cols-2">
-        {server.tools.map((tool) => (
-          <div key={tool.id} className="rounded-lg border border-[#d9e1e8] bg-[#f8fafb] p-3">
-            <div className="flex items-center justify-between">
-              <span className="font-mono text-sm font-bold">{tool.name}</span>
-              <RiskBadge risk={tool.risk} />
-            </div>
-            <p className="mt-2 text-xs leading-5 text-[#5b6472]">{tool.description}</p>
-          </div>
-        ))}
-      </div>
-    </Card>
-  );
-}
-
-function InvocationApprovalPanel({ invocations, onConfirm }: { invocations: McpInvocation[]; onConfirm: (id: string) => void }) {
-  return (
-    <aside>
-      <Card className="rounded-lg p-5">
-        <h2 className="text-xl font-bold">右侧调用确认</h2>
-        <div className="mt-4 rounded-lg border border-[#fecaca] bg-[#fef2f2] p-3.5">
-          <div className="flex items-center gap-2 text-sm font-bold text-[#991b1b]">
-            <AlertTriangle size={16} />
-            高风险工具等待确认
-          </div>
-          <p className="mt-2 text-xs leading-5 text-[#7f1d1d]">update_customer_stage 将改变客户销售阶段，需要审批后执行。</p>
-        </div>
-        <div className="mt-4 space-y-3">
-          {invocations.map((invocation) => (
-            <InvocationCard key={invocation.id} invocation={invocation} onConfirm={onConfirm} />
-          ))}
-        </div>
-        <p className="mt-5 text-xs leading-5 text-[#5b6472]">策略：高风险工具必须由工具审批员确认；中风险进入草稿队列；低风险只记录审计日志。</p>
+    <section className="mt-7 grid auto-rows-[138px] gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <Card className="relative overflow-hidden border-0 bg-[#173f3b] p-5 text-white shadow-[0_14px_34px_rgba(23,63,59,.16)] md:col-span-2">
+        <div className="absolute -right-10 -top-12 h-40 w-40 rounded-full border border-white/10 bg-white/5"/><div className="absolute right-20 top-20 h-24 w-24 rounded-full bg-[#d6a64f]/10 blur-xl"/>
+        <div className="relative flex h-full items-start justify-between"><div><div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[.18em] text-emerald-100/70"><Sparkles size={14}/>FlowMind Tool Fabric</div><div className="mt-4 flex items-end gap-3"><span className="text-4xl font-bold tracking-tight">{online}</span><span className="pb-1 text-sm text-emerald-100/70">个服务在线</span></div><p className="mt-2 text-xs text-emerald-50/60">能力发现、风险控制与执行审计已连接</p></div><div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/10"><Zap size={20} className="text-[#f1c978]"/></div></div>
       </Card>
-    </aside>
-  );
+      <MetricTile icon={<Wrench size={18}/>} label="可用工具" value={String(tools.filter(tool=>tool.enabled).length)} note={`共发现 ${tools.length} 个能力`} tone="teal"/>
+      <MetricTile icon={<ShieldCheck size={18}/>} label="风险策略" value={String(tools.filter(tool=>tool.riskLevel!=="low").length)} note={`${tools.filter(tool=>tool.riskLevel==="high").length} 个高风险工具`} tone="amber"/>
+      <MetricTile icon={<Clock3 size={18}/>} label="待确认" value={String(pending)} note="从 Chat 发起审批" tone="rose"/>
+      <Card className="group flex items-center justify-between border-dashed border-[#b9c9c6] bg-[#edf5f3] p-5 transition hover:-translate-y-0.5 hover:border-[#73a29a] hover:shadow-md md:col-span-1" role="button" onClick={()=>setShowConnect(true)}><div><p className="text-sm font-bold text-[#174b45]">扩展工具网络</p><p className="mt-1 text-xs leading-5 text-[#5f7d78]">连接新的 Streamable HTTP 服务</p></div><ArrowUpRight size={20} className="text-[#24766d] transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5"/></Card>
+    </section>
+
+    <div className="mt-8 flex items-end justify-between"><div><p className="text-xs font-bold uppercase tracking-[.16em] text-[#8a7460]">Connected services</p><h2 className="mt-1 text-xl font-bold text-slate-900">连接器网络</h2></div><span className="text-xs text-slate-500">{online}/{servers.length} healthy</span></div>
+    <section className="mt-4 grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
+      {servers.length?servers.map((server,index)=><ServerBento key={server.id} server={server} index={index} busy={busy} onAction={serverAction} onRemove={removeServer} onTool={updateTool}/>):<EmptyServerCard onConnect={()=>setShowConnect(true)}/>} 
+    </section>
+
+    <section className="mt-8 grid gap-4 xl:grid-cols-[1.35fr_.65fr]">
+      <ToolDirectory tools={tools} servers={servers} onTool={updateTool}/>
+      <InvocationFeed invocations={invocations}/>
+    </section>
+    {showConnect?<ConnectDialog onClose={()=>setShowConnect(false)} onCreated={async()=>{setShowConnect(false);await load()}}/>:null}
+  </PageShell>
 }
 
-function InvocationCard({ invocation, onConfirm }: { invocation: McpInvocation; onConfirm: (id: string) => void }) {
-  return (
-    <div className="rounded-lg border border-[#d9e1e8] p-3">
-      <div className="flex items-center justify-between">
-        <span className="font-mono text-sm font-bold">{invocation.toolId}</span>
-        <Badge>{invocation.status}</Badge>
-      </div>
-      <pre className="mt-3 overflow-auto custom-scrollbar-container rounded-md bg-[#0f172a] p-3 text-xs text-[#dbeafe]">{invocation.inputPreview}</pre>
-      {invocation.status === "pending_confirmation" ? (
-        <div className="mt-3 flex gap-2">
-          <Button onClick={() => onConfirm(invocation.id)} className="h-9 flex-1 bg-[#0f766e]">
-            <CheckCircle2 size={15} />
-            确认
-          </Button>
-          <Button variant="secondary" className="h-9 flex-1">拒绝</Button>
-        </div>
-      ) : null}
-    </div>
-  );
-}
+function MetricTile({icon,label,value,note,tone}:{icon:React.ReactNode;label:string;value:string;note:string;tone:"teal"|"amber"|"rose"}){const styles={teal:"bg-[#edf7f5] text-[#17655d]",amber:"bg-[#fbf5e9] text-[#9a681c]",rose:"bg-[#fbefef] text-[#9c4545]"}[tone];return <Card className="flex flex-col justify-between border-[#e1e6e9] bg-white p-5 shadow-[0_5px_18px_rgba(15,23,42,.035)]"><div className="flex items-center justify-between"><span className="text-xs font-semibold text-slate-500">{label}</span><span className={`flex h-8 w-8 items-center justify-center rounded-xl ${styles}`}>{icon}</span></div><div><p className="text-3xl font-bold tracking-tight text-slate-900">{value}</p><p className="mt-1 text-xs text-slate-500">{note}</p></div></Card>}
+
+function ServerBento({server,index,busy,onAction,onRemove,onTool}:{server:Server;index:number;busy:string|null;onAction:(id:string,k:"test"|"sync")=>void;onRemove:(id:string)=>void;onTool:(id:string,p:unknown)=>void}){const accent=["from-[#dcefeb] to-[#f5f9f8]","from-[#f5ead7] to-[#fbf8f1]","from-[#e6e9f5] to-[#f7f8fb]"][index%3];return <Card className="group overflow-hidden border-[#dde4e6] bg-white p-0 shadow-[0_8px_24px_rgba(15,23,42,.045)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_14px_32px_rgba(15,23,42,.08)]"><div className={`bg-gradient-to-br ${accent} px-5 pb-4 pt-5`}><div className="flex items-start justify-between"><div className="flex min-w-0 items-center gap-3"><div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/80 text-[#235f58] shadow-sm"><Blocks size={20}/></div><div className="min-w-0"><div className="flex items-center gap-2"><h3 className="truncate text-base font-bold text-slate-900">{server.name}</h3><span className={`h-2 w-2 rounded-full ${server.healthStatus==="online"?"bg-emerald-500 shadow-[0_0_0_4px_rgba(16,185,129,.12)]":"bg-amber-500"}`}/></div><p className="mt-1 text-xs font-medium text-slate-500">{server.tools.length} tools · {server.transport}</p></div></div><button aria-label={`删除 ${server.name}`} className="rounded-lg p-2 text-slate-400 opacity-0 transition hover:bg-white/70 hover:text-rose-600 group-hover:opacity-100" onClick={()=>onRemove(server.id)}><Trash2 size={15}/></button></div><p className="mt-4 truncate rounded-lg bg-white/55 px-3 py-2 font-mono text-[11px] text-slate-500">{server.endpoint}</p></div>
+    <div className="p-5"><div className="flex flex-wrap gap-2">{server.tools.slice(0,4).map(tool=><span key={tool.id} className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 ring-inset ${riskStyles[tool.riskLevel]}`}><CircleDot size={10}/>{tool.remoteName}</span>)}{server.tools.length>4?<span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-500">+{server.tools.length-4}</span>:null}</div>{server.lastErrorMessage?<p className="mt-3 line-clamp-2 text-xs text-rose-600">{server.lastErrorMessage}</p>:null}<div className="mt-5 flex items-center justify-between border-t border-slate-100 pt-4"><span className="text-[11px] text-slate-400">{server.lastSyncedAt?`同步于 ${formatTime(server.lastSyncedAt)}`:"尚未同步"}</span><div className="flex gap-2"><button className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50" disabled={!!busy} onClick={()=>onAction(server.id,"test")}>测试</button><button className="inline-flex items-center gap-1.5 rounded-lg bg-[#1c514b] px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-[#143e39]" disabled={!!busy} onClick={()=>onAction(server.id,"sync")}><RefreshCw size={12} className={busy===`sync:${server.id}`?"animate-spin":""}/>同步</button></div></div></div>
+  </Card>}
+
+function ToolDirectory({tools,servers,onTool}:{tools:Tool[];servers:Server[];onTool:(id:string,p:unknown)=>void}){return <Card className="border-[#dde4e6] bg-white p-5 shadow-[0_8px_24px_rgba(15,23,42,.04)]"><div className="flex items-center justify-between"><div><p className="text-xs font-bold uppercase tracking-[.14em] text-[#8a7460]">Tool directory</p><h2 className="mt-1 text-lg font-bold">能力目录</h2></div><Badge className="border-0 bg-[#edf5f3] text-[#1b625a]">{tools.length} tools</Badge></div><div className="mt-5 grid gap-2 md:grid-cols-2">{tools.map(tool=>{const server=servers.find(item=>item.tools.some(candidate=>candidate.id===tool.id));return <div key={tool.id} className="flex items-center gap-3 rounded-xl border border-slate-100 bg-[#fafbfb] p-3 transition hover:border-[#cbd9d6] hover:bg-white"><button aria-label={`${tool.enabled?"禁用":"启用"} ${tool.remoteName}`} onClick={()=>void onTool(tool.id,{enabled:!tool.enabled})} className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${tool.enabled?"bg-[#e2f1ee] text-[#17675e]":"bg-slate-100 text-slate-400"}`}>{tool.enabled?<Check size={15}/>:<X size={15}/>}</button><div className="min-w-0 flex-1"><p className="truncate font-mono text-xs font-bold text-slate-800">{tool.remoteName}</p><p className="mt-0.5 truncate text-[11px] text-slate-400">{server?.name}</p></div><select aria-label={`${tool.remoteName} 风险等级`} className={`rounded-lg border-0 px-2 py-1.5 text-[11px] font-semibold outline-none ring-1 ring-inset ${riskStyles[tool.riskLevel]}`} value={tool.riskLevel} onChange={event=>void onTool(tool.id,{riskLevel:event.target.value,requiresConfirmation:event.target.value!=="low"})}><option value="low">低风险</option><option value="medium">中风险</option><option value="high">高风险</option></select></div>})}</div></Card>}
+
+function InvocationFeed({invocations}:{invocations:Invocation[]}){return <Card className="border-[#dde4e6] bg-[#172421] p-5 text-white shadow-[0_12px_28px_rgba(23,36,33,.12)]"><div className="flex items-center justify-between"><div><p className="text-xs font-bold uppercase tracking-[.14em] text-[#d2b679]">Audit stream</p><h2 className="mt-1 text-lg font-bold">调用轨迹</h2></div><Activity size={18} className="text-emerald-300"/></div><div className="mt-5 space-y-1">{invocations.length?invocations.slice(0,8).map(item=><div key={item.id} className="relative flex gap-3 rounded-xl p-3 transition hover:bg-white/5"><div className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${item.status==="succeeded"?"bg-emerald-400":item.status==="failed"?"bg-rose-400":"bg-amber-300"}`}/><div className="min-w-0"><p className="truncate font-mono text-xs font-bold text-slate-100">{item.tool_name_snapshot||item.tool_id}</p><p className="mt-1 text-[11px] text-slate-400">{statusName(item.status)} · {formatTime(item.created_at)}</p>{item.error_message?<p className="mt-1 line-clamp-1 text-[11px] text-rose-300">{item.error_message}</p>:null}</div></div>):<div className="flex min-h-48 flex-col items-center justify-center text-center"><div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/5 text-slate-400"><Activity size={19}/></div><p className="mt-3 text-sm font-semibold text-slate-300">等待第一次调用</p><p className="mt-1 text-xs text-slate-500">在 Chat 中使用工具后，轨迹会出现在这里</p></div>}</div></Card>}
+
+function EmptyServerCard({onConnect}:{onConnect:()=>void}){return <Card className="flex min-h-64 flex-col items-center justify-center border-dashed border-[#b9c9c6] bg-[#f4f8f7] text-center lg:col-span-2" role="button" onClick={onConnect}><div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-[#1b655d] shadow-sm"><Plug size={20}/></div><p className="mt-4 font-bold">连接第一个 MCP 服务</p><p className="mt-1 text-sm text-slate-500">发现工具，并让智能体开始执行真实业务动作</p></Card>}
+
+function ConnectDialog({onClose,onCreated}:{onClose:()=>void;onCreated:()=>void}){const[name,setName]=useState(""),[endpoint,setEndpoint]=useState(""),[token,setToken]=useState(""),[saving,setSaving]=useState(false),[error,setError]=useState<string|null>(null);async function submit(){setSaving(true);setError(null);try{await apiCreate("/mcp/servers",{name,endpoint,authType:token?"bearer":"none",credentials:token?{token}:undefined});await onCreated()}catch(e){setError(e instanceof Error?e.message:"连接失败")}finally{setSaving(false)}}return <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0d1917]/55 p-4 backdrop-blur-sm"><Card className="w-full max-w-lg rounded-2xl border-0 p-6 shadow-2xl"><div className="flex items-center justify-between"><div><p className="text-xs font-bold uppercase tracking-[.14em] text-[#9a7b43]">New connection</p><h2 className="mt-1 text-xl font-bold">连接 MCP 服务</h2></div><button aria-label="关闭" className="rounded-lg p-2 text-slate-400 hover:bg-slate-100" onClick={onClose}><X size={19}/></button></div><div className="mt-6 space-y-4"><label className="block text-sm font-semibold">服务名称<Input className="mt-2 h-11 rounded-xl" value={name} onChange={event=>setName(event.target.value)} placeholder="CRM MCP"/></label><label className="block text-sm font-semibold">Streamable HTTP Endpoint<Input className="mt-2 h-11 rounded-xl font-mono text-sm" value={endpoint} onChange={event=>setEndpoint(event.target.value)} placeholder="http://localhost:4100/crm/mcp"/></label><label className="block text-sm font-semibold">Bearer Token <span className="font-normal text-slate-400">可选</span><Input type="password" className="mt-2 h-11 rounded-xl" value={token} onChange={event=>setToken(event.target.value)} placeholder="凭据将加密保存"/></label>{error?<p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-600">{error}</p>:null}</div><div className="mt-6 flex justify-end gap-2"><Button variant="secondary" className="rounded-xl" onClick={onClose}>取消</Button><Button className="rounded-xl bg-[#173f3b]" disabled={saving||!name.trim()||!endpoint.trim()} onClick={()=>void submit()}>{saving?"连接中…":"保存并同步"}</Button></div></Card></div>}
+
+function formatTime(value:string){return new Intl.DateTimeFormat("zh-CN",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"}).format(new Date(value))}
+function statusName(status:string){return({pending_confirmation:"等待确认",running:"执行中",succeeded:"执行成功",failed:"执行失败",rejected:"已拒绝",expired:"已过期",proposed:"已提议"} as Record<string,string>)[status]??status}

@@ -1,7 +1,7 @@
 import type { DesignDocument } from "@flowmind/shared";
 
 import type { ArtifactRef, DesignAgentState } from "../../state.js";
-import { failPipelineNode, readDocumentFromLatestArtifact, writePipelineArtifact } from "../document-pipeline.js";
+import { readDocumentFromLatestArtifact, writePipelineArtifact } from "../document-pipeline.js";
 import type { GraphNodeOptions } from "../types.js";
 import { compileInteractionPlan } from "./compiler.js";
 import { interactionPlanningPrompt } from "./prompt.js";
@@ -56,13 +56,11 @@ async function createInteractionDocument(
       return { interactionPlan, document: compileInteractionPlan(document, interactionPlan), errors: [] };
     } catch (retryError) {
       const errors = [`${formatError(firstError)}\nRetry failed: ${formatError(retryError)}`];
-      return failPipelineNode({
-        options,
-        node: "interaction_planning",
-        inputRefs,
-        output: { interactionPlan: null, document },
+      return {
+        interactionPlan: fallback,
+        document: compileInteractionPlan(document, fallback),
         errors,
-      });
+      };
     }
   }
 }
@@ -70,7 +68,7 @@ async function createInteractionDocument(
 async function invokeInteractionModel(options: GraphNodeOptions, input: string): Promise<InteractionPlan> {
   if (!options.createStructuredOutput) throw new Error("Structured output model is unavailable.");
   const output = interactionPlanningModelOutputSchema.parse(
-    await options.createStructuredOutput(interactionPlanningModelOutputSchema).invoke(input),
+    await options.createStructuredOutput(interactionPlanningModelOutputSchema, { node: "interaction_planning" }).invoke(input),
   );
   return output.interactionPlan;
 }

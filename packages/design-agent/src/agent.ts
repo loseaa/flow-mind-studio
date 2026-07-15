@@ -1,5 +1,5 @@
 import { createArtifactStore, type ArtifactStore, type RunManifest } from "./artifacts/store.js";
-import { createDesignAgentGraph } from "./graph.js";
+import { createDesignAgentGraph, designAgentRecursionLimit } from "./graph.js";
 import type { CreateImageGeneration, CreateStructuredOutput } from "./nodes/types.js";
 import type { DesignAgentState } from "./state.js";
 import { createInitialState } from "./state.js";
@@ -36,7 +36,7 @@ export async function runDesignAgent(input: RunDesignAgentInput): Promise<RunDes
         createdAt: input.createdAt ?? new Date().toISOString(),
       },
     ],
-  });
+  }, { recursionLimit: designAgentRecursionLimit() });
 
   return {
     runDir: store.runDir,

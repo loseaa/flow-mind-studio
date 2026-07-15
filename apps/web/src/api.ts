@@ -115,6 +115,14 @@ export async function streamChatMessage(
   }
 }
 
+export async function streamToolConfirmation(invocationId: string, onEvent: (event: ChatStreamEvent) => void): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/api/chat/tool-invocations/${invocationId}/confirm/stream`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+  if (!response.ok || !response.body) throw new Error(await readError(response));
+  const reader=response.body.getReader(),decoder=new TextDecoder();let buffer="";
+  while(true){const {done,value}=await reader.read();if(done)break;buffer+=decoder.decode(value,{stream:true});const events=buffer.split(/\n\n/);buffer=events.pop()??"";events.map(parseSseEvent).filter(Boolean).forEach(event=>onEvent(event as ChatStreamEvent));}
+  if(buffer.trim()){const event=parseSseEvent(buffer);if(event)onEvent(event);}
+}
+
 export function parseSseEvent(raw: string): ChatStreamEvent | null {
   const dataLine = raw
     .split(/\r?\n/)
@@ -164,6 +172,9 @@ export const fallbackDocuments: KnowledgeDocument[] = [
     chunkCount: 24,
     errorMessage: null,
     embeddingModel: "text-embedding-3-small",
+    activeVersionId: "ver_demo_1",
+    activeVersion: 1,
+    latestVersion: 1,
     uploadedAt: new Date().toISOString(),
     indexedAt: new Date().toISOString()
   },
@@ -178,6 +189,9 @@ export const fallbackDocuments: KnowledgeDocument[] = [
     chunkCount: 0,
     errorMessage: null,
     embeddingModel: null,
+    activeVersionId: null,
+    activeVersion: null,
+    latestVersion: 1,
     uploadedAt: new Date().toISOString(),
     indexedAt: null
   },
@@ -192,6 +206,9 @@ export const fallbackDocuments: KnowledgeDocument[] = [
     chunkCount: 0,
     errorMessage: null,
     embeddingModel: null,
+    activeVersionId: null,
+    activeVersion: null,
+    latestVersion: 1,
     uploadedAt: new Date().toISOString(),
     indexedAt: null
   }

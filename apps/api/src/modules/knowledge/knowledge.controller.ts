@@ -53,6 +53,27 @@ export class KnowledgeController {
     return this.knowledgeService.reindex(id);
   }
 
+  @Get("documents/:id/versions")
+  versions(@Param("id") id: string) {
+    return this.knowledgeService.listVersions(id);
+  }
+
+  @Post("documents/:id/versions")
+  @UseInterceptors(FileInterceptor("file"))
+  uploadVersion(@Param("id") id: string, @UploadedFile() file?: UploadedDocument) {
+    return this.knowledgeService.uploadVersion(id, file);
+  }
+
+  @Post("documents/:id/versions/:versionId/rollback")
+  rollbackVersion(@Param("id") id: string, @Param("versionId") versionId: string) {
+    return this.knowledgeService.rollbackVersion(id, versionId);
+  }
+
+  @Post("documents/:id/versions/:versionId/index")
+  indexVersion(@Param("id") id: string, @Param("versionId") versionId: string) {
+    return this.knowledgeService.indexVersion(id, versionId);
+  }
+
   @Delete("documents/:id")
   deleteDocument(@Param("id") id: string) {
     return this.knowledgeService.deleteDocument(id);

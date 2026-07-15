@@ -134,7 +134,7 @@ function createDesignElement(element: SemanticElement): DesignElement {
       return {
         ...common,
         type: "stat",
-        layout: { width: "fill" },
+        layout: { width: "fixed", fixedWidth: 240, grow: "fill" },
         style: {
           base: baseStyle("white"),
           stat: { valueSize: "lg", trendPosition: "below" },
@@ -194,4 +194,3 @@ function readTextRole(value: JsonValue | undefined) {
 function readAspectRatio(value: JsonValue | undefined) {
   return value === "square" || value === "portrait" ? value : "wide";
 }
-

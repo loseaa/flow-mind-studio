@@ -1,7 +1,7 @@
 import { designDocumentSchema, designImageSlotSchema, type DesignDocument, type DesignImageSlot } from "@flowmind/shared";
 
 import type { ArtifactRef, DesignAgentState } from "../../state.js";
-import { failPipelineNode, writePipelineArtifact } from "../document-pipeline.js";
+import { writePipelineArtifact } from "../document-pipeline.js";
 import type { GraphNodeOptions } from "../types.js";
 import { compileVisualAssetPlan } from "./compiler.js";
 import { imagePlanningPrompt } from "./prompt.js";
@@ -16,8 +16,11 @@ import {
   type VisualAssetPlan,
 } from "./schema.js";
 
-type StylePlanningSource = { stylePlan?: { theme?: string; tone?: string } };
-type VisualSlotSource = { document?: DesignDocument; layoutPlan?: { imageSlots?: DesignImageSlot[] } };
+type StylePlanningSource = {
+  document?: DesignDocument;
+  stylePlan?: { theme?: string; tone?: string };
+};
+type VisualSlotSource = { layoutPlan?: { imageSlots?: DesignImageSlot[] } };
 
 export async function imagePlanningNode(state: DesignAgentState, options: GraphNodeOptions): Promise<Partial<DesignAgentState>> {
   const styleRef = state.latestArtifactRefs.style_planning;
@@ -26,22 +29,23 @@ export async function imagePlanningNode(state: DesignAgentState, options: GraphN
   if (!visualRef) throw new Error("Missing required artifact for visual_slot_review.");
   const styleSource = await readStyleSource(options, styleRef);
   const visualSource = await options.artifactStore.readArtifact<VisualSlotSource>(visualRef);
-  const document = readVisualReviewDocument(visualSource);
+  const document = readStylePlanningDocument(styleSource);
   const slots = (visualSource.output.layoutPlan?.imageSlots ?? []).map((slot) => designImageSlotSchema.parse(slot));
   const inputRefs = [styleRef, visualRef];
   const planned = await createImagePlan(state, document, slots, styleSource, options, inputRefs);
-  return writePipelineArtifact({ state, options, node: "image_planning", stage: "image_planning", inputRefs, output: planned, errors: [] });
+  const output = { visualAssetPlan: planned.visualAssetPlan, document: planned.document };
+  return writePipelineArtifact({ state, options, node: "image_planning", stage: "image_planning", inputRefs, output, errors: planned.errors });
 }
 
 async function createImagePlan(state: DesignAgentState, document: DesignDocument, slots: DesignImageSlot[], style: StylePlanningSource, options: GraphNodeOptions, inputRefs: ArtifactRef[]) {
   if (!options.createStructuredOutput) {
     const plan = resolveDraftPlan(createRuleBasedImageDraft(state, slots), state, document, slots, style);
-    return { visualAssetPlan: plan, document: compileVisualAssetPlan(document, plan) };
+    return { visualAssetPlan: plan, document: compileVisualAssetPlan(document, plan), errors: [] as string[] };
   }
   const invoke = async (input: string) => {
-    const output = imagePlanningModelOutputSchema.parse(await options.createStructuredOutput!(imagePlanningModelOutputSchema).invoke(input));
+    const output = imagePlanningModelOutputSchema.parse(await options.createStructuredOutput!(imagePlanningModelOutputSchema, { node: "image_planning" }).invoke(input));
     const plan = resolveDraftPlan(output, state, document, slots, style);
-    return { visualAssetPlan: plan, document: compileVisualAssetPlan(document, plan) };
+    return { visualAssetPlan: plan, document: compileVisualAssetPlan(document, plan), errors: [] as string[] };
   };
   try {
     return await invoke(buildImagePlanningInput(state, document, slots, style));
@@ -49,7 +53,12 @@ async function createImagePlan(state: DesignAgentState, document: DesignDocument
     try {
       return await invoke(`${buildImagePlanningInput(state, document, slots, style)}\n\nPrevious plan rejected: ${formatError(firstError)}\nReturn a complete slot-only plan using each listed slot at most once.`);
     } catch (retryError) {
-      return failPipelineNode({ options, node: "image_planning", inputRefs, output: { visualAssetPlan: null, document }, errors: [`${formatError(firstError)}\nRetry failed: ${formatError(retryError)}`] });
+      const fallback = resolveDraftPlan(createRuleBasedImageDraft(state, slots), state, document, slots, style);
+      return {
+        visualAssetPlan: fallback,
+        document: compileVisualAssetPlan(document, fallback),
+        errors: [`${formatError(firstError)}\nRetry failed: ${formatError(retryError)}`],
+      };
     }
   }
 }
@@ -77,7 +86,7 @@ export function resolveDraftPlan(output: ImagePlanningModelOutput, state: Design
       : { ...derived, kind: "content_image" as const };
   });
   const plan = visualAssetPlanSchema.parse({ ...output.visualAssetPlan, assets });
-  return validateImagePolicy(plan, { messages: state.messages, dimensions: state.dimensions });
+  return validateImagePolicy(plan, { messages: state.messages, dimensions: state.dimensions, allowNoImages: slots.length === 0 });
 }
 
 export function buildImagePlanningInput(state: DesignAgentState, document: DesignDocument, slots: DesignImageSlot[], style: StylePlanningSource = {}): string {
@@ -85,15 +94,15 @@ export function buildImagePlanningInput(state: DesignAgentState, document: Desig
 }
 
 function createRuleBasedImageDraft(state: DesignAgentState, slots: DesignImageSlot[]): ImagePlanningModelOutput {
-  if (hasExplicitNoImageIntent({ messages: state.messages, dimensions: state.dimensions })) return { visualAssetPlan: { imagePolicy: "none", visualMode: "none", minimumGeneratedAssets: 0, assets: [], notes: ["Explicit no-image intent."] } };
+  if (slots.length === 0 || hasExplicitNoImageIntent({ messages: state.messages, dimensions: state.dimensions })) return { visualAssetPlan: { imagePolicy: "none", visualMode: "none", minimumGeneratedAssets: 0, assets: [], notes: [slots.length === 0 ? "Reviewed layout does not require generated imagery." : "Explicit no-image intent."] } };
   if (slots.length < 3) throw new Error("Required image policy needs at least three reviewed slots.");
   return { visualAssetPlan: { imagePolicy: "required", visualMode: slots.length > 3 ? "rich" : "standard", minimumGeneratedAssets: 3, assets: slots.map((slot, index) => ({ id: `visual_${slot.id}`, slotId: slot.id, purpose: `${slot.role} visual`, promptBrief: `Create a ${slot.role} image composed for the reviewed ${slot.display.aspectRatio} slot with ${slot.generation.safeArea} safe area`, priority: index < 3 ? "required" : "recommended" })), notes: ["Deterministic slot-based fallback."] } };
 }
 
-function readVisualReviewDocument(visualSource: { output: VisualSlotSource }): DesignDocument {
-  const parsed = designDocumentSchema.safeParse(visualSource.output.document);
+function readStylePlanningDocument(styleSource: StylePlanningSource): DesignDocument {
+  const parsed = designDocumentSchema.safeParse(styleSource.document);
   if (!parsed.success) {
-    throw new Error(`Invalid visual_slot_review.output.document: ${parsed.error.message}`);
+    throw new Error(`Invalid style_planning.output.document: ${parsed.error.message}`);
   }
   return parsed.data;
 }

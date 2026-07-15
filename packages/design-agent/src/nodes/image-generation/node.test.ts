@@ -133,6 +133,32 @@ describe("imageGenerationNode", () => {
     expect(maximumActive).toBe(2);
   });
 
+  it("honors configured single-image concurrency for low-quota providers", async () => {
+    const previous = process.env.DESIGN_AGENT_IMAGE_MAX_CONCURRENCY;
+    process.env.DESIGN_AGENT_IMAGE_MAX_CONCURRENCY = "1";
+    const { state, store } = await stateWithPlan("thread_image_generation_single_concurrency", planWithOptional());
+    let active = 0;
+    let maximumActive = 0;
+
+    try {
+      await imageGenerationNode(state, {
+        artifactStore: store,
+        async createImageGeneration(request) {
+          active += 1;
+          maximumActive = Math.max(maximumActive, active);
+          await new Promise((resolve) => setTimeout(resolve, 15));
+          active -= 1;
+          return { url: `https://cdn.example.com/${request.assetId}.png` };
+        },
+      });
+    } finally {
+      if (previous === undefined) delete process.env.DESIGN_AGENT_IMAGE_MAX_CONCURRENCY;
+      else process.env.DESIGN_AGENT_IMAGE_MAX_CONCURRENCY = previous;
+    }
+
+    expect(maximumActive).toBe(1);
+  });
+
   it("schedules required assets before optional assets", async () => {
     const plan = planWithOptional();
     plan.assets[0] = { ...plan.assets[0], priority: "optional" };

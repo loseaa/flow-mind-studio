@@ -5,11 +5,17 @@ import { intentRecognitionPrompt } from "./prompt.js";
 import { intentRecognitionOutputSchema } from "./schema.js";
 
 export async function intentRecognitionNode(state: DesignAgentState, options: GraphNodeOptions): Promise<Partial<DesignAgentState>> {
-  const output = options.createStructuredOutput
-    ? intentRecognitionOutputSchema.parse(
-        await options.createStructuredOutput(intentRecognitionOutputSchema).invoke(buildIntentRecognitionInput(state)),
-      )
-    : intentRecognitionOutputSchema.parse(recognizeIntentWithRules(state));
+  const errors: string[] = [];
+  let output = intentRecognitionOutputSchema.parse(recognizeIntentWithRules(state));
+  if (options.createStructuredOutput) {
+    try {
+      output = intentRecognitionOutputSchema.parse(
+        await options.createStructuredOutput(intentRecognitionOutputSchema, { node: "intent_recognition" }).invoke(buildIntentRecognitionInput(state)),
+      );
+    } catch (error) {
+      errors.push(formatError(error));
+    }
+  }
   const updates: DimensionUpdate[] = output.updates.map((update) => ({
     ...update,
     value: update.value ?? null,
@@ -22,7 +28,7 @@ export async function intentRecognitionNode(state: DesignAgentState, options: Gr
         status: "success",
         inputRefs,
         output,
-        errors: [],
+        errors,
       })
     : undefined;
 
@@ -38,6 +44,10 @@ export async function intentRecognitionNode(state: DesignAgentState, options: Gr
       { type: "agent.node", payload: { node: "intent_recognition", stage: "intent_recognition" } },
     ],
   };
+}
+
+function formatError(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
 }
 
 export function buildIntentRecognitionInput(state: DesignAgentState): string {
@@ -57,31 +67,126 @@ function recognizeIntentWithRules(state: DesignAgentState) {
   if (!latestUserMessage?.content.trim()) return { updates: [] };
 
   const content = latestUserMessage.content.trim();
+  const pageContext = {
+    businessGoal: extractLabeledValue(content, ["业务目标", "营销目的", "目标"]),
+    pageType: extractLabeledValue(content, ["页面类型", "页面"]),
+    targetUser: extractLabeledValue(content, ["目标用户", "使用角色", "用户"]),
+    rawPrompt: content,
+  };
+  const sections = splitList(extractLabeledValue(content, ["核心区块", "页面需要哪些核心区块", "区块"]));
+  const fields = splitList(extractLabeledValue(content, ["核心字段", "字段", "数据字段"]));
+  const interactions = splitList(extractLabeledValue(content, ["交互", "用户操作", "操作"]));
+  const presentation = extractLabeledValue(content, ["视觉要求", "视觉", "风格", "展示要求"]);
   const updates: DimensionUpdate[] = [
     {
       key: "page_context",
-      status: "partial",
-      completeness: 0.5,
-      confidence: 0.45,
-      value: { rawPrompt: content },
+      status: pageContext.businessGoal && pageContext.pageType && pageContext.targetUser ? "complete" : "partial",
+      completeness: pageContext.businessGoal && pageContext.pageType && pageContext.targetUser ? 0.95 : 0.5,
+      confidence: pageContext.businessGoal || pageContext.pageType || pageContext.targetUser ? 0.75 : 0.45,
+      value: pageContext,
       evidence: [content],
-      missingFields: ["业务目标", "使用角色"],
+      missingFields: [
+        ...(pageContext.businessGoal ? [] : ["业务目标"]),
+        ...(pageContext.pageType ? [] : ["页面类型"]),
+        ...(pageContext.targetUser ? [] : ["使用角色"]),
+      ],
       assumptions: [],
     },
   ];
 
-  if (/(列表|表格|筛选|指标|卡片|表单|详情|看板)/.test(content)) {
+  if (sections.length > 0 || /(列表|表格|筛选|指标|卡片|表单|详情|看板|英雄图|卖点|按钮|CTA)/i.test(content)) {
     updates.push({
       key: "content_structure",
-      status: "partial",
-      completeness: 0.45,
-      confidence: 0.45,
-      value: { rawPrompt: content },
+      status: sections.length > 0 ? "complete" : "partial",
+      completeness: sections.length > 0 ? 0.9 : 0.45,
+      confidence: sections.length > 0 ? 0.75 : 0.45,
+      value: { sections, rawPrompt: content },
       evidence: [content],
-      missingFields: ["核心区块优先级", "布局关系"],
+      missingFields: sections.length > 0 ? [] : ["核心区块优先级", "布局关系"],
+      assumptions: [],
+    });
+  }
+
+  if (fields.length > 0) {
+    updates.push({
+      key: "data_requirements",
+      status: "complete",
+      completeness: 0.9,
+      confidence: 0.75,
+      value: { fields, rawPrompt: content },
+      evidence: [content],
+      missingFields: [],
+      assumptions: [],
+    });
+  }
+
+  if (interactions.length > 0) {
+    updates.push({
+      key: "interaction_flow",
+      status: "complete",
+      completeness: 0.9,
+      confidence: 0.75,
+      value: { interactions, rawPrompt: content },
+      evidence: [content],
+      missingFields: [],
+      assumptions: [],
+    });
+  }
+
+  if (presentation) {
+    updates.push({
+      key: "presentation_rules",
+      status: "complete",
+      completeness: 0.9,
+      confidence: 0.75,
+      value: { style: presentation, rawPrompt: content },
+      evidence: [content],
+      missingFields: [],
       assumptions: [],
     });
   }
 
   return { updates };
+}
+
+function extractLabeledValue(content: string, labels: string[]) {
+  const escapedLabels = labels.map((label) => escapeRegExp(label));
+  const labelPattern = escapedLabels.join("|");
+  const nextLabelPattern = [
+    "业务目标",
+    "营销目的",
+    "目标",
+    "页面类型",
+    "页面",
+    "目标用户",
+    "使用角色",
+    "用户",
+    "核心区块",
+    "页面需要哪些核心区块",
+    "区块",
+    "核心字段",
+    "字段",
+    "数据字段",
+    "交互",
+    "用户操作",
+    "操作",
+    "视觉要求",
+    "视觉",
+    "风格",
+    "展示要求",
+  ].map((label) => escapeRegExp(label)).join("|");
+  const match = content.match(new RegExp(`(?:${labelPattern})\\s*[：: ]\\s*([\\s\\S]*?)(?=(?:。|\\n)?\\s*(?:${nextLabelPattern})\\s*[：: ]|$)`));
+  return match?.[1]?.trim().replace(/[。；;，,]+$/, "") || undefined;
+}
+
+function splitList(value: string | undefined) {
+  if (!value) return [];
+  return value
+    .split(/[、,，;；。]|\s+and\s+/i)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

@@ -73,4 +73,36 @@ describe("intentRecognitionNode", () => {
       status: "success",
     });
   });
+
+  it("extracts complete Chinese clarification answers when structured output fails", async () => {
+    const state = {
+      ...createInitialState("thread-intent-rules"),
+      messages: [{
+        role: "user" as const,
+        content: "业务目标：促进 iPhone 15 Pro Max 销售转化。页面类型：新手机产品营销落地页。目标用户：普通消费者。核心区块：首屏英雄图、核心卖点、影像能力、价格和立即购买按钮。核心字段：产品名、宣传语、起售价、卖点、购买按钮。交互：点击立即购买跳转购买页。视觉要求：高端、简洁、科技感，需要生成真实产品风格图片。",
+        createdAt: "2026-06-20T00:00:00.000Z",
+      }],
+    };
+    const createStructuredOutput = () => ({
+      async invoke() {
+        throw new Error("Connection error.");
+      },
+    });
+
+    const result = await intentRecognitionNode(state, { createStructuredOutput });
+
+    expect(result.dimensions?.map((dimension) => [dimension.key, dimension.status])).toEqual([
+      ["page_context", "complete"],
+      ["content_structure", "complete"],
+      ["data_requirements", "complete"],
+      ["interaction_flow", "complete"],
+      ["presentation_rules", "complete"],
+    ]);
+    expect(result.dimensions?.find((dimension) => dimension.key === "content_structure")?.value).toMatchObject({
+      sections: expect.arrayContaining(["首屏英雄图", "核心卖点"]),
+    });
+    expect(result.dimensions?.find((dimension) => dimension.key === "data_requirements")?.value).toMatchObject({
+      fields: expect.arrayContaining(["产品名", "宣传语"]),
+    });
+  });
 });

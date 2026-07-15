@@ -9,7 +9,7 @@ import {
   type LucideIcon
 } from "lucide-react";
 
-export type AppRouteKey = "dashboard" | "chat" | "knowledge" | "mcp" | "lowcode" | "models" | "settings";
+export type AppRouteKey = "dashboard" | "chat" | "knowledge" | "mcp" | "lowcode" | "dataSources" | "settings";
 
 export type AppNavigationItem = {
   key: AppRouteKey;
@@ -24,6 +24,6 @@ export const appNavigation: AppNavigationItem[] = [
   { key: "knowledge", path: "/app/knowledge", label: "知识库", icon: FileText },
   { key: "mcp", path: "/app/mcp", label: "MCP", icon: Radio },
   { key: "lowcode", path: "/app/lowcode", label: "低代码应用", icon: Boxes },
-  { key: "models", path: "/app/models", label: "数据模型", icon: Database },
+  { key: "dataSources", path: "/app/data-sources", label: "数据源", icon: Database },
   { key: "settings", path: "/app/settings", label: "组织设置", icon: Settings }
 ];

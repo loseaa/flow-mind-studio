@@ -14,6 +14,19 @@ describe("variableEditorUtils", () => {
     expect(deleteByPath({ customer: { name: "Acme", level: "VIP" } }, "customer.name")).toEqual({ customer: { level: "VIP" } });
   });
 
+  it("removes array items without leaving sparse holes", () => {
+    expect(deleteByPath({ items: ["A", "B", "C"] }, "items.1")).toEqual({ items: ["A", "C"] });
+  });
+
+  it("does not overwrite a scalar when a nested path conflicts", () => {
+    expect(setByPath({ customer: "Acme" }, "customer.name", "Beta")).toEqual({ customer: "Acme" });
+  });
+
+  it("rejects unsafe prototype paths", () => {
+    expect(setByPath({}, "__proto__.polluted", "yes")).toEqual({});
+    expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+  });
+
   it("parses value input into JSON-compatible values", () => {
     expect(parseVariableInputValue("plain text")).toBe("plain text");
     expect(parseVariableInputValue("123")).toBe(123);

@@ -13,7 +13,11 @@ export type ChatCompletionRequest = {
   stream: true;
   temperature: number;
   messages: LlmMessage[];
+  tools?: Array<{ type: "function"; function: { name: string; description?: string; parameters: Record<string, unknown> } }>;
 };
+
+export type LlmToolCall = { id: string; name: string; arguments: string };
+export type LlmStreamChunk = { content?: string; toolCalls?: LlmToolCall[]; finishReason?: string };
 
 @Injectable()
 export class LlmClient {
@@ -97,7 +101,16 @@ export class LlmClient {
       reader.releaseLock();
     }
   }
+
+  async *streamChatWithTools(messages: LlmMessage[], tools: ChatCompletionRequest["tools"]): AsyncGenerator<LlmStreamChunk> {
+    const response = await fetch(`${this.baseUrl}/chat/completions`, { method:"POST", headers:{"Content-Type":"application/json",...(this.apiKey?{Authorization:`Bearer ${this.apiKey}`}:{})}, body:JSON.stringify({...this.buildRequest(messages),tools,tool_choice:"auto"}) });
+    if(!response.ok) throw new Error(`LLM request failed with ${response.status}: ${await response.text().catch(()=>"")}`); if(!response.body) throw new Error("LLM response did not include a stream body.");
+    const reader=response.body.getReader(), decoder=new TextDecoder(); let buffer=""; const calls=new Map<number,LlmToolCall>();
+    while(true){ const {done,value}=await reader.read(); if(done) break; buffer+=decoder.decode(value,{stream:true}); const lines=buffer.split(/\r?\n/); buffer=lines.pop()??""; for(const line of lines){ const data=parseRawLine(line); if(!data) continue; const choice=data.choices?.[0]; for(const part of choice?.delta?.tool_calls??[]){ const current=calls.get(part.index)??{id:"",name:"",arguments:""}; if(part.id)current.id=part.id;if(part.function?.name)current.name+=part.function.name;if(part.function?.arguments)current.arguments+=part.function.arguments;calls.set(part.index,current); } if(choice?.delta?.content)yield{content:choice.delta.content}; if(choice?.finish_reason){ yield{toolCalls:[...calls.values()],finishReason:choice.finish_reason}; calls.clear(); } } }
+  }
 }
+
+function parseRawLine(line:string):any|null { const t=line.trim(); if(!t.startsWith("data:"))return null;const d=t.slice(5).trim();if(!d||d==='[DONE]')return null;try{return JSON.parse(d)}catch{return null} }
 
 export function parseOpenAIStreamLine(line: string): string | null {
   const trimmed = line.trim();

@@ -124,11 +124,26 @@ export const chatPartPlaceholderSchema = z.object({
   })
 });
 
+export const chatToolCallPartSchema = z.object({
+  id: z.string(),
+  type: z.literal("tool_call"),
+  props: z.object({
+    invocationId: z.string(),
+    toolName: z.string(),
+    riskLevel: z.enum(["low", "medium", "high"]),
+    status: z.enum(["proposed", "approval_required", "started", "completed", "failed", "rejected", "expired"]),
+    input: z.record(z.unknown()),
+    output: z.unknown().optional(),
+    message: z.string().optional()
+  })
+});
+
 export const chatPartSchema = z.discriminatedUnion("type", [
   chatTextPartSchema,
   chatCardPartSchema,
   chatTablePartSchema,
   chatRagAnswerPartSchema,
+  chatToolCallPartSchema,
   chatPartPlaceholderSchema
 ]);
 export type ChatPart = z.infer<typeof chatPartSchema>;
@@ -179,12 +194,20 @@ export const chatStreamEventSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("chat.error"),
     payload: z.object({ message: z.string() })
-  })
+  }),
+  z.object({ type: z.literal("tool.proposed"), payload: z.object({ invocationId: z.string(), toolName: z.string(), riskLevel: z.enum(["low","medium","high"]), input: z.record(z.unknown()) }) }),
+  z.object({ type: z.literal("tool.approval_required"), payload: z.object({ invocationId: z.string(), toolName: z.string(), riskLevel: z.enum(["low","medium","high"]), input: z.record(z.unknown()) }) }),
+  z.object({ type: z.literal("tool.started"), payload: z.object({ invocationId: z.string() }) }),
+  z.object({ type: z.literal("tool.completed"), payload: z.object({ invocationId: z.string(), output: z.unknown() }) }),
+  z.object({ type: z.literal("tool.failed"), payload: z.object({ invocationId: z.string(), message: z.string() }) }),
+  z.object({ type: z.literal("tool.rejected"), payload: z.object({ invocationId: z.string() }) })
 ]);
 export type ChatStreamEvent = z.infer<typeof chatStreamEventSchema>;
 
 export const documentStatusSchema = z.enum(["uploaded", "parsing", "indexed", "failed"]);
 export type DocumentStatus = z.infer<typeof documentStatusSchema>;
+export const documentVersionStatusSchema = z.enum(["uploaded", "indexing", "ready", "active", "failed", "archived"]);
+export type DocumentVersionStatus = z.infer<typeof documentVersionStatusSchema>;
 
 export const knowledgeBaseSchema = z.object({
   id: z.string(),
@@ -208,10 +231,32 @@ export const knowledgeDocumentSchema = z.object({
   chunkCount: z.number().default(0),
   errorMessage: z.string().nullable().default(null),
   embeddingModel: z.string().nullable().default(null),
+  activeVersionId: z.string().nullable().default(null),
+  activeVersion: z.number().nullable().default(null),
+  latestVersion: z.number().default(1),
   uploadedAt: z.string(),
   indexedAt: z.string().nullable().default(null)
 });
 export type KnowledgeDocument = z.infer<typeof knowledgeDocumentSchema>;
+
+export const knowledgeDocumentVersionSchema = z.object({
+  id: z.string(),
+  documentId: z.string(),
+  version: z.number(),
+  status: documentVersionStatusSchema,
+  sizeBytes: z.number(),
+  contentHash: z.string(),
+  chunkCount: z.number(),
+  parserVersion: z.string().nullable(),
+  chunkerVersion: z.string().nullable(),
+  embeddingModel: z.string().nullable(),
+  indexVersion: z.string().nullable(),
+  errorMessage: z.string().nullable(),
+  createdAt: z.string(),
+  indexedAt: z.string().nullable(),
+  activatedAt: z.string().nullable()
+});
+export type KnowledgeDocumentVersion = z.infer<typeof knowledgeDocumentVersionSchema>;
 
 export const knowledgeChunkSchema = z.object({
   id: z.string(),
@@ -226,6 +271,27 @@ export const knowledgeChunkSchema = z.object({
   endOffset: z.number()
 });
 export type KnowledgeChunk = z.infer<typeof knowledgeChunkSchema>;
+
+export const retrievalCandidateSchema = ragCitationSchema.extend({
+  vectorRank: z.number().nullable(),
+  keywordRank: z.number().nullable(),
+  vectorScore: z.number().nullable(),
+  keywordScore: z.number().nullable(),
+  fusedScore: z.number(),
+  documentVersion: z.number().nullable()
+});
+export type RetrievalCandidate = z.infer<typeof retrievalCandidateSchema>;
+
+export const retrievalDebugSchema = z.object({
+  question: z.string(),
+  mode: z.enum(["vector", "hybrid"]),
+  profile: z.object({ vectorTopK: z.number(), keywordTopK: z.number(), finalTopK: z.number(), minScore: z.number(), rrfK: z.number() }),
+  vectorCandidates: z.array(retrievalCandidateSchema),
+  keywordCandidates: z.array(retrievalCandidateSchema),
+  finalCandidates: z.array(retrievalCandidateSchema),
+  latencyMs: z.number()
+});
+export type RetrievalDebug = z.infer<typeof retrievalDebugSchema>;
 
 export const jobStatusSchema = z.enum(["queued", "running", "completed", "failed"]);
 export const documentIndexJobSchema = z.object({
@@ -315,6 +381,7 @@ export const evaluationRunSchema = z.object({
   organizationId: z.string(),
   datasetId: z.string(),
   status: jobStatusSchema,
+  retrievalMode: z.enum(["vector", "hybrid"]).default("hybrid"),
   metrics: ragMetricsSchema.nullable(),
   createdAt: z.string(),
   completedAt: z.string().nullable(),
@@ -375,6 +442,41 @@ export const dataModelSchema = z.object({
   fields: z.array(dataFieldSchema)
 });
 export type DataModel = z.infer<typeof dataModelSchema>;
+
+export const dataSourceSchema = z.object({
+  id: z.string(),
+  organizationId: z.string(),
+  name: z.string(),
+  type: z.literal("postgresql"),
+  host: z.string(),
+  port: z.number().int().positive(),
+  database: z.string(),
+  username: z.string(),
+  sslMode: z.enum(["disable", "prefer", "require", "verify-full"]),
+  enabled: z.boolean(),
+  status: z.enum(["unknown", "online", "error"]),
+  hasCredentials: z.boolean(),
+  lastCheckedAt: z.string().nullable(),
+  lastErrorCode: z.string().nullable(),
+  lastErrorMessage: z.string().nullable(),
+  createdAt: z.string(),
+  updatedAt: z.string()
+});
+export type DataSource = z.infer<typeof dataSourceSchema>;
+
+export const databaseColumnSchema = z.object({
+  name: z.string(),
+  dataType: z.string(),
+  nullable: z.boolean(),
+  defaultValue: z.string().nullable()
+});
+export const databaseTableSchema = z.object({
+  schema: z.string(),
+  name: z.string(),
+  type: z.enum(["table", "view"]),
+  columns: z.array(databaseColumnSchema)
+});
+export type DatabaseTable = z.infer<typeof databaseTableSchema>;
 
 export const lowCodeComponentSchema: z.ZodType<LowCodeComponent, z.ZodTypeDef, unknown> = z.lazy(() =>
   z.object({
@@ -500,6 +602,43 @@ export const designVariablesSchema = z.preprocess((value) => {
   return variables;
 }, z.record(jsonValueSchema)).default({});
 export type DesignVariables = z.infer<typeof designVariablesSchema>;
+
+export const dataQueryParameterSchema = z.object({
+  name: z.string().regex(/^[a-zA-Z_][a-zA-Z0-9_]*$/),
+  position: z.number().int().positive(),
+  type: z.enum(["string", "number", "boolean", "date"]),
+  required: z.boolean().default(false),
+  defaultValue: jsonValueSchema.optional()
+});
+
+export const dataQuerySchema = z.object({
+  id: z.string(),
+  organizationId: z.string(),
+  pageId: z.string(),
+  dataSourceId: z.string(),
+  key: z.string().regex(/^[a-zA-Z_][a-zA-Z0-9_]*$/),
+  name: z.string(),
+  statement: z.string(),
+  parameters: z.array(dataQueryParameterSchema),
+  outputSchema: z.record(z.unknown()),
+  trigger: z.enum(["pageLoad", "manual"]),
+  timeoutMs: z.number().int().min(100).max(30000),
+  maxRows: z.number().int().min(1).max(1000),
+  revision: z.number().int().positive(),
+  enabled: z.boolean(),
+  createdAt: z.string(),
+  updatedAt: z.string()
+});
+export type DataQuery = z.infer<typeof dataQuerySchema>;
+
+export const dataQueryResultSchema = z.object({
+  rows: z.array(z.record(z.unknown())),
+  rowCount: z.number().int().nonnegative(),
+  fields: z.array(z.object({ name: z.string(), dataTypeId: z.number().int().optional() })),
+  durationMs: z.number().nonnegative(),
+  truncated: z.boolean()
+});
+export type DataQueryResult = z.infer<typeof dataQueryResultSchema>;
 
 export type DesignTreeNode = {
   id: string;
@@ -655,11 +794,25 @@ export type DesignElementStyle =
   | z.infer<typeof designStatElementStyleSchema>
   | z.infer<typeof designTableElementStyleSchema>;
 
+export const designTemplateSegmentSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("text"), value: z.string() }).strict(),
+  z.object({ kind: z.literal("variable"), path: z.string().min(1) }).strict()
+]);
+export type DesignTemplateSegment = z.infer<typeof designTemplateSegmentSchema>;
+
+export const designBindingSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("literal"), value: jsonValueSchema }).strict(),
+  z.object({ kind: z.literal("variable"), path: z.string().min(1), fallback: jsonValueSchema.optional() }).strict(),
+  z.object({ kind: z.literal("template"), segments: z.array(designTemplateSegmentSchema).min(1) }).strict()
+]);
+export type DesignBinding = z.infer<typeof designBindingSchema>;
+
 const designElementBaseSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
   layout: designLayoutSchema.optional(),
-  props: z.record(z.unknown()).default({})
+  props: z.record(z.unknown()).default({}),
+  bindings: z.record(designBindingSchema).optional()
 }).strict();
 
 export const designElementSchema = z.discriminatedUnion("type", [
@@ -685,7 +838,7 @@ export const designDocumentSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
   canvas: z.object({
-    viewport: z.literal("desktop"),
+    viewport: z.enum(["mobile", "tablet", "desktop"]),
     width: z.number().int().positive(),
     background: z.enum(["surface", "muted", "white"])
   }).strict(),

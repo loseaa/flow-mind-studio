@@ -3,10 +3,13 @@ export const layoutPlanningPrompt = [
   "Choose the page composition, visual hierarchy, rhythm, and image slots for the existing draft DesignDocument.",
   "Do not rewrite the document JSON. Return only the structured layoutPlan fields requested by the schema.",
   "Use current ids exactly. rootId must be the tree root; sectionIds and hierarchy element ids must reference existing elements.",
+  "Use containerLayouts to turn named composition stacks into real layouts. Assign horizontal direction to split layouts, action rows, metric rows, and grids; use wrap for responsive groups and grow/fixedWidth to create balanced columns.",
+  "Do not leave a product page as an all-vertical document. Preserve the nested structure and give each layout stack an intentional spatial role.",
   "Every image slot must have a unique id that does not collide with an element id, and parentId must reference an existing page, section, or stack.",
   "Unless explicitNoImageIntent is true, create at least three image slots. When it is true, imageSlots must be empty.",
   "A parent may contain at most one primary hero or section slot; card and gallery slots may share a parent.",
   "generation.width and generation.height are image-generation resolution only, never UI dimensions.",
   "Control rendered size with display.aspectRatio and display.maxHeight. Never copy generation height into layout.fixedHeight.",
   "Prefer distinct sections for the hero and supporting image slots.",
+  "Place inline images inside dedicated media stacks when they exist, so every visual is paired with nearby copy instead of becoming a full-width image list.",
 ].join("\n");

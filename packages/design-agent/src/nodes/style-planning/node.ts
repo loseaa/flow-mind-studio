@@ -1,7 +1,7 @@
 import type { DesignDocument, DesignElement } from "@flowmind/shared";
 
-import type { ArtifactRef, DesignAgentState } from "../../state.js";
-import { failPipelineNode, readDocumentFromLatestArtifact, writePipelineArtifact } from "../document-pipeline.js";
+import type { DesignAgentState } from "../../state.js";
+import { readDocumentFromLatestArtifact, writePipelineArtifact } from "../document-pipeline.js";
 import type { GraphNodeOptions } from "../types.js";
 import { compileStylePlan, repairStylePlan } from "./compiler.js";
 import { stylePlanningPrompt } from "./prompt.js";
@@ -12,7 +12,7 @@ export async function stylePlanningNode(
   options: GraphNodeOptions,
 ): Promise<Partial<DesignAgentState>> {
   const { document, inputRefs } = await readDocumentFromLatestArtifact(state, options, "interaction_planning");
-  const planned = await createStyledDocument(state, document, options, inputRefs);
+  const planned = await createStyledDocument(state, document, options);
   const output: StylePlanningOutput = {
     document: planned.document,
     stylePlan: planned.stylePlan,
@@ -33,7 +33,6 @@ async function createStyledDocument(
   state: DesignAgentState,
   document: DesignDocument,
   options: GraphNodeOptions,
-  inputRefs: ArtifactRef[],
 ) {
   const fallback = planStyleWithRules(document);
   if (!options.createStructuredOutput) {
@@ -49,13 +48,11 @@ async function createStyledDocument(
       return { stylePlan, document: compileStylePlan(document, stylePlan), errors: [] };
     } catch (retryError) {
       const errors = [`${formatError(firstError)}\nRetry failed: ${formatError(retryError)}`];
-      return failPipelineNode({
-        options,
-        node: "style_planning",
-        inputRefs,
-        output: { stylePlan: null, document },
+      return {
+        stylePlan: fallback,
+        document: compileStylePlan(document, fallback),
         errors,
-      });
+      };
     }
   }
 }
@@ -63,7 +60,7 @@ async function createStyledDocument(
 async function invokeStyleModel(options: GraphNodeOptions, input: string): Promise<StylePlan> {
   if (!options.createStructuredOutput) throw new Error("Structured output model is unavailable.");
   const output = stylePlanningModelOutputSchema.parse(
-    await options.createStructuredOutput(stylePlanningModelOutputSchema).invoke(input),
+    await options.createStructuredOutput(stylePlanningModelOutputSchema, { node: "style_planning" }).invoke(input),
   );
   return output.stylePlan;
 }
@@ -120,16 +117,32 @@ function defaultPreset(element: DesignElement): StylePlan["assignments"][number]
   if (element.type === "section") return "section";
   if (element.type === "stack") return "panel";
   if (element.type === "text") {
-    const hint = `${element.id} ${element.name} ${String(element.props.purpose ?? "")}`;
-    return /title|heading|identify/i.test(hint) ? "heading" : "body";
+    const hint = `${element.id} ${element.name} ${String(element.props.purpose ?? "")}`.toLowerCase();
+    if (/(page|hero|header|main)[_\s-]?(title|headline)/.test(hint)) return "heading";
+    if (/(^|[_\s-])(title|heading)([_\s-]|$)/.test(hint)) return "subheading";
+    if (/eyebrow|caption|description|helper|note/.test(hint)) return "muted";
+    return "body";
   }
   if (element.type === "image") return "media";
-  if (element.type === "button") return "secondary_action";
+  if (element.type === "button") {
+    return inferButtonPreset(element);
+  }
   if (element.type === "input" || element.type === "filter" || element.type === "form") return "control";
   if (element.type === "badge") return "status";
   if (element.type === "stat") return "metric";
   if (element.type === "table") return "data_table";
   return undefined;
+}
+
+function inferButtonPreset(element: DesignElement): StylePlan["assignments"][number]["preset"] {
+  const identity = `${element.id} ${element.name} ${String(element.props.label ?? "")} ${String(element.props.purpose ?? "")}`.toLowerCase();
+  if (/secondary|cancel|back|close|learn|contact|more|details|explore|view|browse|咨询|联系|了解|更多|查看/.test(identity)) {
+    return "secondary_action";
+  }
+  if (/primary|submit|create|save|confirm|buy|start|shop|cart|checkout|order|add|purchase|立即|马上|开始|购买|选购|下单|结算|加入购物车|购物车/.test(identity)) {
+    return "primary_action";
+  }
+  return "secondary_action";
 }
 
 function formatError(error: unknown) {

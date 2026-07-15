@@ -5,12 +5,14 @@ import { lowCodePageSchema } from "@flowmind/shared";
 import { mockStore } from "../../common/mock-store";
 import { DesignAgentService, type DesignAgentMessageRequest } from "./design-agent.service";
 import { OssAssetsService, type UploadedAsset } from "./oss-assets.service";
+import { LowCodeDocumentService } from "./low-code-document.service";
 
 @Controller("low-code")
 export class LowCodeController {
   constructor(
     private readonly ossAssetsService: OssAssetsService,
-    private readonly designAgentService: DesignAgentService
+    private readonly designAgentService: DesignAgentService,
+    private readonly documents: LowCodeDocumentService
   ) {}
 
   @Get("pages")
@@ -39,11 +41,32 @@ export class LowCodeController {
     return page;
   }
 
+  @Get("design-documents/:id")
+  designDocument(@Param("id") id: string) {
+    return this.documents.get(id);
+  }
+
+  @Post("design-documents/draft")
+  saveDesignDocument(@Body() body: unknown) {
+    return this.documents.saveDraft(body);
+  }
+
+  @Post("design-documents/:id/publish")
+  publishDesignDocument(@Param("id") id: string) {
+    return this.documents.publish(id);
+  }
+
 
   @Post("agent/messages")
   sendAgentMessage(@Body() body: DesignAgentMessageRequest) {
     return this.designAgentService.sendMessage(body);
   }
+
+  @Get("design-agent/latest")
+  latestDesignAgentResult() {
+    return this.designAgentService.latestResult();
+  }
+
   @Get("design-agent/assets/:runId/:fileName")
   generatedAgentAsset(
     @Param("runId") runId: string,

@@ -1,4 +1,5 @@
 import type { DesignVariables, JsonValue } from "@flowmind/shared";
+import { deleteVariablePath, setVariablePath } from "./variablePath";
 
 export type VariableRow = {
   path: string;
@@ -31,47 +32,13 @@ export function flattenVariablesToRows(variables: DesignVariables): VariableRow[
 }
 
 export function setByPath(variables: DesignVariables, path: string, value: JsonValue): DesignVariables {
-  const segments = normalizePath(path);
-  if (segments.length === 0) return { ...variables };
-  const root: Record<string, JsonValue> = cloneContainer(variables) as Record<string, JsonValue>;
-  let current: Record<string, JsonValue> | JsonValue[] = root;
-
-  for (let index = 0; index < segments.length; index += 1) {
-    const segment = segments[index];
-    const last = index === segments.length - 1;
-    const key = Array.isArray(current) ? Number(segment) : segment;
-    if (last) {
-      current[key as never] = value as never;
-      break;
-    }
-
-    const nextSegment = segments[index + 1];
-    const existing = current[key as never] as JsonValue | undefined;
-    const nextContainer = isContainer(existing) ? cloneContainer(existing) : isNumericSegment(nextSegment) ? [] : {};
-    current[key as never] = nextContainer as never;
-    current = nextContainer as Record<string, JsonValue> | JsonValue[];
-  }
-
-  return root;
+  const result = setVariablePath(variables, path, value);
+  return result.ok ? result.value : { ...variables };
 }
 
 export function deleteByPath(variables: DesignVariables, path: string): DesignVariables {
-  const segments = normalizePath(path);
-  if (segments.length === 0) return { ...variables };
-  const root: Record<string, JsonValue> = cloneContainer(variables) as Record<string, JsonValue>;
-  let current: Record<string, JsonValue> | JsonValue[] | undefined = root;
-
-  for (let index = 0; index < segments.length - 1; index += 1) {
-    const segment = segments[index];
-    const next = Array.isArray(current) ? current[Number(segment)] : current?.[segment];
-    if (!isContainer(next)) return root;
-    current = next as Record<string, JsonValue> | JsonValue[];
-  }
-
-  const last = segments[segments.length - 1];
-  if (Array.isArray(current)) delete current[Number(last)];
-  else delete current?.[last];
-  return root;
+  const result = deleteVariablePath(variables, path);
+  return result.ok ? result.value : { ...variables };
 }
 
 export function nextVariablePath(variables: DesignVariables) {
@@ -93,20 +60,4 @@ function flattenValue(value: JsonValue, prefix = ""): VariableRow[] {
     return Object.entries(value).flatMap(([key, nested]) => flattenValue(nested, prefix ? `${prefix}.${key}` : key));
   }
   return prefix ? [{ path: prefix, value: stringifyVariableInputValue(value) }] : [];
-}
-
-function normalizePath(path: string) {
-  return path.split(".").map((segment) => segment.trim()).filter(Boolean);
-}
-
-function isNumericSegment(segment: string) {
-  return /^\d+$/.test(segment);
-}
-
-function isContainer(value: JsonValue | undefined): value is JsonValue[] | Record<string, JsonValue> {
-  return Boolean(value && typeof value === "object");
-}
-
-function cloneContainer(value: JsonValue[] | Record<string, JsonValue>): JsonValue[] | Record<string, JsonValue> {
-  return Array.isArray(value) ? [...value] : { ...value };
 }

@@ -1,6 +1,6 @@
 import type { DesignAgentState } from "../state.js";
 
-export const MAX_REPAIR_ATTEMPTS = 2;
+export const MAX_REPAIR_ATTEMPTS = 4;
 
 export function routeAfterCompleteness(state: DesignAgentState) {
   return state.completenessResult?.allComplete ? "intent_compaction" : "question_generation";
@@ -16,7 +16,7 @@ export function routeAfterSchemaValidation(state: DesignAgentState) {
 
 export function routeAfterVisualReview(state: DesignAgentState) {
   if (state.validationErrors.length === 0) return "final_output";
-  return state.repairAttempts >= MAX_REPAIR_ATTEMPTS ? "final_output" : "document_repair";
+  return state.repairAttempts >= MAX_REPAIR_ATTEMPTS ? "failed" : "document_repair";
 }
 
 export function routeAfterReflectionRepair(state: DesignAgentState) {

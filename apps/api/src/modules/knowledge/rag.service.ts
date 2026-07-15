@@ -12,7 +12,9 @@ import type {
   KnowledgeDocument,
   RagCitation,
   RagMetrics,
-  RagTrace
+  RagTrace,
+  RetrievalCandidate,
+  RetrievalDebug
 } from "@flowmind/shared";
 import { chunkDocumentText, extractDocumentText, type UploadedDocument, validateDocumentUpload } from "./document-processing";
 import { EmbeddingClient } from "./embedding.client";
@@ -21,7 +23,10 @@ import { KnowledgeRepository } from "./knowledge.repository";
 export const ORGANIZATION_ID = "org_1";
 export const NO_EVIDENCE_ANSWER = "未从所选知识库找到可支撑此问题的资料。请调整问题或补充相关文档后重试。";
 const DEFAULT_TOP_K = 5;
+const DEFAULT_CANDIDATE_K = 30;
 const DEFAULT_MIN_SCORE = 0.2;
+const DEFAULT_RRF_K = 60;
+export type RetrievalMode = "vector" | "hybrid";
 
 @Injectable()
 export class KnowledgeService implements OnModuleInit {
@@ -66,7 +71,8 @@ export class KnowledgeService implements OnModuleInit {
   async uploadDocument(knowledgeBaseId: string, file: UploadedDocument | undefined) {
     validateDocumentUpload(file, Number(this.configService.get<string>("MAX_DOCUMENT_BYTES") ?? 5 * 1024 * 1024));
     const document = await this.repository.createDocument(knowledgeBaseId, ORGANIZATION_ID, file!);
-    const job = await this.tasks.enqueueDocumentIndex(document);
+    const [version] = await this.repository.listVersions(document.id, ORGANIZATION_ID);
+    const job = await this.tasks.enqueueDocumentIndex(version.id);
     return { document, job };
   }
 
@@ -75,22 +81,30 @@ export class KnowledgeService implements OnModuleInit {
   }
 
   async reindex(documentId: string) {
-    const document = await this.repository.getDocumentForIndexing(documentId, ORGANIZATION_ID);
-    if (!document) throw new NotFoundException("文档不存在。");
-    return this.tasks.enqueueDocumentIndex({
-      id: document.id,
-      organizationId: document.organization_id,
-      knowledgeBaseId: document.knowledge_base_id,
-      name: document.name,
-      mimeType: document.mime_type,
-      sizeBytes: document.size_bytes,
-      status: document.status,
-      chunkCount: 0,
-      errorMessage: document.error_message,
-      embeddingModel: document.embedding_model,
-      uploadedAt: document.uploaded_at.toISOString(),
-      indexedAt: document.indexed_at?.toISOString() ?? null
-    });
+    const version = await this.repository.createDocumentVersion(documentId, ORGANIZATION_ID);
+    return this.tasks.enqueueDocumentIndex(version.id);
+  }
+
+  listVersions(documentId: string) {
+    return this.repository.listVersions(documentId, ORGANIZATION_ID);
+  }
+
+  async uploadVersion(documentId: string, file: UploadedDocument | undefined) {
+    validateDocumentUpload(file, Number(this.configService.get<string>("MAX_DOCUMENT_BYTES") ?? 5 * 1024 * 1024));
+    const version = await this.repository.createDocumentVersion(documentId, ORGANIZATION_ID, file!);
+    const job = await this.tasks.enqueueDocumentIndex(version.id);
+    return { version, job };
+  }
+
+  rollbackVersion(documentId: string, versionId: string) {
+    return this.repository.rollbackVersion(documentId, versionId, ORGANIZATION_ID);
+  }
+
+  async indexVersion(documentId: string, versionId: string) {
+    const version = await this.repository.getVersionForIndexing(versionId, ORGANIZATION_ID);
+    if (!version || version.document_id !== documentId) throw new NotFoundException("文档版本不存在。");
+    if (version.status === "active") throw new BadRequestException("当前生效版本无需重复激活。");
+    return this.tasks.enqueueDocumentIndex(versionId);
   }
 
   async deleteDocument(documentId: string) {
@@ -106,13 +120,15 @@ export class IndexingService {
     private readonly embeddingClient: EmbeddingClient
   ) {}
 
-  async process(documentId: string, jobId: string) {
-    const document = await this.repository.getDocumentForIndexing(documentId, ORGANIZATION_ID);
-    if (!document) throw new Error("待索引文档不存在。");
+  async process(versionId: string, jobId: string) {
+    const claimed = await this.repository.claimJob(jobId, ORGANIZATION_ID);
+    if (!claimed) return;
+    const version = await this.repository.getVersionForIndexing(versionId, ORGANIZATION_ID);
+    if (!version) throw new Error("待索引文档版本不存在。");
     try {
-      await this.repository.updateJob(jobId, { status: "running", progress: 10, label: "解析文件" });
-      await this.repository.markDocumentProcessing(documentId, ORGANIZATION_ID);
-      const extracted = await extractDocumentText({ buffer: document.file_content, mimetype: document.mime_type });
+      await this.repository.updateJob(jobId, { progress: 10, label: "解析文件" });
+      await this.repository.markVersionIndexing(versionId, ORGANIZATION_ID);
+      const extracted = await extractDocumentText({ buffer: version.file_content, mimetype: version.mime_type });
       const chunks = chunkDocumentText(extracted.text, undefined, undefined, extracted.pageRanges);
       if (chunks.length === 0) throw new Error("文档没有可索引的文本内容。");
 
@@ -122,12 +138,11 @@ export class IndexingService {
         embeddings.push(...(await this.embeddingClient.embed(chunks.slice(index, index + 32).map((chunk) => chunk.content))));
       }
       await this.repository.updateJob(jobId, { progress: 78, label: "生成向量" });
-      await this.repository.replaceChunks(document, chunks, embeddings, this.embeddingClient.model);
+      await this.repository.activateVersion(version, chunks, embeddings, this.embeddingClient.model);
       await this.repository.updateJob(jobId, { status: "completed", progress: 100, label: "索引完成" });
     } catch (error) {
       const message = error instanceof Error ? error.message : "索引失败。";
-      await this.repository.failDocument(documentId, ORGANIZATION_ID, message);
-      await this.repository.updateJob(jobId, { status: "failed", progress: 100, label: "索引失败", errorMessage: message });
+      await this.repository.failVersion(versionId, ORGANIZATION_ID, message);
       throw error;
     }
   }
@@ -142,6 +157,7 @@ export type RetrievalResult = {
 @Injectable()
 export class RetrievalService {
   private readonly minScore: number;
+  private readonly profile: RetrievalDebug["profile"];
 
   constructor(
     private readonly repository: KnowledgeRepository,
@@ -149,15 +165,20 @@ export class RetrievalService {
     configService: ConfigService
   ) {
     this.minScore = Number(configService.get<string>("RAG_MIN_SCORE") ?? DEFAULT_MIN_SCORE);
+    this.profile = {
+      vectorTopK: Number(configService.get<string>("RAG_VECTOR_TOP_K") ?? DEFAULT_CANDIDATE_K),
+      keywordTopK: Number(configService.get<string>("RAG_KEYWORD_TOP_K") ?? DEFAULT_CANDIDATE_K),
+      finalTopK: Number(configService.get<string>("RAG_FINAL_TOP_K") ?? DEFAULT_TOP_K),
+      minScore: this.minScore,
+      rrfK: Number(configService.get<string>("RAG_RRF_K") ?? DEFAULT_RRF_K)
+    };
   }
 
-  async retrieve(question: string, knowledgeBaseIds: string[], conversationId: string | null): Promise<RetrievalResult> {
+  async retrieve(question: string, knowledgeBaseIds: string[], conversationId: string | null, mode: RetrievalMode = "hybrid"): Promise<RetrievalResult> {
     if (knowledgeBaseIds.length === 0) return { citations: [], retrievalLatencyMs: 0, trace: null };
     const startedAt = Date.now();
-    const [embedding] = await this.embeddingClient.embed([question]);
-    const citations = (await this.repository.searchChunks(ORGANIZATION_ID, knowledgeBaseIds, embedding, DEFAULT_TOP_K)).filter(
-      (citation) => citation.score >= this.minScore
-    );
+    const debug = await this.runRetrieval(question, knowledgeBaseIds, mode, startedAt);
+    const citations = debug.finalCandidates.map(toCitation);
     const retrievalLatencyMs = Date.now() - startedAt;
     const trace = await this.repository.insertTrace({
       organizationId: ORGANIZATION_ID,
@@ -166,9 +187,39 @@ export class RetrievalService {
       knowledgeBaseIds,
       citations,
       retrievalLatencyMs,
-      answerLatencyMs: null
+      answerLatencyMs: null,
+      retrievalMode: mode,
+      retrievalDebug: debug
     });
     return { citations, retrievalLatencyMs, trace };
+  }
+
+  async debug(question: string, knowledgeBaseIds: string[], mode: RetrievalMode = "hybrid"): Promise<RetrievalDebug> {
+    if (!question.trim()) throw new BadRequestException("调试问题不能为空。");
+    if (knowledgeBaseIds.length === 0) throw new BadRequestException("请选择至少一个知识库。");
+    const startedAt = Date.now();
+    return this.runRetrieval(question.trim(), knowledgeBaseIds, mode, startedAt);
+  }
+
+  private async runRetrieval(question: string, knowledgeBaseIds: string[], mode: RetrievalMode, startedAt: number): Promise<RetrievalDebug> {
+    const [embedding] = await this.embeddingClient.embed([question]);
+    const [rawVector, rawKeyword] = await Promise.all([
+      this.repository.searchVectorChunks(ORGANIZATION_ID, knowledgeBaseIds, embedding, this.profile.vectorTopK),
+      mode === "hybrid"
+        ? this.repository.searchKeywordChunks(ORGANIZATION_ID, knowledgeBaseIds, question, this.profile.keywordTopK)
+        : Promise.resolve([])
+    ]);
+    const vector = rawVector.filter((candidate) => candidate.score >= this.minScore);
+    const finalCandidates = fuseRetrievalCandidates(vector, rawKeyword, this.profile.rrfK, this.profile.finalTopK);
+    return {
+      question,
+      mode,
+      profile: this.profile,
+      vectorCandidates: vector.map((candidate, index) => candidateForLane(candidate, "vector", index + 1)),
+      keywordCandidates: rawKeyword.map((candidate, index) => candidateForLane(candidate, "keyword", index + 1)),
+      finalCandidates,
+      latencyMs: Date.now() - startedAt
+    };
   }
 
   updateAnswerLatency(traceId: string | undefined, latencyMs: number) {
@@ -185,15 +236,19 @@ export class RagTaskService implements OnModuleInit, OnModuleDestroy {
   private queue: Queue<QueuePayload> | null = null;
   private worker: Worker<QueuePayload> | null = null;
   private inline = false;
+  private recoveryTimer: ReturnType<typeof setInterval> | null = null;
+  private readonly staleJobMs: number;
 
   constructor(
     private readonly repository: KnowledgeRepository,
     private readonly indexingService: IndexingService,
     @Inject(forwardRef(() => EvaluationService)) private readonly evaluationService: Pick<EvaluationService, "processRun">,
     private readonly configService: ConfigService
-  ) {}
+  ) {
+    this.staleJobMs = Number(configService.get<string>("RAG_JOB_STALE_MS") ?? 300_000);
+  }
 
-  onModuleInit() {
+  async onModuleInit() {
     if ((this.configService.get<string>("RAG_QUEUE_MODE") ?? "bullmq") === "inline") {
       this.inline = true;
       return;
@@ -208,20 +263,36 @@ export class RagTaskService implements OnModuleInit, OnModuleDestroy {
       },
       { connection }
     );
+    this.worker.on("failed", (job, error) => {
+      if (!job) return;
+      const attempts = job.opts.attempts ?? 1;
+      if (job.attemptsMade < attempts) {
+        void this.repository.updateJob(job.data.jobId, { status: "queued", label: `等待重试 ${job.attemptsMade}/${attempts}`, errorMessage: error.message });
+      } else {
+        void this.repository.updateJob(job.data.jobId, { status: "failed", progress: 100, label: "任务失败", errorMessage: error.message });
+      }
+    });
+    await this.recoverInterruptedJobs();
+    this.recoveryTimer = setInterval(() => { void this.recoverInterruptedJobs(); }, Math.max(30_000, this.staleJobMs));
   }
 
   async onModuleDestroy() {
+    if (this.recoveryTimer) clearInterval(this.recoveryTimer);
     await this.worker?.close();
     await this.queue?.close();
   }
 
-  async enqueueDocumentIndex(document: KnowledgeDocument) {
-    const job = await this.repository.createJob(ORGANIZATION_ID, "document.index", document.id, "等待索引");
+  async enqueueDocumentIndex(versionId: string) {
+    const job = await this.repository.createJob(ORGANIZATION_ID, "document.index", versionId, "等待索引");
     if (this.inline) {
-      void this.indexingService.process(document.id, job.id).catch(() => undefined);
+      void this.indexingService.process(versionId, job.id).catch(() => undefined);
       return job;
     }
-    await this.queueOrThrow().add("document.index", { type: "document.index", organizationId: ORGANIZATION_ID, resourceId: document.id, jobId: job.id });
+    await this.queueOrThrow().add(
+      "document.index",
+      { type: "document.index", organizationId: ORGANIZATION_ID, resourceId: versionId, jobId: job.id },
+      { jobId: job.id, attempts: 3, backoff: { type: "exponential", delay: 1000 }, removeOnComplete: 100, removeOnFail: 200 }
+    );
     return job;
   }
 
@@ -242,6 +313,24 @@ export class RagTaskService implements OnModuleInit, OnModuleDestroy {
   private queueOrThrow() {
     if (!this.queue) throw new Error("任务队列尚未初始化。");
     return this.queue;
+  }
+
+  private async recoverInterruptedJobs() {
+    if (!this.queue) return;
+    let recovered;
+    try {
+      recovered = await this.repository.recoverStaleDocumentJobs(ORGANIZATION_ID, this.staleJobMs);
+    } catch (error) {
+      if (isSchemaInitializationRace(error)) return;
+      throw error;
+    }
+    for (const job of recovered) {
+      await this.queue.add(
+        "document.index.recovered",
+        { type: "document.index", organizationId: ORGANIZATION_ID, resourceId: job.resource_id, jobId: job.id },
+        { jobId: `${job.id}:recovered:${Date.now()}`, attempts: 3, backoff: { type: "exponential", delay: 1000 }, removeOnComplete: 100, removeOnFail: 200 }
+      );
+    }
   }
 }
 
@@ -304,10 +393,10 @@ export class EvaluationService {
     return created;
   }
 
-  async startRun(datasetId: string, tasks: RagTaskService) {
+  async startRun(datasetId: string, tasks: RagTaskService, retrievalMode: RetrievalMode = "hybrid") {
     const cases = await this.repository.listCases(datasetId, ORGANIZATION_ID);
     if (cases.length === 0) throw new NotFoundException("评测集不存在或没有可执行样本。");
-    const run = await this.repository.createRun(datasetId, ORGANIZATION_ID);
+    const run = await this.repository.createRun(datasetId, ORGANIZATION_ID, retrievalMode);
     const job = await tasks.enqueueEvaluation(run);
     return { run, job };
   }
@@ -334,7 +423,7 @@ export class EvaluationService {
     try {
       for (let index = 0; index < cases.length; index += 1) {
         const testCase = cases[index];
-        const retrieved = await this.retrievalService.retrieve(testCase.question, testCase.knowledgeBaseIds, null);
+        const retrieved = await this.retrievalService.retrieve(testCase.question, testCase.knowledgeBaseIds, null, run.retrievalMode);
         const answer = retrieved.citations.length === 0
           ? NO_EVIDENCE_ANSWER
           : await this.judgeClient.answer(testCase.question, retrieved.citations);
@@ -371,7 +460,7 @@ export class EvaluationService {
   }
 }
 
-const GOLDEN_DATASET_DEFINITIONS = [
+export const GOLDEN_DATASET_DEFINITIONS = [
   {
     name: "黄金集-套餐价格",
     cases: [
@@ -391,7 +480,11 @@ const GOLDEN_DATASET_DEFINITIONS = [
         question: "新客户试用政策是什么？",
         referenceAnswer: "新客户可申请 14 天试用，最多 30 个账号；试用环境不承诺生产级 SLA，试用到期后文档保留 7 天供导出，之后自动删除。",
         knowledgeBaseIds: ["kb_1"],
-        expectedQuotes: ["试用政策：新客户可申请 14 天试用，最多 30 个账号。"]
+        expectedQuotes: [
+          "试用政策：新客户可申请 14 天试用，最多 30 个账号。",
+          "试用环境不承诺生产级 SLA。",
+          "试用到期后，文档保留 7 天供导出，之后自动删除。"
+        ]
       }
     ]
   },
@@ -408,13 +501,19 @@ const GOLDEN_DATASET_DEFINITIONS = [
         question: "上传文档后系统如何建立检索能力？",
         referenceAnswer: "上传文档后，系统会进行解析、分块和向量索引；默认每块最多 800 个字符，前后相邻分块保留 120 个字符重叠，聊天检索默认获取最相关的前 5 个片段。",
         knowledgeBaseIds: ["kb_1"],
-        expectedQuotes: ["上传文档后系统进行解析、分块和向量索引。默认分块策略为每块最多 800 个字符，前后相邻分块保留 120 个字符重叠。"]
+        expectedQuotes: [
+          "上传文档后系统进行解析、分块和向量索引。默认分块策略为每块最多 800 个字符，前后相邻分块保留 120 个字符重叠。",
+          "聊天检索默认获取最相关的前 5 个片段。"
+        ]
       },
       {
         question: "系统如何处理跨组织数据隔离和删除后的文档？",
         referenceAnswer: "生产环境数据默认保存在客户所属组织的隔离空间，跨组织不可检索；文档删除后会立即从新检索结果中移除，并在 30 天内从备份轮换中清理。",
         knowledgeBaseIds: ["kb_1"],
-        expectedQuotes: ["生产环境数据默认保存于客户所属组织的隔离空间，跨组织不可检索。"]
+        expectedQuotes: [
+          "生产环境数据默认保存于客户所属组织的隔离空间，跨组织不可检索。",
+          "文档删除后会立即从新的检索结果中移除，并在 30 天内从备份轮换中清理。"
+        ]
       }
     ]
   },
@@ -438,6 +537,130 @@ const GOLDEN_DATASET_DEFINITIONS = [
         referenceAnswer: "小于 5 MB 的纯文本或 Markdown 文档通常会在 1 分钟内完成索引。",
         knowledgeBaseIds: ["kb_1"],
         expectedQuotes: ["小于 5 MB 的纯文本或 Markdown 文档通常会在 1 分钟内完成索引。"]
+      }
+    ]
+  },
+  {
+    name: "黄金集-语义改写",
+    cases: [
+      {
+        question: "我们只买 19 个专业版账号行不行？",
+        referenceAnswer: "不行。专业版最低采购量是 20 个席位，19 个席位低于最低采购量。",
+        knowledgeBaseIds: ["kb_1"],
+        expectedQuotes: ["- 最低采购量：20 个席位。"]
+      },
+      {
+        question: "我在聊天里换了知识库，之前 AI 已经给出的内容会跟着变吗？",
+        referenceAnswer: "不会。知识库选择变更只影响后续新问题，不会改写历史回答。",
+        knowledgeBaseIds: ["kb_1"],
+        expectedQuotes: ["每个聊天会话可同时绑定多个知识库，知识库选择的变更只影响后续新问题，不会改写历史回答。"]
+      },
+      {
+        question: "服务一个月最多可以宕机多久？我只想知道合同承诺的可用性指标。",
+        referenceAnswer: "合同承诺的企业版生产环境服务可用性目标为每自然月 99.9%；具体可用分钟数取决于该自然月的总分钟数。",
+        knowledgeBaseIds: ["kb_1"],
+        expectedQuotes: ["企业版生产环境服务可用性目标为每自然月 99.9%。"]
+      }
+    ]
+  },
+  {
+    name: "黄金集-多证据推理",
+    cases: [
+      {
+        question: "按最低采购量买专业版并签一年，基础席位费合计多少？",
+        referenceAnswer: "按每席位每月 99 元、最低 20 席位、12 个月计算，基础席位费合计 23,760 元。",
+        knowledgeBaseIds: ["kb_1"],
+        expectedQuotes: ["- 价格：每席位每月 99 元，按年签约。", "- 最低采购量：20 个席位。"]
+      },
+      {
+        question: "新客试用账号上限比专业版最低采购席位多几个？",
+        referenceAnswer: "试用最多 30 个账号，专业版最低采购 20 个席位，因此多 10 个。",
+        knowledgeBaseIds: ["kb_1"],
+        expectedQuotes: ["试用政策：新客户可申请 14 天试用，最多 30 个账号。", "- 最低采购量：20 个席位。"]
+      },
+      {
+        question: "4 MB 的 Markdown 文件是否支持上传，通常多久能建好索引？",
+        referenceAnswer: "支持。Markdown 属于支持的上传格式；4 MB 小于 5 MB，通常会在 1 分钟内完成索引。",
+        knowledgeBaseIds: ["kb_1"],
+        expectedQuotes: [
+          "首版不支持 DOCX。支持的上传格式仅为 PDF、Markdown 和 TXT。",
+          "小于 5 MB 的纯文本或 Markdown 文档通常会在 1 分钟内完成索引。"
+        ]
+      }
+    ]
+  },
+  {
+    name: "黄金集-边界与否定",
+    cases: [
+      {
+        question: "新客户能不能给 31 个账号开 14 天试用？",
+        referenceAnswer: "不能按标准试用政策开通。试用期可以是 14 天，但账号上限为 30 个，31 个超出上限 1 个。",
+        knowledgeBaseIds: ["kb_1"],
+        expectedQuotes: ["试用政策：新客户可申请 14 天试用，最多 30 个账号。"]
+      },
+      {
+        question: "一个 2 MB 的 DOCX 很小，是否因此可以上传并在一分钟内索引？",
+        referenceAnswer: "不可以。文件小于 5 MB 不会改变格式限制：首版不支持 DOCX，因此不能据此承诺一分钟内完成索引。",
+        knowledgeBaseIds: ["kb_1"],
+        expectedQuotes: [
+          "首版不支持 DOCX。支持的上传格式仅为 PDF、Markdown 和 TXT。",
+          "小于 5 MB 的纯文本或 Markdown 文档通常会在 1 分钟内完成索引。"
+        ]
+      },
+      {
+        question: "企业版 4 小时响应是不是意味着故障必须在 4 小时内修复？",
+        referenceAnswer: "不是。文档承诺的是工作日 4 小时内首次响应，并没有承诺 4 小时内修复。",
+        knowledgeBaseIds: ["kb_1"],
+        expectedQuotes: ["- 支持工作日 4 小时首次响应的高级支持服务。"]
+      }
+    ]
+  },
+  {
+    name: "黄金集-时间与保留策略",
+    cases: [
+      {
+        question: "删除一份生产文档后，它还会继续被搜到 30 天吗？",
+        referenceAnswer: "不会。文档会立即从新的检索结果中移除；30 天指的是从备份轮换中清理的期限。",
+        knowledgeBaseIds: ["kb_1"],
+        expectedQuotes: ["文档删除后会立即从新的检索结果中移除，并在 30 天内从备份轮换中清理。"]
+      },
+      {
+        question: "试用结束后第 8 天还能导出原来的文档吗？",
+        referenceAnswer: "按标准策略不能。试用到期后文档只保留 7 天供导出，之后会自动删除。",
+        knowledgeBaseIds: ["kb_1"],
+        expectedQuotes: ["试用到期后，文档保留 7 天供导出，之后自动删除。"]
+      },
+      {
+        question: "试用环境也享有每月 99.9% 的生产 SLA 吗？",
+        referenceAnswer: "不享有。99.9% 是企业版生产环境的可用性目标，试用环境不承诺生产级 SLA。",
+        knowledgeBaseIds: ["kb_1"],
+        expectedQuotes: ["试用环境不承诺生产级 SLA。", "企业版生产环境服务可用性目标为每自然月 99.9%。"]
+      }
+    ]
+  },
+  {
+    name: "黄金集-相似概念抗干扰",
+    cases: [
+      {
+        question: "30 这个数字在数据删除政策里代表什么？",
+        referenceAnswer: "在数据删除政策里，30 指文档删除后会在 30 天内从备份轮换中清理，不是试用账号数量。",
+        knowledgeBaseIds: ["kb_1"],
+        expectedQuotes: ["文档删除后会立即从新的检索结果中移除，并在 30 天内从备份轮换中清理。"]
+      },
+      {
+        question: "高级支持里的 4 小时和文档索引耗时分别指什么？",
+        referenceAnswer: "4 小时指企业版高级支持在工作日的首次响应时间；小于 5 MB 的纯文本或 Markdown 文档通常在 1 分钟内完成索引。",
+        knowledgeBaseIds: ["kb_1"],
+        expectedQuotes: [
+          "- 支持工作日 4 小时首次响应的高级支持服务。",
+          "小于 5 MB 的纯文本或 Markdown 文档通常会在 1 分钟内完成索引。"
+        ]
+      },
+      {
+        question: "20 和 30 在账号政策中分别是什么门槛？",
+        referenceAnswer: "20 是专业版的最低采购席位数，30 是新客户试用的账号上限。",
+        knowledgeBaseIds: ["kb_1"],
+        expectedQuotes: ["- 最低采购量：20 个席位。", "试用政策：新客户可申请 14 天试用，最多 30 个账号。"]
       }
     ]
   }
@@ -542,6 +765,62 @@ export function findEvidenceRank(testCase: EvaluationCase, citations: RagCitatio
   );
   return index === -1 ? null : index + 1;
 }
+export function fuseRetrievalCandidates(
+  vectorCandidates: Array<RagCitation & { documentVersion: number }>,
+  keywordCandidates: Array<RagCitation & { documentVersion: number }>,
+  rrfK = DEFAULT_RRF_K,
+  limit = DEFAULT_TOP_K
+): RetrievalCandidate[] {
+  const candidates = new Map<string, {
+    candidate: RagCitation & { documentVersion: number };
+    vectorRank: number | null;
+    keywordRank: number | null;
+    vectorScore: number | null;
+    keywordScore: number | null;
+  }>();
+  vectorCandidates.forEach((candidate, index) => {
+    candidates.set(candidate.chunkId, { candidate, vectorRank: index + 1, keywordRank: null, vectorScore: candidate.score, keywordScore: null });
+  });
+  keywordCandidates.forEach((candidate, index) => {
+    const current = candidates.get(candidate.chunkId);
+    candidates.set(candidate.chunkId, current
+      ? { ...current, keywordRank: index + 1, keywordScore: candidate.score }
+      : { candidate, vectorRank: null, keywordRank: index + 1, vectorScore: null, keywordScore: candidate.score });
+  });
+  const lanes = keywordCandidates.length > 0 ? 2 : 1;
+  const maximum = lanes / (rrfK + 1);
+  return [...candidates.values()]
+    .map((item) => {
+      const raw = (item.vectorRank ? 1 / (rrfK + item.vectorRank) : 0) + (item.keywordRank ? 1 / (rrfK + item.keywordRank) : 0);
+      const fusedScore = maximum ? Number((raw / maximum).toFixed(4)) : 0;
+      return {
+        ...toCitation(item.candidate),
+        score: fusedScore,
+        vectorRank: item.vectorRank,
+        keywordRank: item.keywordRank,
+        vectorScore: item.vectorScore,
+        keywordScore: item.keywordScore,
+        fusedScore,
+        documentVersion: item.candidate.documentVersion
+      };
+    })
+    .sort((left, right) => right.fusedScore - left.fusedScore || (left.vectorRank ?? 9999) - (right.vectorRank ?? 9999))
+    .slice(0, limit);
+}
+function candidateForLane(candidate: RagCitation & { documentVersion: number }, lane: "vector" | "keyword", rank: number): RetrievalCandidate {
+  return {
+    ...toCitation(candidate),
+    vectorRank: lane === "vector" ? rank : null,
+    keywordRank: lane === "keyword" ? rank : null,
+    vectorScore: lane === "vector" ? candidate.score : null,
+    keywordScore: lane === "keyword" ? candidate.score : null,
+    fusedScore: candidate.score,
+    documentVersion: candidate.documentVersion
+  };
+}
+function toCitation(candidate: RagCitation): RagCitation {
+  return { chunkId: candidate.chunkId, documentId: candidate.documentId, documentName: candidate.documentName, quote: candidate.quote, score: candidate.score };
+}
 function normalizeText(value: string) {
   return value.replace(/\s+/g, " ").trim();
 }
@@ -566,6 +845,9 @@ function redisConnection(redisUrl: string) {
     db: parsed.pathname ? Number(parsed.pathname.slice(1) || 0) : 0,
     maxRetriesPerRequest: null
   };
+}
+function isSchemaInitializationRace(error: unknown) {
+  return typeof error === "object" && error !== null && "code" in error && (error.code === "42703" || error.code === "42P01");
 }
 function parseCsv(content: string): string[][] {
   const rows: string[][] = [];

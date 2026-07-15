@@ -3,13 +3,14 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { MouseEvent as ReactMouseEvent, ReactNode, WheelEvent as ReactWheelEvent } from "react";
 import interact from "interactjs";
 import type { CSSProperties } from "react";
-import { designImageSlotSchema, type DesignBaseStyle, type DesignDocument, type DesignElement, type DesignImageSlot, type DesignLayout, type DesignTreeNode, type DesignVariables } from "@flowmind/shared";
+import { designImageSlotSchema, type DesignBaseStyle, type DesignDocument, type DesignElement, type DesignImageSlot, type DesignLayout, type DesignTreeNode, type DesignVariables, type JsonValue } from "@flowmind/shared";
 import { Button, Input } from "@flowmind/ui";
 import { customerRows, fieldLabels, isContainerElement } from "./lowcodeData";
 import { elementMap } from "./designDocumentOps";
 import { clearDropPlacementIndicator, setDropPlacementIndicator } from "./dropPlacementIndicator";
 import { resolveMaterialDropTarget } from "./materialDropResolver";
 import { resolveVariableText } from "./variableResolver";
+import { resolveElementProperty } from "./bindingResolver";
 
 export function DesignCanvas({
   document,
@@ -462,7 +463,7 @@ function renderElementContent(
   if (element.type === "shape") return <ShapePreview element={element} />;
   if (element.type === "stat") return <StatPreview element={element} variables={variables} />;
   if (element.type === "filter") return <FilterPreview element={element} />;
-  if (element.type === "table") return <TablePreview element={element} />;
+  if (element.type === "table") return <TablePreview element={element} variables={variables} />;
   if (element.type === "form") return <FormPreview element={element} />;
   if (element.type === "button") return <ButtonPreview element={element} variables={variables} />;
   return null;
@@ -493,7 +494,10 @@ function TextPreview({
 }) {
   if (element.type !== "text") return null;
   const role = element.style.text.role;
-  const text = resolveVariableText(String(element.props?.text ?? element.name), selected ? {} : variables);
+  const hasStructuredBinding = Boolean(element.bindings?.text);
+  const text = hasStructuredBinding
+    ? String(resolveElementProperty(element, "text", variables, element.name, "string"))
+    : resolveVariableText(String(element.props?.text ?? element.name), selected ? {} : variables);
   const textStyle: CSSProperties = {
     ...baseVisualStyle(element.style.base),
     textDecoration: element.style.text.decoration === "lineThrough" ? "line-through" : element.style.text.decoration,
@@ -506,7 +510,7 @@ function TextPreview({
           as="h2"
           className="min-h-[34px] cursor-text rounded px-1 text-[28px] font-bold leading-tight text-[#101828] outline-none focus:bg-[#e8f4f2] focus:ring-2 focus:ring-[#0f766e]/30"
           element={element}
-          selected={selected}
+          selected={selected && !hasStructuredBinding}
           style={textStyle}
           text={text}
           onSelect={onSelect}
@@ -521,7 +525,7 @@ function TextPreview({
         as="p"
         className="min-h-6 cursor-text rounded px-1 text-sm leading-6 text-[#101828] outline-none focus:bg-[#e8f4f2] focus:ring-2 focus:ring-[#0f766e]/30"
         element={element}
-        selected={selected}
+        selected={selected && !hasStructuredBinding}
         style={textStyle}
         text={text}
         onSelect={onSelect}
@@ -647,9 +651,13 @@ function FilterPreview({ element }: { element: DesignElement }) {
   );
 }
 
-function TablePreview({ element }: { element: DesignElement }) {
+function TablePreview({ element, variables }: { element: DesignElement; variables: DesignVariables }) {
   if (element.type !== "table") return null;
   const columns = arrayProp(element.props?.columns, ["name", "stage", "owner", "health"]);
+  const resolvedRows = resolveElementProperty(element, "rows", variables, (element.props?.rows ?? customerRows) as JsonValue, "array");
+  const rows: Array<Record<string, JsonValue>> = Array.isArray(resolvedRows)
+    ? resolvedRows.filter(isDataRow)
+    : customerRows as Array<Record<string, JsonValue>>;
   const rowPadding = element.style.table.density === "compact" ? "px-4 py-2" : element.style.table.density === "comfortable" ? "px-4 py-4" : "px-4 py-3";
   const compact = Boolean(element.props?.compact);
   return (
@@ -658,13 +666,23 @@ function TablePreview({ element }: { element: DesignElement }) {
       <div className={`flex ${compact ? "px-3 py-2" : "px-4 py-3"} text-xs font-bold text-[#5b6472]`} style={{ backgroundColor: colorValue(element.style.table.headerBackground) }}>
         {columns.map((column) => <span key={column} className="min-w-[92px] flex-1">{fieldLabels[column] ?? column}</span>)}
       </div>
-      {customerRows.map((row, index) => (
-        <div key={row.name} className={`flex border-t border-[#eef2f5] text-sm text-[#101828] ${rowPadding}`} style={element.style.table.zebra && index % 2 === 1 ? { backgroundColor: colorValue("muted") } : undefined}>
-          {columns.map((column) => <span key={column} className="min-w-[92px] flex-1">{String(row[column as keyof typeof row] ?? "-")}</span>)}
+      {rows.map((row, index) => (
+        <div key={String(row.id ?? row.name ?? index)} className={`flex border-t border-[#eef2f5] text-sm text-[#101828] ${rowPadding}`} style={element.style.table.zebra && index % 2 === 1 ? { backgroundColor: colorValue("muted") } : undefined}>
+          {columns.map((column) => <span key={column} className="min-w-[92px] flex-1">{renderCellValue(row[column])}</span>)}
         </div>
       ))}
     </div>
   );
+}
+
+function isDataRow(value: JsonValue): value is Record<string, JsonValue> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function renderCellValue(value: JsonValue | undefined) {
+  if (value === undefined) return "-";
+  if (value === null) return "";
+  return typeof value === "object" ? JSON.stringify(value) : String(value);
 }
 
 function FormPreview({ element }: { element: DesignElement }) {
@@ -691,7 +709,9 @@ function FormPreview({ element }: { element: DesignElement }) {
 function ButtonPreview({ element, variables }: { element: DesignElement; variables: DesignVariables }) {
   if (element.type !== "button") return null;
   const sizeClass = element.style.button.size === "lg" ? "h-11 px-5" : element.style.button.size === "sm" ? "h-8 px-3" : "h-10 px-4";
-  return <button className={`inline-flex items-center justify-center ${slotFillClass(element) || sizeClass} rounded-md text-sm font-semibold`} style={baseVisualStyle(element.style.base)}>{resolveVariableText(String(element.props?.label ?? element.name), variables)}</button>;
+  const label = String(resolveElementProperty(element, "label", variables, element.name, "string"));
+  const disabled = Boolean(resolveElementProperty(element, "disabled", variables, Boolean(element.props?.disabled), "boolean"));
+  return <button aria-disabled={disabled} type="button" className={`inline-flex cursor-default items-center justify-center ${slotFillClass(element) || sizeClass} rounded-md text-sm font-semibold ${disabled ? "opacity-50" : ""}`} style={baseVisualStyle(element.style.base)}>{label}</button>;
 }
 
 function ImagePreview({ element, variables }: { element: DesignElement; variables: DesignVariables }) {

@@ -19,13 +19,30 @@ export const imageAssetDraftSchema = z.object({
   priority: prioritySchema,
 }).strict();
 
-export const imagePlanningModelOutputSchema = z.object({
+const imagePlanningModelOutputObjectSchema = z.object({
   visualAssetPlan: z.object({
     ...planHeader,
     assets: z.array(imageAssetDraftSchema).max(10),
     notes: z.array(z.string().min(1).max(500)).max(10).default([]),
   }).strict(),
 }).strict();
+
+export const imagePlanningModelOutputSchema = z.preprocess((value) => {
+  const record = normalizeObject(value);
+  if (!record) return value;
+  const rawPlan = normalizeObject(record.visualAssetPlan) ?? record;
+  const assets = Array.isArray(rawPlan.assets) ? rawPlan.assets.map(normalizeImageAssetDraft) : [];
+  const noImages = rawPlan.imagePolicy === "none" || rawPlan.visualMode === "none";
+  return {
+    visualAssetPlan: {
+      imagePolicy: noImages ? "none" : "required",
+      visualMode: noImages ? "none" : normalizeEnum(rawPlan.visualMode, ["standard", "rich"] as const, assets.length > 3 ? "rich" : "standard"),
+      minimumGeneratedAssets: noImages ? 0 : 3,
+      assets: noImages ? [] : assets,
+      notes: Array.isArray(rawPlan.notes) ? rawPlan.notes.map(String) : [],
+    },
+  };
+}, imagePlanningModelOutputObjectSchema);
 
 const visualAssetBaseSchema = z.object({
   id: z.string().min(1).max(120),
@@ -81,10 +98,46 @@ export type ImagePlanningModelOutput = z.infer<typeof imagePlanningModelOutputSc
 export type VisualAsset = z.infer<typeof visualAssetSchema>;
 export type VisualAssetPlan = z.infer<typeof visualAssetPlanSchema>;
 
-export function validateImagePolicy(plan: VisualAssetPlan, context: ImagePolicyContext): VisualAssetPlan {
+export function validateImagePolicy(plan: VisualAssetPlan, context: ImagePolicyContext & { allowNoImages?: boolean }): VisualAssetPlan {
   const parsed = visualAssetPlanSchema.parse(plan);
   const noImageRequested = hasExplicitNoImageIntent(context);
-  if (!noImageRequested && parsed.imagePolicy === "none") throw new Error("imagePolicy none requires explicit no-image intent from the user.");
+  if (!noImageRequested && !context.allowNoImages && parsed.imagePolicy === "none") throw new Error("imagePolicy none requires explicit no-image intent or a reviewed no-image layout.");
   if (noImageRequested && (parsed.imagePolicy !== "none" || parsed.assets.length > 0)) throw new Error("An explicit no-image request must not contain assets.");
   return parsed;
+}
+
+function normalizeImageAssetDraft(value: unknown) {
+  const asset = normalizeObject(value) ?? {};
+  const {
+    id,
+    slotId,
+    slot,
+    imageSlotId,
+    purpose,
+    promptBrief,
+    prompt,
+    description,
+    priority,
+    ...unsupportedFields
+  } = asset;
+  return {
+    ...unsupportedFields,
+    id: normalizeText(id, "model_visual_asset"),
+    slotId: normalizeText(slotId ?? slot ?? imageSlotId, "model_image_slot"),
+    purpose: normalizeText(purpose, "Generated visual asset"),
+    promptBrief: normalizeText(promptBrief ?? prompt ?? description, "Create a relevant product visual"),
+    priority: normalizeEnum(priority, ["required", "recommended", "optional"] as const, "recommended"),
+  };
+}
+
+function normalizeText(value: unknown, fallback: string) {
+  return typeof value === "string" && value.trim() ? value.trim() : fallback;
+}
+
+function normalizeObject(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : undefined;
+}
+
+function normalizeEnum<T extends readonly string[]>(value: unknown, allowed: T, fallback: T[number]): T[number] {
+  return typeof value === "string" && allowed.includes(value) ? value as T[number] : fallback;
 }

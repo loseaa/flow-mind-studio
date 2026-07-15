@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 import { createArtifactStore, type RunManifest } from "./artifacts/store.js";
 import { createCliRenderer } from "./cli-renderer.js";
 import { promptForClarification } from "./cli-prompter.js";
-import { createDesignAgentGraph, type DesignAgentGraphStartNode } from "./graph.js";
+import { createDesignAgentGraph, designAgentRecursionLimit, type DesignAgentGraphStartNode } from "./graph.js";
 import { recordQuestionsAsked } from "./intent/dimensions.js";
 import { loadEnvFileInto } from "./llm/env.js";
 import { createImageGenerationFactory } from "./llm/image-provider.js";
@@ -251,7 +251,7 @@ async function invokeGraphWithSpinner(input: {
 }) {
   const spinner = input.io.startSpinner?.(input.label);
   try {
-    const result = await input.graph.invoke(input.state);
+    const result = await input.graph.invoke(input.state, { recursionLimit: designAgentRecursionLimit() });
     spinner?.succeed(`${input.label} finished`);
     return result;
   } catch (error) {
@@ -285,10 +285,15 @@ function describeLlm(args: CliArgs, env: Record<string, string | undefined>) {
     env.DEEPSEEK_BASE_URL ??
     "https://api.deepseek.com";
   const keySource = ["DESIGN_AGENT_LLM_API_KEY", "OPENAI_API_KEY", "LLM_API_KEY", "DEEPSEEK_API_KEY"].find((key) => env[key]);
+  const executionModel = env.DESIGN_AGENT_EXECUTION_MODEL ?? env.DESIGN_AGENT_STRONG_MODEL;
+  const executionBaseURL = env.DESIGN_AGENT_EXECUTION_LLM_BASE_URL ?? env.DESIGN_AGENT_EXECUTION_BASE_URL;
+  const executionSummary = executionModel
+    ? `; executionModel=${executionModel}; executionBaseURL=${executionBaseURL ?? baseURL}; executionNodes=${env.DESIGN_AGENT_EXECUTION_NODES ?? env.DESIGN_AGENT_STRONG_NODES ?? "quality-planning-defaults"}`
+    : "";
   const imageProvider = env.DESIGN_AGENT_IMAGE_PROVIDER ?? "openai-compatible";
   const imageModel = env.DESIGN_AGENT_IMAGE_MODEL ?? env.IMAGE_MODEL ?? env.OPENAI_IMAGE_MODEL ?? "dall-e-3";
   const imageKeySource = ["DESIGN_AGENT_IMAGE_API_KEY", "IMAGE_API_KEY", "OPENAI_API_KEY"].find((key) => env[key]);
-  return `provider=${provider}; model=${model}; baseURL=${baseURL}; apiKey=${keySource ? `${keySource} set` : "not set"}; imageProvider=${imageProvider}; imageModel=${imageModel}; imageApiKey=${imageKeySource ? `${imageKeySource} set` : "not set"}`;
+  return `provider=${provider}; model=${model}; baseURL=${baseURL}; apiKey=${keySource ? `${keySource} set` : "not set"}${executionSummary}; imageProvider=${imageProvider}; imageModel=${imageModel}; imageApiKey=${imageKeySource ? `${imageKeySource} set` : "not set"}`;
 }
 async function createContinuationState(input: {
   manifest: RunManifest;
@@ -304,6 +309,7 @@ async function createContinuationState(input: {
     messages: [{ role: "user", content: "Continue from persisted design artifacts.", createdAt: new Date().toISOString() }],
     dimensions: await restoreDimensions(input.store, input.manifest, initialState.dimensions),
     latestArtifactRefs: artifactRefsFromManifest(input.manifest),
+    repairAttempts: readRepairAttemptsFromManifest(input.manifest),
   };
 }
 
@@ -325,6 +331,7 @@ async function createResumedState(input: {
       ...artifactRefsFromManifest(input.manifest),
       clarification_answer: input.answerRef,
     },
+    repairAttempts: readRepairAttemptsFromManifest(input.manifest),
   };
 }
 
@@ -418,12 +425,14 @@ function readCommand(argv: string[]): { command: CliCommand; args: string[] } {
 function readGraphStartNode(value: string): DesignAgentGraphStartNode {
   const supported: DesignAgentGraphStartNode[] = [
     "intent_recognition",
+    "content_planning",
     "json_planning",
     "layout_planning",
     "visual_slot_review",
     "element_planning",
     "interaction_planning",
     "style_planning",
+    "preflight_review",
     "image_planning",
     "document_assembly",
     "image_generation",
@@ -493,6 +502,66 @@ function createCompleteFixtureStructuredOutput(): CreateStructuredOutput {
                 content: "Fixture draft generated for full-flow CLI debugging.",
                 attributes: [],
               },
+              {
+                id: "summary_main",
+                parentId: "section_main",
+                order: 2,
+                type: "text",
+                name: "Summary",
+                purpose: "Summarize the orchestration value",
+                content: "Coordinate planning, visuals, and validation from a single workspace.",
+                attributes: [],
+              },
+              {
+                id: "workflow_title",
+                parentId: "section_workflow",
+                order: 0,
+                type: "text",
+                name: "Workflow Title",
+                purpose: "Introduce the workflow section",
+                content: "Track each pipeline stage with clear progress states.",
+                attributes: [{ key: "role", value: "heading" }],
+              },
+              {
+                id: "workflow_body",
+                parentId: "section_workflow",
+                order: 1,
+                type: "text",
+                name: "Workflow Body",
+                purpose: "Explain what operators can review here",
+                content: "Inspect artifacts, retry failed stages, and confirm every output before publish.",
+                attributes: [],
+              },
+              {
+                id: "detail_body",
+                parentId: "section_detail",
+                order: 0,
+                type: "text",
+                name: "Detail Body",
+                purpose: "Provide supporting operational detail",
+                content: "Surface validation notes, image coverage, and final delivery readiness in one place.",
+                attributes: [],
+              },
+              {
+                id: "action_main",
+                parentId: "section_main",
+                order: 3,
+                type: "button",
+                name: "Primary Action",
+                purpose: "Open the primary material orchestration workflow",
+                content: "Start workflow",
+                attributes: [],
+              },
+              {
+                id: "action_secondary",
+                parentId: "section_detail",
+                order: 1,
+                type: "button",
+                name: "Secondary Action",
+                purpose: "Review the latest validation details",
+                content: "Review validation",
+                attributes: [],
+              },
             ],
             notes: ["Fixture semantic element plan."],
           },
@@ -516,6 +585,7 @@ function createCompleteFixtureStructuredOutput(): CreateStructuredOutput {
               { elementId: "section_detail", preset: "section" },
               { elementId: "title_main", preset: "heading" },
               { elementId: "subtitle_main", preset: "body" },
+              { elementId: "action_main", preset: "primary_action" },
             ],
             notes: ["Fixture style plan uses a light operational admin theme."],
           },
@@ -756,7 +826,12 @@ function stateFromManifest(manifest: RunManifest, threadId: string): DesignAgent
     currentNode: manifest.currentNode,
     stage: manifest.status === "completed" ? "completed" : manifest.status === "failed" ? "failed" : initialState.stage,
     latestArtifactRefs: artifactRefsFromManifest(manifest),
+    repairAttempts: readRepairAttemptsFromManifest(manifest),
   };
+}
+
+function readRepairAttemptsFromManifest(manifest: RunManifest) {
+  return manifest.artifacts.document_repair?.version ?? 0;
 }
 
 function readFlag(argv: string[], name: string) {

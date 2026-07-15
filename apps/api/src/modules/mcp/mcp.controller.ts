@@ -1,44 +1,18 @@
-import { Body, Controller, Get, Param, Post } from "@nestjs/common";
-import { mockStore } from "../../common/mock-store";
+import { Body, Controller, Delete, Get, Param, Patch, Post } from "@nestjs/common";
+import { McpService } from "./mcp.service";
 
 @Controller("mcp")
 export class McpController {
-  @Get("servers")
-  servers() {
-    return mockStore.mcpServers.map((server) => ({
-      ...server,
-      tools: mockStore.mcpTools.filter((tool) => tool.serverId === server.id)
-    }));
-  }
-
-  @Get("invocations")
-  invocations() {
-    return mockStore.mcpInvocations;
-  }
-
-  @Post("invocations")
-  invoke(@Body() body: { toolId: string; inputPreview: string }) {
-    const tool = mockStore.mcpTools.find((item) => item.id === body.toolId);
-    const invocation = {
-      id: `inv_${mockStore.mcpInvocations.length + 1}`,
-      organizationId: "org_1",
-      toolId: body.toolId,
-      requestedBy: "user_1",
-      status: tool?.requiresConfirmation ? ("pending_confirmation" as const) : ("succeeded" as const),
-      inputPreview: body.inputPreview,
-      outputPreview: tool?.requiresConfirmation ? undefined : "工具已执行。",
-      createdAt: new Date().toISOString()
-    };
-    mockStore.mcpInvocations.unshift(invocation);
-    return invocation;
-  }
-
-  @Post("invocations/:id/confirm")
-  confirm(@Param("id") id: string) {
-    const invocation = mockStore.mcpInvocations.find((item) => item.id === id);
-    if (!invocation) return { error: "INVOCATION_NOT_FOUND" };
-    invocation.status = "succeeded";
-    invocation.outputPreview = "用户确认后工具执行成功。";
-    return invocation;
-  }
+  constructor(private readonly service: McpService) {}
+  @Get("servers") servers() { return this.service.listServers(); }
+  @Post("servers") create(@Body() body: Parameters<McpService["create"]>[0]) { return this.service.create(body); }
+  @Get("servers/:id") server(@Param("id") id: string) { return this.service.getServer(id); }
+  @Patch("servers/:id") update(@Param("id") id: string, @Body() body: Parameters<McpService["update"]>[1]) { return this.service.update(id, body); }
+  @Delete("servers/:id") remove(@Param("id") id: string) { return this.service.remove(id); }
+  @Post("servers/:id/test") test(@Param("id") id: string) { return this.service.test(id); }
+  @Post("servers/:id/sync") sync(@Param("id") id: string) { return this.service.sync(id); }
+  @Get("servers/:id/tools") tools(@Param("id") id: string) { return this.service.listTools(id); }
+  @Patch("tools/:id") updateTool(@Param("id") id: string, @Body() body: Parameters<McpService["updateTool"]>[1]) { return this.service.updateTool(id, body); }
+  @Get("invocations") invocations() { return this.service.listInvocations(); }
+  @Get("invocations/:id") invocation(@Param("id") id: string) { return this.service.invocation(id); }
 }

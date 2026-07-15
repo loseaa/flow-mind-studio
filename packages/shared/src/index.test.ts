@@ -99,6 +99,22 @@ describe("shared contracts", () => {
     });
   });
 
+  it("validates optional structured element bindings", () => {
+    const document = validDesignDocument();
+    document.elements[2] = {
+      ...document.elements[2],
+      bindings: {
+        text: {
+          kind: "template",
+          segments: [{ kind: "text", value: "Customer: " }, { kind: "variable", path: "customer.name" }]
+        }
+      }
+    };
+
+    const parsed = designDocumentSchema.parse(document);
+    expect(parsed.elements[2].bindings?.text).toEqual(document.elements[2].bindings?.text);
+  });
+
   it("defaults missing design document variables to an empty object", () => {
     const { variables: _variables, ...legacyDocument } = validDesignDocument();
     const parsed = designDocumentSchema.parse(legacyDocument);

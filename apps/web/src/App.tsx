@@ -2,10 +2,9 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AppLayout } from "./layouts/AppLayout";
 import { DashboardPage } from "./pages/app/DashboardPage";
 import { ChatPage } from "./pages/app/ChatPage";
-import { DataModelsPage } from "./pages/app/DataModelsPage";
+import { DataSourcesPage } from "./pages/app/DataModelsPage";
 import { KnowledgePage } from "./pages/app/KnowledgePage";
 import { LowCodeCustomMaterialPage } from "./pages/app/LowCodeCustomMaterialPage";
-import { aiGeneratedDesignDocument } from "./components/lowcode/aiGeneratedDesignDocument";
 import { LowCodePage } from "./pages/app/LowCodePage";
 import { McpPage } from "./pages/app/McpPage";
 import { SettingsPage } from "./pages/app/SettingsPage";
@@ -22,10 +21,11 @@ export function App() {
           <Route path="chat" element={<ChatPage />} />
           <Route path="knowledge" element={<KnowledgePage />} />
           <Route path="mcp" element={<McpPage />} />
-          <Route path="lowcode" element={<LowCodePage initialDocument={aiGeneratedDesignDocument} loadStoredDocument={false} />} />
-          <Route path="lowcode/agent-preview" element={<LowCodePage initialDocument={aiGeneratedDesignDocument} loadStoredDocument={false} />} />
+          <Route path="lowcode" element={<LowCodePage loadStoredDocument={false} />} />
+          <Route path="lowcode/agent-preview" element={<LowCodePage loadStoredDocument={false} />} />
           <Route path="lowcode/materials/new" element={<LowCodeCustomMaterialPage />} />
-          <Route path="models" element={<DataModelsPage />} />
+          <Route path="data-sources" element={<DataSourcesPage />} />
+          <Route path="models" element={<Navigate to="/app/data-sources" replace />} />
           <Route path="settings" element={<SettingsPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />

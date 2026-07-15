@@ -22,7 +22,7 @@ export async function reflectionRepairNode(state: DesignAgentState, options: Gra
   const errors = validationOutput?.errors?.length ? validationOutput.errors : state.validationErrors;
   const modelOutput = options.createStructuredOutput
     ? reflectionRepairModelOutputSchema.parse(
-        await options.createStructuredOutput(reflectionRepairModelOutputSchema).invoke(
+        await options.createStructuredOutput(reflectionRepairModelOutputSchema, { node: "reflection_repair" }).invoke(
           buildReflectionRepairInput(state, validationOutput),
         ),
       )
