@@ -62,9 +62,10 @@ function createDesignElement(element: SemanticElement): DesignElement {
 
   switch (element.type) {
     case "text":
+    case "link":
       return {
         ...common,
-        type: "text",
+        type: element.type,
         layout: { width: "fill" },
         style: {
           base: baseStyle("transparent"),
@@ -88,6 +89,16 @@ function createDesignElement(element: SemanticElement): DesignElement {
           },
         },
       };
+    case "avatar":
+      return {
+        ...common,
+        type: "avatar",
+        layout: { width: "hug", height: "hug" },
+        style: {
+          base: baseStyle("muted"),
+          avatar: { size: "md", shape: "circle", fallback: "initials" },
+        },
+      };
     case "button":
       return {
         ...common,
@@ -99,6 +110,11 @@ function createDesignElement(element: SemanticElement): DesignElement {
         },
       };
     case "input":
+    case "textarea":
+    case "select":
+    case "checkbox":
+    case "radio":
+    case "switch":
     case "filter":
     case "form":
       return {
@@ -130,6 +146,26 @@ function createDesignElement(element: SemanticElement): DesignElement {
           divider: { direction: "horizontal", thickness: "sm", labelPosition: "start" },
         },
       };
+    case "shape":
+      return {
+        ...common,
+        type: "shape",
+        layout: { width: "fixed", fixedWidth: 48, height: "fixed", fixedHeight: 48 },
+        style: {
+          base: baseStyle("brand"),
+          shape: { kind: "rectangle", direction: "horizontal", thickness: "md" },
+        },
+      };
+    case "progress":
+      return {
+        ...common,
+        type: "progress",
+        layout: { width: "fill" },
+        style: {
+          base: baseStyle("muted"),
+          progress: { size: "md", labelPosition: "top", showValue: true },
+        },
+      };
     case "stat":
       return {
         ...common,
@@ -157,14 +193,17 @@ function createProps(element: SemanticElement, attributes: Record<string, JsonVa
   const content = element.content?.trim() || element.name;
   const common = { ...attributes, purpose: element.purpose };
   if (element.type === "text") return { ...common, text: content };
+  if (element.type === "link") return { ...common, label: content, href: String(attributes.href ?? "#"), target: "_self" };
   if (element.type === "image") return { ...common, alt: content };
+  if (element.type === "avatar") return { ...common, name: content, alt: content, src: String(attributes.src ?? "") };
   if (element.type === "button") return { ...common, label: content };
-  if (element.type === "input" || element.type === "filter" || element.type === "form") {
+  if (["input", "textarea", "select", "checkbox", "radio", "switch", "filter", "form"].includes(element.type)) {
     return { ...common, label: element.name, placeholder: content };
   }
   if (element.type === "badge") return { ...common, text: content };
   if (element.type === "divider") return { ...common, label: content };
   if (element.type === "stat") return { ...common, label: element.name, value: content };
+  if (element.type === "progress") return { ...common, label: element.name, value: typeof attributes.value === "number" ? attributes.value : 50, max: 100 };
   return common;
 }
 

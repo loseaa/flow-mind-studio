@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import { createInitialState } from "../state.js";
-import { routeAfterReflectionRepair, routeAfterSchemaValidation, routeAfterVisualReview } from "./routing.js";
+import {
+  MAX_REPAIR_ATTEMPTS,
+  routeAfterReflectionRepair,
+  routeAfterSchemaValidation,
+  routeAfterVisualReview,
+} from "./routing.js";
 
 describe("routing", () => {
   it("routes failed schema validation to reflection repair", () => {
@@ -32,7 +37,7 @@ describe("routing", () => {
     expect(routeAfterVisualReview({
       ...createInitialState("thread_visual_route_stop"),
       validationErrors: ["IMAGE_SLOT_METADATA_MISSING: Restore deterministic image slot metadata."],
-      repairAttempts: 2,
+      repairAttempts: MAX_REPAIR_ATTEMPTS,
     })).toBe("failed");
   });
 
@@ -46,7 +51,7 @@ describe("routing", () => {
   it("stops reflection repair when max attempts are reached", () => {
     expect(routeAfterReflectionRepair({
       ...createInitialState("thread_reflection_route_stop"),
-      repairAttempts: 2,
+      repairAttempts: MAX_REPAIR_ATTEMPTS,
     })).toBe("failed");
   });
 });

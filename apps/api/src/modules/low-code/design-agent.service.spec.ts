@@ -1,5 +1,6 @@
-import { mkdir, rm, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { DesignAgentService } from "./design-agent.service";
@@ -92,7 +93,8 @@ describe("DesignAgentService", () => {
 
   it("returns the latest renderable run document for lowcode preview", async () => {
     const service = new DesignAgentService();
-    const runRoot = dirname(dirname(dirname(service.resolveGeneratedAssetPath("web-spec-latest-preview", "hero.png"))));
+    const runRoot = await mkdtemp(join(tmpdir(), "flowmind-design-agent-api-preview-"));
+    Reflect.set(service, "runsRoot", runRoot);
     const olderRunDir = join(runRoot, "web-spec-latest-preview-old");
     const newerRunDir = join(runRoot, "web-spec-latest-preview-new");
     const failedRunDir = join(runRoot, "web-spec-latest-preview-failed");
@@ -161,9 +163,7 @@ describe("DesignAgentService", () => {
         },
       });
     } finally {
-      await rm(olderRunDir, { recursive: true, force: true });
-      await rm(newerRunDir, { recursive: true, force: true });
-      await rm(failedRunDir, { recursive: true, force: true });
+      await rm(runRoot, { recursive: true, force: true });
     }
   });
 });

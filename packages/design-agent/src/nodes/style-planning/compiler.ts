@@ -17,7 +17,7 @@ export function repairStylePlan(document: DesignDocument, input: StylePlan): Sty
     }
     if (isCompatiblePreset(element, assignment.preset)) {
       const expected = defaultStylePreset(element);
-      if ((element.type === "text" || element.type === "button") && expected && expected !== assignment.preset) {
+      if ((element.type === "text" || element.type === "link" || element.type === "button") && expected && expected !== assignment.preset) {
         repairs.push(`Replaced semantically weak preset ${assignment.preset} with ${expected} for ${element.id}.`);
         return [{ ...assignment, preset: expected }];
       }
@@ -102,7 +102,7 @@ function applyPreset(element: DesignElement, preset: StylePreset): DesignElement
   }
 
   if (preset === "heading" || preset === "subheading" || preset === "body" || preset === "muted") {
-    if (element.type !== "text") return incompatible(element, preset);
+    if (element.type !== "text" && element.type !== "link") return incompatible(element, preset);
     const heading = preset === "heading";
     return {
       ...element,
@@ -127,8 +127,9 @@ function applyPreset(element: DesignElement, preset: StylePreset): DesignElement
   }
 
   if (preset === "media") {
-    if (element.type !== "image") return incompatible(element, preset);
-    return { ...element, style: { ...element.style, base: { ...element.style.base, radius: "md" } } };
+    if (element.type === "image") return { ...element, style: { ...element.style, base: { ...element.style.base, radius: "md" } } };
+    if (element.type === "avatar") return { ...element, style: { ...element.style, base: { ...element.style.base, radius: "md" } } };
+    return incompatible(element, preset);
   }
 
   if (preset === "primary_action" || preset === "secondary_action") {
@@ -152,7 +153,11 @@ function applyPreset(element: DesignElement, preset: StylePreset): DesignElement
   }
 
   if (preset === "control") {
-    if (element.type !== "input" && element.type !== "filter" && element.type !== "form") {
+    if (
+      element.type !== "input" && element.type !== "textarea" && element.type !== "select" &&
+      element.type !== "checkbox" && element.type !== "radio" && element.type !== "switch" &&
+      element.type !== "filter" && element.type !== "form"
+    ) {
       return incompatible(element, preset);
     }
     return { ...element, style: { ...element.style, control: { ...element.style.control, fieldGap: "sm" } } };
@@ -164,8 +169,9 @@ function applyPreset(element: DesignElement, preset: StylePreset): DesignElement
   }
 
   if (preset === "metric") {
-    if (element.type !== "stat") return incompatible(element, preset);
-    return { ...element, style: { ...element.style, stat: { ...element.style.stat, valueSize: "xl" } } };
+    if (element.type === "stat") return { ...element, style: { ...element.style, stat: { ...element.style.stat, valueSize: "xl" } } };
+    if (element.type === "progress") return { ...element, style: { ...element.style, progress: { ...element.style.progress, showValue: true } } };
+    return incompatible(element, preset);
   }
 
   if (element.type !== "table") return incompatible(element, preset);
@@ -182,12 +188,12 @@ function isCompatiblePreset(element: DesignElement, preset: StylePreset) {
   if (element.type === "page" || element.type === "section" || element.type === "stack") {
     return preset === "page" || preset === "section" || preset === "panel";
   }
-  if (element.type === "text") return preset === "heading" || preset === "subheading" || preset === "body" || preset === "muted";
-  if (element.type === "image") return preset === "media";
+  if (element.type === "text" || element.type === "link") return preset === "heading" || preset === "subheading" || preset === "body" || preset === "muted";
+  if (element.type === "image" || element.type === "avatar") return preset === "media";
   if (element.type === "button") return preset === "primary_action" || preset === "secondary_action";
-  if (element.type === "input" || element.type === "filter" || element.type === "form") return preset === "control";
+  if (["input", "textarea", "select", "checkbox", "radio", "switch", "filter", "form"].includes(element.type)) return preset === "control";
   if (element.type === "badge") return preset === "status";
-  if (element.type === "stat") return preset === "metric";
+  if (element.type === "stat" || element.type === "progress") return preset === "metric";
   if (element.type === "table") return preset === "data_table";
   return false;
 }
@@ -196,20 +202,20 @@ function defaultStylePreset(element: DesignElement): StylePreset | undefined {
   if (element.type === "page") return "page";
   if (element.type === "section") return "section";
   if (element.type === "stack") return "panel";
-  if (element.type === "text") {
+  if (element.type === "text" || element.type === "link") {
     const hint = `${element.id} ${element.name} ${String(element.props.purpose ?? "")}`.toLowerCase();
     if (/(page|hero|header|main)[_\s-]?(title|headline)/.test(hint)) return "heading";
     if (/(^|[_\s-])(title|heading)([_\s-]|$)/.test(hint)) return "subheading";
     if (/eyebrow|caption|description|helper|note/.test(hint)) return "muted";
     return "body";
   }
-  if (element.type === "image") return "media";
+  if (element.type === "image" || element.type === "avatar") return "media";
   if (element.type === "button") {
     return inferButtonPreset(element);
   }
-  if (element.type === "input" || element.type === "filter" || element.type === "form") return "control";
+  if (["input", "textarea", "select", "checkbox", "radio", "switch", "filter", "form"].includes(element.type)) return "control";
   if (element.type === "badge") return "status";
-  if (element.type === "stat") return "metric";
+  if (element.type === "stat" || element.type === "progress") return "metric";
   if (element.type === "table") return "data_table";
   return undefined;
 }

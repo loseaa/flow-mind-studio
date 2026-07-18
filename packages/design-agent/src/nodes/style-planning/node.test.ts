@@ -5,11 +5,12 @@ import { describe, expect, it } from "vitest";
 
 import { createArtifactStore } from "../../artifacts/store.js";
 import { createInitialState, type DesignAgentState } from "../../state.js";
-import { elementPlanningNode } from "../element-planning/node.js";
-import { interactionPlanningNode } from "../interaction-planning/node.js";
-import { jsonPlanningNode } from "../json-planning/node.js";
-import { layoutPlanningNode } from "../layout-planning/node.js";
-import { visualSlotReviewNode } from "../visual-slot-review/node.js";
+import { compileSemanticElementPlan } from "../element-planning/compiler.js";
+import type { SemanticElementPlan } from "../element-planning/schema.js";
+import { compileInteractionPlan } from "../interaction-planning/compiler.js";
+import type { InteractionPlan } from "../interaction-planning/schema.js";
+import { compilePageStructurePlan } from "../json-planning/compiler.js";
+import type { PageStructurePlan } from "../json-planning/schema.js";
 import { stylePlanningNode } from "./node.js";
 import { stylePlanningModelOutputSchema, type StylePlan } from "./schema.js";
 
@@ -157,48 +158,49 @@ describe("stylePlanningNode", () => {
 async function stateWithInteractions(threadId: string) {
   const runDir = await mkdtemp(join(tmpdir(), "flowmind-design-agent-style-"));
   const store = createArtifactStore({ runDir, threadId });
-  let state: DesignAgentState = createInitialState(threadId);
-  state = mergeState(state, await jsonPlanningNode(state, { artifactStore: store }));
-  state = mergeState(state, await layoutPlanningNode(state, { artifactStore: store }));
-  state = mergeState(state, await visualSlotReviewNode(state, { artifactStore: store }));
-  state = mergeState(state, await elementPlanningNode(state, {
-    artifactStore: store,
-    createStructuredOutput() {
-      return { invoke: () => ({
-        elementPlan: {
-          elements: [
-            { id: "page_title", parentId: "header_section", order: 0, type: "text", name: "Title", purpose: "Identify page", content: "Dashboard", attributes: [] },
-            { id: "refresh_button", parentId: "header_section", order: 1, type: "button", name: "Refresh", purpose: "Refresh data", content: "Refresh", attributes: [] },
-          ],
-          notes: [],
-        },
-      }) };
+  const structurePlan: PageStructurePlan = {
+    document: {
+      id: "style_fixture",
+      name: "Style fixture",
+      viewport: "desktop",
+      width: 1440,
+      background: "muted",
     },
-  }));
-  state = mergeState(state, await interactionPlanningNode(state, {
-    artifactStore: store,
-    createStructuredOutput() {
-      return { invoke: () => ({ interactionPlan: {
-        interactions: [{
-          id: "refresh_data",
-          sourceElementId: "refresh_button",
-          event: "click",
-          action: "refresh",
-          description: "Refresh page data",
-          payload: [],
-        }],
-        notes: [],
-      } }) };
-    },
-  }));
-  return { store, state };
-}
-
-function mergeState(state: DesignAgentState, update: Partial<DesignAgentState>): DesignAgentState {
-  return {
-    ...state,
-    ...update,
-    latestArtifactRefs: update.latestArtifactRefs ?? state.latestArtifactRefs,
-    events: update.events ?? state.events,
+    nodes: [
+      { id: "page_root", parentId: null, order: 0, type: "page", name: "Page", purpose: "Test page" },
+      { id: "header_section", parentId: "page_root", order: 0, type: "section", name: "Header", purpose: "Test header" },
+    ],
   };
+  const elementPlan: SemanticElementPlan = {
+    elements: [
+      { id: "page_title", parentId: "header_section", order: 0, type: "text", name: "Title", purpose: "Identify page", content: "Dashboard", attributes: [] },
+      { id: "refresh_button", parentId: "header_section", order: 1, type: "button", name: "Refresh", purpose: "Refresh data", content: "Refresh", attributes: [] },
+    ],
+    notes: [],
+  };
+  const interactionPlan: InteractionPlan = {
+    interactions: [{
+      id: "refresh_data",
+      sourceElementId: "refresh_button",
+      event: "click",
+      action: "refresh",
+      description: "Refresh page data",
+      payload: [],
+    }],
+    notes: [],
+  };
+  const elementDocument = compileSemanticElementPlan(compilePageStructurePlan(structurePlan), elementPlan);
+  const document = compileInteractionPlan(elementDocument, interactionPlan);
+  const artifactRef = await store.writeArtifact({
+    node: "interaction_planning",
+    status: "success",
+    inputRefs: [],
+    output: { interactionPlan, document },
+    errors: [],
+  });
+  const state: DesignAgentState = {
+    ...createInitialState(threadId),
+    latestArtifactRefs: { interaction_planning: artifactRef },
+  };
+  return { store, state };
 }

@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowUp, GripVertical, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, GripVertical, Trash2, User } from "lucide-react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { MouseEvent as ReactMouseEvent, ReactNode, WheelEvent as ReactWheelEvent } from "react";
 import interact from "interactjs";
@@ -456,17 +456,122 @@ function renderElementContent(
     return <div className={layoutClass(element, "relative rounded-lg border border-dashed border-[#cbd5df] bg-[#f8fafb] p-4")} {...imageSlotDataAttributes(element)} style={containerVisualStyle(element)}>{renderContainerChildren(element, children, emptyContainer)}</div>;
   }
   if (element.type === "text") return <TextPreview element={element} selected={selected} onSelect={onSelect} onUpdateProps={onUpdateProps} variables={variables} />;
+  if (element.type === "link") return <LinkPreview element={element} variables={variables} />;
   if (element.type === "image") return <ImagePreview element={element} variables={variables} />;
+  if (element.type === "avatar") return <AvatarPreview element={element} variables={variables} />;
   if (element.type === "input") return <InputPreview element={element} variables={variables} />;
+  if (element.type === "textarea") return <TextareaPreview element={element} variables={variables} />;
+  if (element.type === "select") return <SelectPreview element={element} variables={variables} />;
+  if (element.type === "checkbox" || element.type === "radio" || element.type === "switch") return <ChoicePreview element={element} variables={variables} />;
   if (element.type === "badge") return <BadgePreview element={element} variables={variables} />;
   if (element.type === "divider") return <DividerPreview element={element} variables={variables} />;
   if (element.type === "shape") return <ShapePreview element={element} />;
+  if (element.type === "progress") return <ProgressPreview element={element} variables={variables} />;
   if (element.type === "stat") return <StatPreview element={element} variables={variables} />;
   if (element.type === "filter") return <FilterPreview element={element} />;
   if (element.type === "table") return <TablePreview element={element} variables={variables} />;
   if (element.type === "form") return <FormPreview element={element} />;
   if (element.type === "button") return <ButtonPreview element={element} variables={variables} />;
   return null;
+}
+
+function LinkPreview({ element, variables }: { element: DesignElement; variables: DesignVariables }) {
+  if (element.type !== "link") return null;
+  const label = String(resolveElementProperty(element, "label", variables, element.name, "string"));
+  const href = String(resolveElementProperty(element, "href", variables, "#", "string"));
+  return (
+    <a
+      data-link-preview
+      href={href}
+      className="inline-flex items-center gap-1 text-sm font-semibold hover:underline"
+      style={{ ...baseVisualStyle(element.style.base), textDecoration: element.style.text.decoration === "underline" ? "underline" : undefined }}
+      onClick={(event) => event.preventDefault()}
+    >
+      {label}
+    </a>
+  );
+}
+
+function AvatarPreview({ element, variables }: { element: DesignElement; variables: DesignVariables }) {
+  if (element.type !== "avatar") return null;
+  const name = String(resolveElementProperty(element, "name", variables, element.name, "string"));
+  const src = String(resolveElementProperty(element, "src", variables, "", "url"));
+  const sizes = { sm: 32, md: 40, lg: 56, xl: 72 } as const;
+  const size = sizes[element.style.avatar.size];
+  const initials = name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("") || "?";
+  return (
+    <div
+      data-avatar-preview
+      className="grid shrink-0 place-items-center overflow-hidden font-semibold"
+      style={{ ...baseVisualStyle(element.style.base), width: size, height: size, borderRadius: element.style.avatar.shape === "circle" ? "9999px" : undefined }}
+      aria-label={String(element.props?.alt ?? name)}
+    >
+      {src ? <img src={src} alt={String(element.props?.alt ?? name)} className="h-full w-full object-cover" /> : element.style.avatar.fallback === "icon" ? <User size={Math.round(size * 0.52)} /> : initials}
+    </div>
+  );
+}
+
+function TextareaPreview({ element, variables }: { element: DesignElement; variables: DesignVariables }) {
+  if (element.type !== "textarea") return null;
+  return (
+    <label data-textarea-preview className="block min-w-[240px]" style={baseVisualStyle(element.style.base)}>
+      <span className="mb-1.5 block text-xs font-semibold text-[#5b6472]">{resolveVariableText(String(element.props?.label ?? element.name), variables)}</span>
+      <textarea readOnly rows={numberProp(element.props?.rows, 4, 2, 12)} placeholder={resolveVariableText(String(element.props?.placeholder ?? "请输入内容"), variables)} className="w-full resize-none rounded-md border border-[#d9e1e8] bg-white px-3 py-2 text-sm outline-none" />
+    </label>
+  );
+}
+
+function SelectPreview({ element, variables }: { element: DesignElement; variables: DesignVariables }) {
+  if (element.type !== "select") return null;
+  const options = arrayProp(element.props?.options, ["选项一", "选项二"]);
+  return (
+    <label data-select-preview className="block min-w-[220px]" style={baseVisualStyle(element.style.base)}>
+      <span className="mb-1.5 block text-xs font-semibold text-[#5b6472]">{resolveVariableText(String(element.props?.label ?? element.name), variables)}</span>
+      <select disabled className="h-10 w-full rounded-md border border-[#d9e1e8] bg-white px-3 text-sm text-[#5b6472]">
+        <option>{String(element.props?.placeholder ?? "请选择")}</option>
+        {options.map((option) => <option key={option}>{option}</option>)}
+      </select>
+    </label>
+  );
+}
+
+function ChoicePreview({ element, variables }: { element: DesignElement; variables: DesignVariables }) {
+  if (element.type !== "checkbox" && element.type !== "radio" && element.type !== "switch") return null;
+  const label = resolveVariableText(String(element.props?.label ?? element.name), variables);
+  const checked = Boolean(resolveElementProperty(element, "checked", variables, Boolean(element.props?.checked), "boolean"));
+  if (element.type === "switch") {
+    return (
+      <div data-switch-preview className="inline-flex items-center gap-2 text-sm" style={baseVisualStyle(element.style.base)}>
+        <span className={`relative h-6 w-11 rounded-full ${checked ? "bg-[#0f766e]" : "bg-[#cbd5df]"}`}><span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-sm ${checked ? "left-[22px]" : "left-0.5"}`} /></span>
+        <span>{label}</span>
+      </div>
+    );
+  }
+  const options = element.type === "radio" ? arrayProp(element.props?.options, ["选项一", "选项二"]) : [label];
+  return (
+    <div data-choice-preview={element.type} className="flex flex-wrap gap-3 text-sm" style={baseVisualStyle(element.style.base)}>
+      {options.map((option, index) => (
+        <label key={option} className="inline-flex items-center gap-2">
+          <input readOnly type={element.type} checked={element.type === "radio" ? String(element.props?.value ?? options[0]) === option : checked} className="h-4 w-4 accent-[#0f766e]" onChange={() => undefined} />
+          <span>{element.type === "radio" ? option : label}</span>
+        </label>
+      ))}
+    </div>
+  );
+}
+
+function ProgressPreview({ element, variables }: { element: DesignElement; variables: DesignVariables }) {
+  if (element.type !== "progress") return null;
+  const value = numberProp(resolveElementProperty(element, "value", variables, 0, "number"), 0, 0, Number.MAX_SAFE_INTEGER);
+  const max = numberProp(element.props?.max, 100, 1, Number.MAX_SAFE_INTEGER);
+  const percent = Math.min(100, Math.round((value / max) * 100));
+  const height = element.style.progress.size === "lg" ? 12 : element.style.progress.size === "sm" ? 4 : 8;
+  return (
+    <div data-progress-preview className="min-w-[220px]" style={{ color: colorValue(element.style.base.text.color) }}>
+      {element.style.progress.labelPosition !== "hidden" ? <div className={`mb-1.5 flex text-sm ${element.style.progress.labelPosition === "inline" ? "justify-end" : "justify-between"}`}><span>{String(element.props?.label ?? element.name)}</span>{element.style.progress.showValue ? <span>{percent}%</span> : null}</div> : null}
+      <div className="w-full overflow-hidden rounded-full bg-[#e4e9ee]" style={{ height }}><div className="h-full rounded-full bg-[#0f766e]" style={{ width: `${percent}%` }} /></div>
+    </div>
+  );
 }
 
 function renderContainerChildren(element: DesignElement, children: ReactNode, emptyContainer: boolean) {
@@ -497,7 +602,7 @@ function TextPreview({
   const hasStructuredBinding = Boolean(element.bindings?.text);
   const text = hasStructuredBinding
     ? String(resolveElementProperty(element, "text", variables, element.name, "string"))
-    : resolveVariableText(String(element.props?.text ?? element.name), selected ? {} : variables);
+    : resolveVariableText(String(element.props?.content ?? element.props?.text ?? element.name), selected ? {} : variables);
   const textStyle: CSSProperties = {
     ...baseVisualStyle(element.style.base),
     textDecoration: element.style.text.decoration === "lineThrough" ? "line-through" : element.style.text.decoration,
@@ -1052,4 +1157,9 @@ function flexItemStyle(layout: DesignLayout | undefined): CSSProperties | undefi
 
 function arrayProp(value: unknown, fallback: string[]) {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : fallback;
+}
+
+function numberProp(value: unknown, fallback: number, min: number, max: number) {
+  const numeric = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(numeric) ? Math.min(max, Math.max(min, numeric)) : fallback;
 }

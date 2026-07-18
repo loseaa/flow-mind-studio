@@ -237,17 +237,25 @@ function findTreeNode(node: DesignTreeNode, id: string): DesignTreeNode | null {
 }
 
 function summarizeChildTypes(elements: DesignElement[]) {
-  const order: DesignElement["type"][] = ["stack", "image", "text", "badge", "shape", "stat", "button", "input", "filter", "table", "form", "divider"];
+  const order: DesignElement["type"][] = ["stack", "image", "avatar", "text", "link", "badge", "shape", "progress", "stat", "button", "input", "textarea", "select", "checkbox", "radio", "switch", "filter", "table", "form", "divider"];
   const labels: Record<DesignElement["type"], string> = {
     page: "页面",
     section: "区块",
     stack: "Flex 容器",
     text: "文本",
+    link: "链接",
     image: "图片",
+    avatar: "头像",
     button: "按钮",
     input: "输入框",
+    textarea: "文本域",
+    select: "选择器",
+    checkbox: "复选框",
+    radio: "单选组",
+    switch: "开关",
     badge: "徽标",
     shape: "形状",
+    progress: "进度条",
     divider: "分割线",
     stat: "指标卡",
     filter: "筛选区",
@@ -273,7 +281,7 @@ function StyleFields({
   onUploadBackgroundImage: (file: File) => Promise<string>;
 }) {
   const base = selectedElement.style.base;
-  const showTypographyControls = selectedElement.type === "text";
+  const showTypographyControls = selectedElement.type === "text" || selectedElement.type === "link";
   const showTextAlignControl = selectedElement.type === "text" || selectedElement.type === "stat";
   return (
     <PropertyGroup title="Base style">
@@ -333,6 +341,23 @@ function TypeSpecificFields({
     );
   }
 
+  if (selectedElement.type === "link") {
+    return (
+      <>
+        <PropertyGroup title="Link">
+          <FieldLabel>Label</FieldLabel>
+          <VariableTextEditor ariaLabel="Link label" value={String(selectedElement.props?.label ?? "")} variables={variables} onChange={(value) => onUpdateProps({ label: value })} />
+          <FieldLabel>URL</FieldLabel>
+          <Input aria-label="Link URL" value={String(selectedElement.props?.href ?? "#")} className="mt-1 h-9" onChange={(event) => onUpdateProps({ href: event.target.value })} />
+          <SegmentedControl label="Open in" value={String(selectedElement.props?.target ?? "_self")} options={[{ value: "_self", label: "Same page" }, { value: "_blank", label: "New tab" }]} onChange={(target) => onUpdateProps({ target })} />
+        </PropertyGroup>
+        <PropertyGroup title="Link style">
+          <SegmentedControl label="Decoration" value={selectedElement.style.text.decoration} options={toOptions(["none", "underline", "lineThrough"])} onChange={(decoration) => onUpdateStyle({ text: { decoration } } as Partial<DesignElementStyle>)} />
+        </PropertyGroup>
+      </>
+    );
+  }
+
   if (selectedElement.type === "button") {
     const labelDefinition = bindingPropertyDefinition("button", "label")!;
     const disabledDefinition = bindingPropertyDefinition("button", "disabled")!;
@@ -368,6 +393,24 @@ function TypeSpecificFields({
     );
   }
 
+  if (selectedElement.type === "avatar") {
+    return (
+      <>
+        <PropertyGroup title="Avatar">
+          <FieldLabel>Name</FieldLabel>
+          <VariableTextEditor ariaLabel="Avatar name" value={String(selectedElement.props?.name ?? "")} variables={variables} onChange={(value) => onUpdateProps({ name: value })} />
+          <FieldLabel>Image URL</FieldLabel>
+          <Input aria-label="Avatar image URL" value={String(selectedElement.props?.src ?? "")} className="mt-1 h-9" onChange={(event) => onUpdateProps({ src: event.target.value })} />
+        </PropertyGroup>
+        <PropertyGroup title="Avatar style">
+          <SegmentedControl label="Size" value={selectedElement.style.avatar.size} options={toOptions(["sm", "md", "lg", "xl"])} onChange={(size) => onUpdateStyle({ avatar: { size } } as Partial<DesignElementStyle>)} />
+          <SegmentedControl label="Shape" value={selectedElement.style.avatar.shape} options={toOptions(["circle", "rounded"])} onChange={(shape) => onUpdateStyle({ avatar: { shape } } as Partial<DesignElementStyle>)} />
+          <SegmentedControl label="Fallback" value={selectedElement.style.avatar.fallback} options={toOptions(["initials", "icon"])} onChange={(fallback) => onUpdateStyle({ avatar: { fallback } } as Partial<DesignElementStyle>)} />
+        </PropertyGroup>
+      </>
+    );
+  }
+
   if (selectedElement.type === "input") {
     return (
       <>
@@ -376,6 +419,72 @@ function TypeSpecificFields({
           <VariableTextEditor ariaLabel="Input label" value={String(selectedElement.props?.label ?? "")} variables={variables} onChange={(value) => onUpdateProps({ label: value })} />
           <FieldLabel>Placeholder</FieldLabel>
           <VariableTextEditor ariaLabel="Input placeholder" value={String(selectedElement.props?.placeholder ?? "")} variables={variables} onChange={(value) => onUpdateProps({ placeholder: value })} />
+          <SelectControl label="Input type" value={String(selectedElement.props?.inputType ?? "text")} options={["text", "email", "password", "number", "date", "search"]} onChange={(inputType) => onUpdateProps({ inputType })} />
+          <ToggleControl label="Required" checked={Boolean(selectedElement.props?.required)} onChange={(required) => onUpdateProps({ required })} />
+          <ToggleControl label="Disabled" checked={Boolean(selectedElement.props?.disabled)} onChange={(disabled) => onUpdateProps({ disabled })} />
+        </PropertyGroup>
+        <ControlStyleFields style={selectedElement.style} onUpdateStyle={onUpdateStyle} />
+      </>
+    );
+  }
+
+  if (selectedElement.type === "textarea") {
+    return (
+      <>
+        <PropertyGroup title="Textarea">
+          <FieldLabel>Label</FieldLabel>
+          <VariableTextEditor ariaLabel="Textarea label" value={String(selectedElement.props?.label ?? "")} variables={variables} onChange={(value) => onUpdateProps({ label: value })} />
+          <FieldLabel>Placeholder</FieldLabel>
+          <VariableTextEditor ariaLabel="Textarea placeholder" value={String(selectedElement.props?.placeholder ?? "")} variables={variables} onChange={(value) => onUpdateProps({ placeholder: value })} />
+          <FieldLabel>Rows</FieldLabel>
+          <Input aria-label="Textarea rows" type="number" min={2} max={12} value={Number(selectedElement.props?.rows ?? 4)} className="mt-1 h-9" onChange={(event) => onUpdateProps({ rows: Number(event.target.value) })} />
+          <ToggleControl label="Required" checked={Boolean(selectedElement.props?.required)} onChange={(required) => onUpdateProps({ required })} />
+        </PropertyGroup>
+        <ControlStyleFields style={selectedElement.style} onUpdateStyle={onUpdateStyle} />
+      </>
+    );
+  }
+
+  if (selectedElement.type === "select") {
+    return (
+      <>
+        <PropertyGroup title="Select">
+          <FieldLabel>Label</FieldLabel>
+          <VariableTextEditor ariaLabel="Select label" value={String(selectedElement.props?.label ?? "")} variables={variables} onChange={(value) => onUpdateProps({ label: value })} />
+          <FieldLabel>Placeholder</FieldLabel>
+          <Input aria-label="Select placeholder" value={String(selectedElement.props?.placeholder ?? "")} className="mt-1 h-9" onChange={(event) => onUpdateProps({ placeholder: event.target.value })} />
+          <FieldLabel>Options (comma separated)</FieldLabel>
+          <Input aria-label="Select options" value={arrayProp(selectedElement.props?.options).join(", ")} className="mt-1 h-9" onChange={(event) => onUpdateProps({ options: splitOptions(event.target.value) })} />
+          <ToggleControl label="Required" checked={Boolean(selectedElement.props?.required)} onChange={(required) => onUpdateProps({ required })} />
+        </PropertyGroup>
+        <ControlStyleFields style={selectedElement.style} onUpdateStyle={onUpdateStyle} />
+      </>
+    );
+  }
+
+  if (selectedElement.type === "checkbox" || selectedElement.type === "switch") {
+    const title = selectedElement.type === "checkbox" ? "Checkbox" : "Switch";
+    return (
+      <>
+        <PropertyGroup title={title}>
+          <FieldLabel>Label</FieldLabel>
+          <VariableTextEditor ariaLabel={`${title} label`} value={String(selectedElement.props?.label ?? "")} variables={variables} onChange={(value) => onUpdateProps({ label: value })} />
+          <ToggleControl label="Checked" checked={Boolean(selectedElement.props?.checked)} onChange={(checked) => onUpdateProps({ checked })} />
+          <ToggleControl label="Disabled" checked={Boolean(selectedElement.props?.disabled)} onChange={(disabled) => onUpdateProps({ disabled })} />
+        </PropertyGroup>
+        <ControlStyleFields style={selectedElement.style} onUpdateStyle={onUpdateStyle} />
+      </>
+    );
+  }
+
+  if (selectedElement.type === "radio") {
+    return (
+      <>
+        <PropertyGroup title="Radio group">
+          <FieldLabel>Label</FieldLabel>
+          <Input aria-label="Radio label" value={String(selectedElement.props?.label ?? "")} className="mt-1 h-9" onChange={(event) => onUpdateProps({ label: event.target.value })} />
+          <FieldLabel>Options (comma separated)</FieldLabel>
+          <Input aria-label="Radio options" value={arrayProp(selectedElement.props?.options).join(", ")} className="mt-1 h-9" onChange={(event) => onUpdateProps({ options: splitOptions(event.target.value) })} />
         </PropertyGroup>
         <ControlStyleFields style={selectedElement.style} onUpdateStyle={onUpdateStyle} />
       </>
@@ -480,6 +589,26 @@ function TypeSpecificFields({
         <PropertyGroup title="Stat style">
           <VisualTokenControl label="Value size" value={selectedElement.style.stat.valueSize} options={toOptions(["md", "lg", "xl"])} variant="textSize" onChange={(valueSize) => onUpdateStyle({ stat: { valueSize } } as Partial<DesignElementStyle>)} />
           <SegmentedControl label="Trend position" value={selectedElement.style.stat.trendPosition} options={toOptions(["inline", "below"])} onChange={(trendPosition) => onUpdateStyle({ stat: { trendPosition } } as Partial<DesignElementStyle>)} />
+        </PropertyGroup>
+      </>
+    );
+  }
+
+  if (selectedElement.type === "progress") {
+    return (
+      <>
+        <PropertyGroup title="Progress">
+          <FieldLabel>Label</FieldLabel>
+          <VariableTextEditor ariaLabel="Progress label" value={String(selectedElement.props?.label ?? "")} variables={variables} onChange={(value) => onUpdateProps({ label: value })} />
+          <FieldLabel>Value</FieldLabel>
+          <Input aria-label="Progress value" type="number" min={0} value={Number(selectedElement.props?.value ?? 0)} className="mt-1 h-9" onChange={(event) => onUpdateProps({ value: Number(event.target.value) })} />
+          <FieldLabel>Maximum</FieldLabel>
+          <Input aria-label="Progress maximum" type="number" min={1} value={Number(selectedElement.props?.max ?? 100)} className="mt-1 h-9" onChange={(event) => onUpdateProps({ max: Number(event.target.value) })} />
+        </PropertyGroup>
+        <PropertyGroup title="Progress style">
+          <SegmentedControl label="Size" value={selectedElement.style.progress.size} options={toOptions(["sm", "md", "lg"])} onChange={(size) => onUpdateStyle({ progress: { size } } as Partial<DesignElementStyle>)} />
+          <SegmentedControl label="Label position" value={selectedElement.style.progress.labelPosition} options={toOptions(["top", "inline", "hidden"])} onChange={(labelPosition) => onUpdateStyle({ progress: { labelPosition } } as Partial<DesignElementStyle>)} />
+          <ToggleControl label="Show value" checked={selectedElement.style.progress.showValue} onChange={(showValue) => onUpdateStyle({ progress: { showValue } } as Partial<DesignElementStyle>)} />
         </PropertyGroup>
       </>
     );
@@ -1032,4 +1161,8 @@ function cssUrl(value: string) {
 
 function arrayProp(value: unknown) {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+}
+
+function splitOptions(value: string) {
+  return value.split(",").map((item) => item.trim()).filter(Boolean);
 }

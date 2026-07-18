@@ -22,12 +22,20 @@ export type VariableDiagnostic = {
 
 const BINDABLE_PROPERTIES: Partial<Record<DesignElement["type"], string[]>> = {
   text: ["text"],
+  link: ["label", "href"],
   button: ["label"],
   image: ["alt"],
+  avatar: ["name", "alt"],
   input: ["label", "placeholder"],
+  textarea: ["label", "placeholder"],
+  select: ["label", "placeholder"],
+  checkbox: ["label"],
+  radio: ["label"],
+  switch: ["label"],
   badge: ["label"],
   divider: ["label"],
-  stat: ["label", "value", "delta"]
+  stat: ["label", "value", "delta"],
+  progress: ["label"]
 };
 
 export function findVariableReferences(document: DesignDocument, variablePath?: string): VariableReference[] {
