@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { designDocumentSchema } from "@flowmind/shared";
+import { designDocumentSchema, designElementSchema } from "@flowmind/shared";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { aiGeneratedDesignDocument } from "./aiGeneratedDesignDocument";
@@ -344,6 +344,37 @@ describe("LowCodePage design builder", () => {
     expect(materials.filter((item) => item.type === "stack")).toHaveLength(1);
     expect(materials.some((item) => item.type === "section")).toBe(false);
     expect(materials.some((item) => item.type === "divider")).toBe(true);
+  });
+
+  it("creates schema-valid elements for every expanded material", () => {
+    for (const id of ["link", "avatar", "textarea", "select", "checkbox", "radio", "switch", "progress"] as const) {
+      const element = createElementFromMaterial(id);
+      expect(designElementSchema.safeParse(element).success, id).toBe(true);
+    }
+  });
+
+  it("renders every expanded material on the React canvas", () => {
+    const expanded = ["link", "avatar", "textarea", "select", "checkbox", "radio", "switch", "progress"].map((id) => createElementFromMaterial(id));
+    const document = designDocumentSchema.parse({
+      ...fallbackDesignDocument,
+      id: "doc_expanded_materials",
+      tree: {
+        ...fallbackDesignDocument.tree,
+        children: [...(fallbackDesignDocument.tree.children ?? []), ...expanded.map((element) => ({ id: element.id, children: [] }))]
+      },
+      elements: [...fallbackDesignDocument.elements, ...expanded]
+    });
+
+    const { container } = render(<LowCodePage initialDocument={document} loadStoredDocument={false} />);
+
+    expect(container.querySelector("[data-link-preview]")).not.toBeNull();
+    expect(container.querySelector("[data-avatar-preview]")).not.toBeNull();
+    expect(container.querySelector("[data-textarea-preview]")).not.toBeNull();
+    expect(container.querySelector("[data-select-preview]")).not.toBeNull();
+    expect(container.querySelector('[data-choice-preview="checkbox"]')).not.toBeNull();
+    expect(container.querySelector('[data-choice-preview="radio"]')).not.toBeNull();
+    expect(container.querySelector("[data-switch-preview]")).not.toBeNull();
+    expect(container.querySelector("[data-progress-preview]")).not.toBeNull();
   });
 
   it("exposes shape materials and inserts a schema-valid circle", () => {

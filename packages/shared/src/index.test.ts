@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { chatPartSchema, designDocumentSchema, designImageSlotSchema, hasPermission, lowCodePageSchema } from "./index.ts";
+import { chatPartSchema, designDocumentSchema, designElementSchema, designImageSlotSchema, hasPermission, lowCodePageSchema } from "./index.ts";
 import type { DesignDocument, DesignImageSlot } from "./index.ts";
 
 describe("shared contracts", () => {
@@ -148,6 +148,25 @@ describe("shared contracts", () => {
 
     expect(title?.type).toBe("text");
     if (title?.type === "text") expect(title.style.text.role).toBe("heading");
+  });
+
+  it("validates the expanded React-oriented material set", () => {
+    const base = {
+      backgroundColor: "transparent" as const,
+      radius: "md" as const,
+      border: { width: "none" as const, style: "solid" as const, color: "border" as const },
+      text: { color: "textPrimary" as const, fontFamily: "sans" as const, fontSize: "md" as const, fontWeight: "regular" as const, lineHeight: "normal" as const, align: "left" as const }
+    };
+    const elements = [
+      { type: "link", style: { base, text: { role: "body", decoration: "underline", transform: "none" } } },
+      { type: "avatar", style: { base, avatar: { size: "md", shape: "circle", fallback: "initials" } } },
+      ...["textarea", "select", "checkbox", "radio", "switch"].map((type) => ({ type, style: { base, control: { size: "md", labelPosition: "top", fieldGap: "sm" } } })),
+      { type: "progress", style: { base, progress: { size: "md", labelPosition: "top", showValue: true } } }
+    ];
+
+    for (const [index, element] of elements.entries()) {
+      expect(() => designElementSchema.parse({ id: `expanded_${index}`, name: `Expanded ${index}`, props: {}, ...element })).not.toThrow();
+    }
   });
 
   it("rejects style extensions that do not belong to the element type", () => {

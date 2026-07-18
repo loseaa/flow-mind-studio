@@ -1,17 +1,25 @@
 import {
+  AlignLeft,
   BadgeCheck,
   BarChart3,
+  CheckSquare,
   Circle,
+  CircleDot,
   FileText,
   Filter,
+  Gauge,
   Image,
+  Link,
+  ListFilter,
   Minus,
   PanelRight,
   RectangleHorizontal,
   Save,
   Square,
   Table2,
+  ToggleLeft,
   Type,
+  UserCircle,
   type LucideIcon
 } from "lucide-react";
 import type { DesignBaseStyle, DesignDocument, DesignElement, DesignElementStyle, DesignElementType, DesignLayout, DesignTreeNode, LowCodeImageAsset } from "@flowmind/shared";
@@ -36,10 +44,13 @@ export const materialCategories: Array<{ title: string; items: MaterialDefinitio
     title: "基础",
     items: [
       { id: "text", type: "text", label: "文本", desc: "标题、正文、辅助说明", icon: Type },
+      { id: "link", type: "link", label: "链接", desc: "站内导航或外部链接", icon: Link },
       { id: "button", type: "button", label: "按钮", desc: "主按钮、次按钮、动作入口", icon: Save },
       { id: "image", type: "image", label: "图片", desc: "封面、产品图、头像区域", icon: Image },
+      { id: "avatar", type: "avatar", label: "头像", desc: "用户头像、名称缩写占位", icon: UserCircle },
       { id: "badge", type: "badge", label: "徽标", desc: "状态、标签、轻量提示", icon: BadgeCheck },
-      { id: "divider", type: "divider", label: "分割线", desc: "区块、行内或步骤分隔", icon: Minus }
+      { id: "divider", type: "divider", label: "分割线", desc: "区块、行内或步骤分隔", icon: Minus },
+      { id: "progress", type: "progress", label: "进度条", desc: "任务进度、完成比例", icon: Gauge }
     ]
   },
   {
@@ -54,6 +65,11 @@ export const materialCategories: Array<{ title: string; items: MaterialDefinitio
     title: "表单",
     items: [
       { id: "input", type: "input", label: "输入框", desc: "文本输入或搜索框", icon: RectangleHorizontal },
+      { id: "textarea", type: "textarea", label: "文本域", desc: "多行文本和备注输入", icon: AlignLeft },
+      { id: "select", type: "select", label: "选择器", desc: "单选下拉选项", icon: ListFilter },
+      { id: "checkbox", type: "checkbox", label: "复选框", desc: "布尔选项和协议确认", icon: CheckSquare },
+      { id: "radio", type: "radio", label: "单选组", desc: "互斥选项组", icon: CircleDot },
+      { id: "switch", type: "switch", label: "开关", desc: "启用或关闭状态", icon: ToggleLeft },
       { id: "filter", type: "filter", label: "筛选区", desc: "搜索、选择器、日期范围", icon: Filter },
       { id: "form", type: "form", label: "表单区块", desc: "字段布局、校验、提交", icon: PanelRight }
     ]
@@ -293,7 +309,7 @@ function defaultStyleForElement(element: Pick<DesignElementSeed, "type">): Desig
       container: { shadow: "none", overflow: "visible", surface: element.type === "page" ? "flat" : "card" }
     };
   }
-  if (element.type === "text") {
+  if (element.type === "text" || element.type === "link") {
     const role = "body";
     return {
       base: baseStyle({
@@ -306,13 +322,16 @@ function defaultStyleForElement(element: Pick<DesignElementSeed, "type">): Desig
   if (element.type === "image") {
     return { base: baseStyle({ backgroundColor: "muted", radius: "lg", border: { width: "sm" } }), image: { aspectRatio: "wide", objectFit: "cover" } };
   }
+  if (element.type === "avatar") {
+    return { base: baseStyle({ backgroundColor: "muted", radius: "full", border: { width: "sm" }, text: { fontWeight: "semibold" } }), avatar: { size: "md", shape: "circle", fallback: "initials" } };
+  }
   if (element.type === "button") {
     return {
       base: baseStyle({ backgroundColor: "brand", radius: "md", border: { width: "none" }, text: { color: "white", fontWeight: "semibold" } }),
       button: { size: "md", emphasis: "primary" }
     };
   }
-  if (element.type === "input" || element.type === "filter" || element.type === "form") {
+  if (["input", "textarea", "select", "checkbox", "radio", "switch", "filter", "form"].includes(element.type)) {
     return { base: baseStyle({ backgroundColor: "white", radius: "md", border: { width: "sm" } }), control: { size: "md", labelPosition: "top", fieldGap: "sm" } };
   }
   if (element.type === "badge") {
@@ -326,6 +345,9 @@ function defaultStyleForElement(element: Pick<DesignElementSeed, "type">): Desig
   }
   if (element.type === "stat") {
     return { base: baseStyle({ backgroundColor: "muted", radius: "lg", border: { width: "sm" } }), stat: { valueSize: "xl", trendPosition: "below" } };
+  }
+  if (element.type === "progress") {
+    return { base: baseStyle({ backgroundColor: "muted", radius: "full", border: { width: "none" }, text: { fontSize: "sm", fontWeight: "medium" } }), progress: { size: "md", labelPosition: "top", showValue: true } };
   }
   return { base: baseStyle({ backgroundColor: "white", radius: "lg", border: { width: "sm" } }), table: { density: "default", zebra: false, headerBackground: "muted", borderMode: "rows" } };
 }
@@ -514,14 +536,35 @@ function createElementFromMaterialLegacy(materialId: MaterialDefinition["id"]): 
   if (type === "text") {
     return { ...element, props: { text: "新的文本内容" } };
   }
+  if (type === "link") {
+    return { ...element, props: { label: "链接文本", href: "#", target: "_self" } };
+  }
   if (type === "image") {
     return { ...element, props: { alt: "图片占位", src: DEFAULT_LOW_CODE_IMAGE_URL } };
+  }
+  if (type === "avatar") {
+    return { ...element, props: { alt: "用户头像", name: "FlowMind User", src: "" } };
   }
   if (type === "button") {
     return { ...element, props: { label: "动作按钮", action: "platformApi" } };
   }
   if (type === "input") {
     return { ...element, props: { label: "输入项", placeholder: "请输入内容" } };
+  }
+  if (type === "textarea") {
+    return { ...element, props: { label: "备注", placeholder: "请输入详细内容", rows: 4 } };
+  }
+  if (type === "select") {
+    return { ...element, props: { label: "选择项", placeholder: "请选择", options: ["选项一", "选项二", "选项三"] } };
+  }
+  if (type === "checkbox") {
+    return { ...element, props: { label: "同意此选项", checked: false } };
+  }
+  if (type === "radio") {
+    return { ...element, props: { label: "单选项", value: "选项一", options: ["选项一", "选项二"] } };
+  }
+  if (type === "switch") {
+    return { ...element, props: { label: "启用功能", checked: true } };
   }
   if (type === "badge") {
     return { ...element, props: { label: "状态标签" } };
@@ -548,6 +591,9 @@ function createElementFromMaterialLegacy(materialId: MaterialDefinition["id"]): 
   }
   if (type === "stat") {
     return { ...element, props: { label: "指标名称", value: "24", delta: "+6%" } };
+  }
+  if (type === "progress") {
+    return { ...element, props: { label: "完成进度", value: 64, max: 100 } };
   }
   if (type === "filter") {
     return { ...element, layout: { display: "flex", direction: "horizontal", gap: "sm" }, props: { fields: ["stage", "owner"] } };
@@ -815,12 +861,20 @@ function compositionForElements(elements: DesignElement[]) {
     section: "区块",
     stack: "Flex",
     text: "文本",
+    link: "链接",
     image: "图片",
+    avatar: "头像",
     button: "按钮",
     input: "输入框",
+    textarea: "文本域",
+    select: "选择器",
+    checkbox: "复选框",
+    radio: "单选组",
+    switch: "开关",
     badge: "徽标",
     divider: "分割线",
     shape: "形状",
+    progress: "进度条",
     stat: "指标卡",
     filter: "筛选区",
     table: "数据表格",

@@ -516,7 +516,30 @@ export const lowCodeImageAssetSchema = z.object({
 });
 export type LowCodeImageAsset = z.infer<typeof lowCodeImageAssetSchema>;
 
-export const designElementTypes = ["page", "section", "stack", "text", "image", "button", "input", "badge", "divider", "shape", "stat", "filter", "table", "form"] as const;
+export const designElementTypes = [
+  "page",
+  "section",
+  "stack",
+  "text",
+  "link",
+  "image",
+  "avatar",
+  "button",
+  "input",
+  "textarea",
+  "select",
+  "checkbox",
+  "radio",
+  "switch",
+  "badge",
+  "divider",
+  "shape",
+  "progress",
+  "stat",
+  "filter",
+  "table",
+  "form"
+] as const;
 export type DesignElementType = (typeof designElementTypes)[number];
 
 export const designSpacingValues = ["none", "xs", "sm", "md", "lg", "xl"] as const;
@@ -720,6 +743,15 @@ export const designImageElementStyleSchema = z.object({
   }).strict()
 }).strict();
 
+export const designAvatarElementStyleSchema = z.object({
+  base: designBaseStyleSchema,
+  avatar: z.object({
+    size: z.enum(["sm", "md", "lg", "xl"]),
+    shape: z.enum(["circle", "rounded"]),
+    fallback: z.enum(["initials", "icon"])
+  }).strict()
+}).strict();
+
 export const designButtonElementStyleSchema = z.object({
   base: designBaseStyleSchema,
   button: z.object({
@@ -782,17 +814,28 @@ export const designTableElementStyleSchema = z.object({
   }).strict()
 }).strict();
 
+export const designProgressElementStyleSchema = z.object({
+  base: designBaseStyleSchema,
+  progress: z.object({
+    size: z.enum(["sm", "md", "lg"]),
+    labelPosition: z.enum(["top", "inline", "hidden"]),
+    showValue: z.boolean()
+  }).strict()
+}).strict();
+
 export type DesignElementStyle =
   | z.infer<typeof designContainerStyleSchema>
   | z.infer<typeof designTextElementStyleSchema>
   | z.infer<typeof designImageElementStyleSchema>
+  | z.infer<typeof designAvatarElementStyleSchema>
   | z.infer<typeof designButtonElementStyleSchema>
   | z.infer<typeof designControlElementStyleSchema>
   | z.infer<typeof designBadgeElementStyleSchema>
   | z.infer<typeof designDividerElementStyleSchema>
   | z.infer<typeof designShapeElementStyleSchema>
   | z.infer<typeof designStatElementStyleSchema>
-  | z.infer<typeof designTableElementStyleSchema>;
+  | z.infer<typeof designTableElementStyleSchema>
+  | z.infer<typeof designProgressElementStyleSchema>;
 
 export const designTemplateSegmentSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("text"), value: z.string() }).strict(),
@@ -820,14 +863,22 @@ export const designElementSchema = z.discriminatedUnion("type", [
   designElementBaseSchema.extend({ type: z.literal("section"), style: designContainerStyleSchema }),
   designElementBaseSchema.extend({ type: z.literal("stack"), style: designContainerStyleSchema }),
   designElementBaseSchema.extend({ type: z.literal("text"), style: designTextElementStyleSchema }),
+  designElementBaseSchema.extend({ type: z.literal("link"), style: designTextElementStyleSchema }),
   designElementBaseSchema.extend({ type: z.literal("image"), style: designImageElementStyleSchema }),
+  designElementBaseSchema.extend({ type: z.literal("avatar"), style: designAvatarElementStyleSchema }),
   designElementBaseSchema.extend({ type: z.literal("button"), style: designButtonElementStyleSchema }),
   designElementBaseSchema.extend({ type: z.literal("input"), style: designControlElementStyleSchema }),
+  designElementBaseSchema.extend({ type: z.literal("textarea"), style: designControlElementStyleSchema }),
+  designElementBaseSchema.extend({ type: z.literal("select"), style: designControlElementStyleSchema }),
+  designElementBaseSchema.extend({ type: z.literal("checkbox"), style: designControlElementStyleSchema }),
+  designElementBaseSchema.extend({ type: z.literal("radio"), style: designControlElementStyleSchema }),
+  designElementBaseSchema.extend({ type: z.literal("switch"), style: designControlElementStyleSchema }),
   designElementBaseSchema.extend({ type: z.literal("filter"), style: designControlElementStyleSchema }),
   designElementBaseSchema.extend({ type: z.literal("form"), style: designControlElementStyleSchema }),
   designElementBaseSchema.extend({ type: z.literal("badge"), style: designBadgeElementStyleSchema }),
   designElementBaseSchema.extend({ type: z.literal("divider"), style: designDividerElementStyleSchema }),
   designElementBaseSchema.extend({ type: z.literal("shape"), style: designShapeElementStyleSchema }),
+  designElementBaseSchema.extend({ type: z.literal("progress"), style: designProgressElementStyleSchema }),
   designElementBaseSchema.extend({ type: z.literal("stat"), style: designStatElementStyleSchema }),
   designElementBaseSchema.extend({ type: z.literal("table"), style: designTableElementStyleSchema })
 ]);
