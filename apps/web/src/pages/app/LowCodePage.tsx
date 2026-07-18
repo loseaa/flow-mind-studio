@@ -24,6 +24,7 @@ import {
 import { elementMap, insertElement, insertElementTree, moveNode, removeNode, reparentNode, updateElement, updateElementLayout, updateElementProps, updateElementStyle } from "../../components/lowcode/designDocumentOps";
 import { diagnoseVariableReferences } from "../../components/lowcode/variableReferences";
 import { VariableWorkspace } from "../../components/lowcode/variables/VariableWorkspace";
+import { inferComponentTree, type InferableData } from "../../components/lowcode/componentInference";
 
 const STORAGE_KEY = "flowmind.lowcode.designDocument";
 
@@ -147,6 +148,21 @@ export function LowCodePage({
     setSelectedId(template.selectId ?? template.root.id);
   }
 
+  function addInferredComponent(input: InferableData, parentId = selectedElement?.id ?? document.tree.id, index?: number) {
+    const inferred = inferComponentTree(input);
+    commit((current) => insertElementTree(current, parentId, inferred.tree, index));
+    if (input.source === "queryResult") {
+      const queryKey = input.path.split(".")[1];
+      if (queryKey) {
+        setRuntimeQueries((current) => ({
+          ...current,
+          [queryKey]: { data: input.value, loading: false, error: null, updatedAt: new Date().toISOString() }
+        }));
+      }
+    }
+    setSelectedId(inferred.selectId);
+  }
+
   async function uploadImageMaterial(file: File | undefined) {
     if (!file) return;
     const asset = await apiUpload<LowCodeImageAsset>("/low-code/assets/images", file);
@@ -261,6 +277,7 @@ export function LowCodePage({
                 onAdd={(type, parentId, index) => addElement(type, parentId, index)}
                 onAddComplex={(id, parentId, index) => addComplexMaterial(id, parentId, index)}
                 onDeleteCustomComplex={deleteCustomComplexMaterial}
+                onInferData={addInferredComponent}
                 onOpenVariableWorkspace={() => setWorkspaceMode("data")}
                 onUploadImage={uploadImageMaterial}
               />

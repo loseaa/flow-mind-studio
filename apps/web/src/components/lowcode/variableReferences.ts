@@ -80,9 +80,6 @@ export function diagnoseVariableReferences(document: DesignDocument): VariableDi
     if (result.value === null) {
       return [{ severity: "warning", code: "VARIABLE_NULL_VALUE", reference, message: `变量 ${reference.variablePath} 的值为 null` }];
     }
-    if (typeof result.value === "object") {
-      return [{ severity: "error", code: "VARIABLE_NOT_RENDERABLE", reference, message: `变量 ${reference.variablePath} 不能作为文本渲染` }];
-    }
     if (reference.kind === "variable-binding") {
       const property = reference.propertyPath.slice("bindings.".length);
       const expected = bindingPropertyDefinition(reference.elementType, property)?.expectedType;
@@ -90,6 +87,10 @@ export function diagnoseVariableReferences(document: DesignDocument): VariableDi
         : expected === "array" ? Array.isArray(result.value)
           : typeof result.value === expected;
       if (!compatible) return [{ severity: "error", code: "BINDING_TYPE_MISMATCH", reference, message: `变量 ${reference.variablePath} 与 ${expected} 属性不兼容` }];
+      return [];
+    }
+    if (typeof result.value === "object") {
+      return [{ severity: "error", code: "VARIABLE_NOT_RENDERABLE", reference, message: `变量 ${reference.variablePath} 不能作为文本渲染` }];
     }
     return [];
   });

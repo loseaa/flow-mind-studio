@@ -237,6 +237,70 @@ describe("LowCodePage design builder", () => {
     expect(screen.getByRole("button", { name: "高级 JSON" })).toBeInTheDocument();
   });
 
+  it("infers a bound component when a page variable is selected from the drag palette", () => {
+    const document = structuredClone(fallbackDesignDocument);
+    document.variables = { stats: { total: 42 } };
+    const { container } = render(<LowCodePage initialDocument={document} loadStoredDocument={false} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "变量" }));
+    fireEvent.click(container.querySelector('[data-data-drag-path="stats.total"]') as HTMLElement);
+
+    clickSave(container);
+    const saved = designDocumentSchema.parse(JSON.parse(localStorage.getItem("flowmind.lowcode.designDocument") ?? "{}"));
+    const inferred = saved.elements.find((element) => element.type === "stat" && element.name === "total");
+    expect(inferred).toMatchObject({ bindings: { value: { kind: "variable", path: "stats.total" } } });
+    expect(container.querySelector(`[data-node-id="${inferred?.id}"] [data-stat-card]`)).toHaveTextContent("42");
+  });
+
+  it("runs a query before inferring a bound table from its output", async () => {
+    const originalFetch = globalThis.fetch;
+    const query = {
+      id: "query-customers",
+      organizationId: "org-local",
+      pageId: fallbackDesignDocument.id,
+      dataSourceId: "source-demo",
+      key: "customers",
+      name: "客户查询",
+      statement: "SELECT id, name FROM customers",
+      parameters: [],
+      outputSchema: {},
+      trigger: "manual",
+      timeoutMs: 5000,
+      maxRows: 100,
+      revision: 1,
+      enabled: true,
+      createdAt: "2026-07-15T00:00:00.000Z",
+      updatedAt: "2026-07-15T00:00:00.000Z"
+    };
+    globalThis.fetch = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/api/data-queries?pageId=")) return { ok: true, json: async () => [query] } as Response;
+      if (url.endsWith("/api/data-queries/query-customers/preview")) {
+        return { ok: true, json: async () => ({ rows: [{ id: 1, name: "Ada" }], rowCount: 1, fields: [{ name: "id" }, { name: "name" }], durationMs: 2, truncated: false }) } as Response;
+      }
+      return { ok: true, json: async () => [] } as Response;
+    }) as typeof fetch;
+
+    try {
+      const { container } = render(<LowCodePage />);
+      fireEvent.click(screen.getByRole("button", { name: "变量" }));
+      await screen.findByText("客户查询");
+      fireEvent.click(screen.getByRole("button", { name: "运行" }));
+      await waitFor(() => expect(container.querySelector('[data-data-drag-path="query.customers.data"]')).not.toBeNull());
+      fireEvent.click(container.querySelector('[data-data-drag-path="query.customers.data"]') as HTMLElement);
+
+      expect(container.querySelector('[data-node-id^="node_table_"]')).toHaveTextContent("Ada");
+      clickSave(container);
+      const saved = designDocumentSchema.parse(JSON.parse(localStorage.getItem("flowmind.lowcode.designDocument") ?? "{}"));
+      expect(saved.elements.find((element) => element.type === "table" && element.name === "客户查询")).toMatchObject({
+        props: { columns: ["id", "name"] },
+        bindings: { rows: { kind: "variable", path: "query.customers.data" } }
+      });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   it("searches page variables in the data workspace", () => {
     const document = structuredClone(fallbackDesignDocument);
     document.variables = { alphaValue: "first", betaValue: "second", designTheme: { theme: "enterprise" } };

@@ -70,4 +70,13 @@ describe("variable references", () => {
     expect(diagnoseVariableReferences(result.document)).toEqual([]);
   });
 
+  it("accepts array values bound to table rows", () => {
+    const document = structuredClone(fallbackDesignDocument);
+    document.variables = { query: { customers: { data: [{ id: 1, name: "Ada" }] } } };
+    const table = document.elements.find((element) => element.type === "table");
+    if (table) table.bindings = { rows: { kind: "variable", path: "query.customers.data" } };
+
+    expect(diagnoseVariableReferences(document)).toEqual([]);
+  });
+
 });

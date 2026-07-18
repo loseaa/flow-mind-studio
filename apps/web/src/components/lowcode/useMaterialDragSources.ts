@@ -130,7 +130,7 @@ function cancelMaterialDragArtifacts() {
   activeDropTarget = null;
   clearDropPlacementIndicator();
   document.querySelectorAll(".material-drag-preview").forEach((node) => node.remove());
-  document.querySelectorAll("[data-material-drag-source].opacity-45, [data-material-type].opacity-45, [data-complex-material-id].opacity-45, [data-builder-material-id].opacity-45").forEach((node) => node.classList.remove("opacity-45"));
+  document.querySelectorAll("[data-material-drag-source].opacity-45, [data-material-type].opacity-45, [data-complex-material-id].opacity-45, [data-builder-material-id].opacity-45, [data-data-drag-path].opacity-45").forEach((node) => node.classList.remove("opacity-45"));
   unlockNativeTextSelection();
 }
 

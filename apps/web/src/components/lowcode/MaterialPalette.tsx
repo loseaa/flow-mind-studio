@@ -1,17 +1,22 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { MutableRefObject, ReactNode } from "react";
-import { Upload } from "lucide-react";
-import type { DesignDocument } from "@flowmind/shared";
-import { Input } from "@flowmind/ui";
+import { Database, Play, Upload } from "lucide-react";
+import type { DataQuery, DataQueryResult, DesignDocument, JsonValue } from "@flowmind/shared";
+import { Button, Input } from "@flowmind/ui";
 import { aiActions, complexMaterialCategoriesFor, materialCategories, type ComplexMaterialDefinition, type MaterialDefinition } from "./lowcodeData";
 import { CustomScrollbar } from "../CustomScrollbar";
 import { preventNativeMaterialSelection, useMaterialDragSources } from "./useMaterialDragSources";
+import { apiGet, apiPostStrict } from "../../api";
+import { readVariablePath } from "./variablePath";
+import { INTERNAL_VARIABLE_KEYS } from "./variableVisibility";
+import type { InferableData } from "./componentInference";
 
 export function MaterialPalette({
   complexMaterials,
   onAdd,
   onAddComplex,
   onDeleteCustomComplex,
+  onInferData,
   onOpenVariableWorkspace,
   onUploadImage,
   document
@@ -21,23 +26,37 @@ export function MaterialPalette({
   onAdd: (materialId: MaterialDefinition["id"], parentId?: string, index?: number) => void;
   onAddComplex: (id: ComplexMaterialDefinition["id"], parentId?: string, index?: number) => void;
   onDeleteCustomComplex?: (id: ComplexMaterialDefinition["id"]) => void;
+  onInferData: (input: InferableData, parentId?: string, index?: number) => void;
   onOpenVariableWorkspace: () => void;
   onUploadImage: (file: File | undefined) => Promise<void> | void;
 }) {
   const onAddRef = useRef(onAdd);
   const onAddComplexRef = useRef(onAddComplex);
+  const onInferDataRef = useRef(onInferData);
+  const queryOutputsRef = useRef(new Map<string, { query: DataQuery; result: DataQueryResult }>());
   const [activeTab, setActiveTab] = useState<"basic" | "complex" | "variables">("complex");
   const [uploading, setUploading] = useState(false);
   onAddRef.current = onAdd;
   onAddComplexRef.current = onAddComplex;
+  onInferDataRef.current = onInferData;
 
   useMaterialDragSources({
-    selector: "[data-material-type], [data-complex-material-id]",
+    selector: "[data-material-type], [data-complex-material-id], [data-data-drag-path]",
     onDrop: (target, placement) => {
       const materialId = target.getAttribute("data-material-id") as MaterialDefinition["id"] | null;
       const complexId = target.getAttribute("data-complex-material-id") as ComplexMaterialDefinition["id"] | null;
       if (materialId) onAddRef.current(materialId, placement.parentId, placement.index);
       if (complexId) onAddComplexRef.current(complexId, placement.parentId, placement.index);
+      const path = target.getAttribute("data-data-drag-path");
+      const source = target.getAttribute("data-data-drag-source");
+      if (path && source === "pageVariable") {
+        const resolved = readVariablePath(document.variables, path);
+        if (resolved.ok) onInferDataRef.current({ source, path, label: target.getAttribute("data-data-label") || path, value: resolved.value }, placement.parentId, placement.index);
+      }
+      if (path && source === "queryResult") {
+        const output = queryOutputsRef.current.get(target.getAttribute("data-query-id") ?? "");
+        if (output) onInferDataRef.current(queryInferenceInput(output.query, output.result), placement.parentId, placement.index);
+      }
     }
   });
 
@@ -83,7 +102,7 @@ export function MaterialPalette({
         ) : activeTab === "complex" ? (
           <ComplexMaterialsTab complexMaterials={complexMaterials} onAddComplexRef={onAddComplexRef} onDeleteCustomComplex={onDeleteCustomComplex} />
         ) : (
-          <VariablesTab document={document} onOpenVariableWorkspace={onOpenVariableWorkspace} />
+          <VariablesTab document={document} onInferDataRef={onInferDataRef} onOpenVariableWorkspace={onOpenVariableWorkspace} queryOutputsRef={queryOutputsRef} />
         )}
       </div>
     </CustomScrollbar>
@@ -267,22 +286,133 @@ function ComplexMaterialsTab({
 
 function VariablesTab({
   document,
-  onOpenVariableWorkspace
+  onInferDataRef,
+  onOpenVariableWorkspace,
+  queryOutputsRef
 }: {
   document: DesignDocument;
+  onInferDataRef: MutableRefObject<(input: InferableData, parentId?: string, index?: number) => void>;
   onOpenVariableWorkspace: () => void;
+  queryOutputsRef: MutableRefObject<Map<string, { query: DataQuery; result: DataQueryResult }>>;
 }) {
-  const count = Object.keys(document.variables).length;
+  const variables = inferableVariableEntries(document.variables);
+  const [queries, setQueries] = useState<DataQuery[]>([]);
+  const [previews, setPreviews] = useState<Record<string, DataQueryResult>>({});
+  const [busyId, setBusyId] = useState("");
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    void apiGet<DataQuery[]>(`/data-queries?pageId=${encodeURIComponent(document.id)}`, []).then(setQueries);
+  }, [document.id]);
+
+  async function previewQuery(query: DataQuery) {
+    setBusyId(query.id);
+    setError("");
+    try {
+      const result = await apiPostStrict<DataQueryResult>(`/data-queries/${query.id}/preview`, { parameters: {} });
+      setPreviews((current) => ({ ...current, [query.id]: result }));
+      queryOutputsRef.current.set(query.id, { query, result });
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "查询预览失败");
+    } finally {
+      setBusyId("");
+    }
+  }
+
   return (
-    <div className="mt-4">
+    <div className="mt-4 space-y-5">
       <div>
-        <div className="text-sm font-bold">全局变量</div>
-        <p className="mt-1 text-xs leading-5 text-[#5b6472]">当前设计稿有 {count} 个顶层变量。请在宽屏工作区中管理结构、引用和诊断。</p>
+        <div className="flex items-center justify-between"><div className="text-sm font-bold">全局变量</div><span className="rounded bg-[#e8f4f2] px-1.5 py-0.5 text-[10px] font-bold text-[#0f766e]">组件推导</span></div>
+        <p className="mt-1 text-xs leading-5 text-[#5b6472]">拖拽变量到画布，自动生成匹配组件。</p>
+        <div className="mt-3 space-y-2">
+          {variables.map((entry) => (
+            <DataDragButton key={entry.path} label={entry.label} path={entry.path} source="pageVariable" summary={valueSummary(entry.value)} onActivate={() => onInferDataRef.current({ source: "pageVariable", path: entry.path, label: entry.label, value: entry.value })} />
+          ))}
+          {!variables.length ? <div className="rounded-md bg-[#f8fafb] p-3 text-xs text-[#8a94a3]">暂无可推导的页面变量</div> : null}
+        </div>
       </div>
-      <button className="mt-4 h-9 w-full rounded-md bg-[#0f766e] px-3 text-sm font-bold text-white hover:bg-[#0b625c]" type="button" onClick={onOpenVariableWorkspace}>打开数据与变量</button>
-      <div className="mt-3 rounded-lg border border-[#d9e1e8] bg-[#f8fafb] p-3 font-mono text-xs text-[#5b6472]">{"{{customer.name}}"}</div>
+      <section>
+        <SectionTitle>Query 输出</SectionTitle>
+        <p className="mt-1 text-xs leading-5 text-[#5b6472]">Query 运行并产生数据后才能拖拽。</p>
+        {error ? <div role="alert" className="mt-2 rounded-md bg-red-50 p-2 text-xs text-red-700">{error}</div> : null}
+        <div className="mt-3 space-y-2">
+          {queries.map((query) => {
+            const preview = previews[query.id];
+            return (
+              <div key={query.id} className="rounded-lg border border-[#d9e1e8] bg-white p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0"><div className="truncate text-xs font-bold text-[#101828]">{query.name}</div><code className="text-[10px] text-[#0f766e]">query.{query.key}.data</code></div>
+                  <Button className="h-7 shrink-0 px-2 text-[10px]" variant="secondary" disabled={busyId === query.id} onClick={() => void previewQuery(query)}><Play size={11} />{preview ? "刷新" : "运行"}</Button>
+                </div>
+                {preview ? <DataDragButton label={query.name} path={`query.${query.key}.data`} queryId={query.id} source="queryResult" summary={`${preview.rowCount} 行 · ${preview.fields.length} 字段`} onActivate={() => onInferDataRef.current(queryInferenceInput(query, preview))} /> : null}
+              </div>
+            );
+          })}
+          {!queries.length ? <div className="rounded-md bg-[#f8fafb] p-3 text-xs text-[#8a94a3]">当前页面还没有 Query</div> : null}
+        </div>
+      </section>
+      <button className="h-9 w-full rounded-md bg-[#0f766e] px-3 text-sm font-bold text-white hover:bg-[#0b625c]" type="button" onClick={onOpenVariableWorkspace}>打开数据与变量</button>
     </div>
   );
+}
+
+function DataDragButton({ label, onActivate, path, queryId, source, summary }: { label: string; onActivate: () => void; path: string; queryId?: string; source: InferableData["source"]; summary: string }) {
+  return (
+    <button
+      data-data-drag-path={path}
+      data-data-drag-source={source}
+      data-data-label={label}
+      data-query-id={queryId}
+      type="button"
+      className="mt-2 flex w-full cursor-grab touch-none select-none items-center gap-2 rounded-md border border-[#d9e1e8] bg-[#f8fafb] p-2.5 text-left hover:border-[#8fb9b2] hover:bg-[#f0faf8]"
+      onDragStart={preventNativeMaterialSelection}
+      onMouseDown={preventNativeMaterialSelection}
+      onPointerDown={preventNativeMaterialSelection}
+      onClick={(event) => {
+        if (event.currentTarget.getAttribute("data-was-dragged") === "true") {
+          event.currentTarget.removeAttribute("data-was-dragged");
+          return;
+        }
+        onActivate();
+      }}
+    >
+      <span className="grid h-7 w-7 shrink-0 place-items-center rounded bg-[#e8f4f2] text-[#0f766e]"><Database size={14} /></span>
+      <span className="min-w-0"><span className="block truncate text-xs font-bold text-[#101828]">{label}</span><span className="block truncate font-mono text-[10px] text-[#5b6472]">{path}</span><span className="block text-[10px] text-[#8a94a3]">{summary}</span></span>
+    </button>
+  );
+}
+
+function inferableVariableEntries(variables: DesignDocument["variables"]) {
+  const entries: Array<{ path: string; label: string; value: JsonValue }> = [];
+  for (const [key, value] of Object.entries(variables)) {
+    if (INTERNAL_VARIABLE_KEYS.has(key)) continue;
+    entries.push({ path: key, label: key, value });
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+      for (const [field, child] of Object.entries(value)) {
+        if (child === null || typeof child !== "object") entries.push({ path: `${key}.${field}`, label: field, value: child });
+      }
+    }
+  }
+  return entries;
+}
+
+function valueSummary(value: JsonValue) {
+  if (Array.isArray(value)) return `${value.length} 项数组`;
+  if (value && typeof value === "object") return `${Object.keys(value).length} 字段对象`;
+  if (value === null) return "空值";
+  return typeof value;
+}
+
+function queryInferenceInput(query: DataQuery, result: DataQueryResult): InferableData {
+  return {
+    source: "queryResult",
+    path: `query.${query.key}.data`,
+    label: query.name,
+    value: JSON.parse(JSON.stringify(result.rows)) as JsonValue,
+    columns: result.fields.map((field) => field.name),
+    queryId: query.id,
+    queryRevision: query.revision
+  };
 }
 
 function SectionTitle({ children }: { children: ReactNode }) {

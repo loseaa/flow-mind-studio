@@ -611,10 +611,11 @@ function StatPreview({ element, variables }: { element: DesignElement; variables
   if (element.type !== "stat") return null;
   const valueClass = element.style.stat.valueSize === "xl" ? "text-2xl" : element.style.stat.valueSize === "lg" ? "text-xl" : "text-lg";
   const compact = Boolean(element.props?.compact);
+  const value = resolveElementProperty(element, "value", variables, (element.props?.value ?? 0) as JsonValue, "number");
   return (
     <div data-stat-card className={`rounded-md border border-[#d9e1e8] ${slotFillClass(element)} ${compact ? "p-2" : "p-4"}`} style={baseVisualStyle(element.style.base)}>
       <div className="text-xs font-semibold opacity-80">{resolveVariableText(String(element.props?.label ?? element.name), variables)}</div>
-      <div className={`${compact ? "mt-0.5" : "mt-2"} font-bold text-[#101828] ${compact ? "text-sm" : valueClass}`}>{resolveVariableText(String(element.props?.value ?? "0"), variables)}</div>
+      <div className={`${compact ? "mt-0.5" : "mt-2"} font-bold text-[#101828] ${compact ? "text-sm" : valueClass}`}>{String(value)}</div>
       <div className={`${compact ? "mt-0 text-[11px]" : "mt-1 text-xs"} font-semibold`}>{resolveVariableText(String(element.props?.delta ?? ""), variables)}</div>
     </div>
   );

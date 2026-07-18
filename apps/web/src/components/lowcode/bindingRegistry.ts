@@ -18,6 +18,7 @@ const registry: Partial<Record<DesignElement["type"], Record<string, BindingProp
     alt: { expectedType: "string", modes: ["literal", "variable", "template"] },
     src: { expectedType: "url", modes: ["literal", "variable"] }
   },
+  stat: { value: { expectedType: "number", modes: ["literal", "variable"] } },
   table: { rows: { expectedType: "array", modes: ["literal", "variable"] } }
 };
 
